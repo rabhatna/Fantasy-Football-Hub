@@ -365,6 +365,9 @@ const INJURY_STATUSES = [
   "PUP", // ~5%
 ];
 
+// Statuses that mean the player is unavailable; the dashboard mirrors this list.
+const UNAVAILABLE_INJURY_STATUSES = ["IR", "PUP", "Out", "Doubtful"];
+
 // Position sequence for ranks 13-250 (238 players) mimicking realistic ADP mix
 // WR: ~92, RB: ~71, TE: ~36, QB: ~39
 const GEN_POSITIONS: string[] = (() => {
@@ -1273,7 +1276,10 @@ router.get("/players", (req, res) => {
       return false;
     if (typeof maxAdp === "number" && player.adp > maxAdp) return false;
     if (typeof minShare === "number" && player.share < minShare) return false;
-    if (excludeUnhealthy && ["PUP", "IR", "Out"].includes(player.injuryStatus))
+    if (
+      excludeUnhealthy &&
+      UNAVAILABLE_INJURY_STATUSES.includes(player.injuryStatus)
+    )
       return false;
     return true;
   });
