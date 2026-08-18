@@ -10,49 +10,143 @@ export interface HealthStatus {
 }
 
 export type PlayerNextGen = {
-  separation: number;
-  croe: number;
-  ryoe: number;
-  boxCount: number;
+  /** @nullable */
+  separation: number | null;
+  /** @nullable */
+  catchPct: number | null;
+  /** @nullable */
+  ryoe: number | null;
+  /** @nullable */
+  boxCount: number | null;
 };
 
 export type PlayerConsistency = {
-  floor: number;
-  ceiling: number;
-  boomRate: number;
-  bustRate: number;
+  /** @nullable */
+  floor: number | null;
+  /** @nullable */
+  median: number | null;
+  /** @nullable */
+  ceiling: number | null;
+  /** @nullable */
+  boomRate: number | null;
+  /** @nullable */
+  bustRate: number | null;
+  /** @nullable */
+  weeksPlayed: number | null;
 };
 
+/**
+ * Nullable fields are nullable because the source data genuinely lacks
+ * them, and a blank is not a zero. 33 of the 250 players took no 2025
+ * snaps (rookies, or a missed season) so they have no production at all,
+ * and Next Gen Stats are only recorded for the positions they apply to —
+ * separation and catch rate for receivers, rushing yards over expected
+ * and eight-plus-box rate for backs. Clients must render these as "no
+ * data", never as 0.
+ */
 export interface Player {
+  /** nflverse gsis_id — stable across dataset refreshes. */
   id: string;
   rank: number;
   name: string;
   team: string;
   position: string;
   adp: number;
-  valueScore: number;
-  ppg: number;
-  share: number;
-  oLineGrade: number;
-  injuryStatus: string;
-  byeWeek: number;
+  /** @nullable */
+  adpSource?: string | null;
+  /**
+     * Production-versus-price gap in standard deviations, roughly
+     * Z(2025 positional finish) - Z(2026 ADP). Positive means the player
+     * produced better than his draft cost implies. Spans about -3 to
+     * +2.5 — this is not a 0-10 rating and must not be rendered as one.
+     * @nullable
+     */
+  valueScore?: number | null;
+  /** @nullable */
+  marketVerdict?: string | null;
+  /** @nullable */
+  ppg?: number | null;
+  /**
+     * Carry share for backs, target share for pass catchers, null for passers. Computed over weeks the player took a snap.
+     * @nullable
+     */
+  share?: number | null;
+  /** @nullable */
+  oLineGrade?: number | null;
+  /**
+     * Always null for now. The dataset is built from completed-season
+     * production and market data and carries no availability status;
+     * live status comes from a separate source.
+     * @nullable
+     */
+  injuryStatus?: string | null;
+  /** @nullable */
+  byeWeek?: number | null;
   tier: number;
-  durabilityScore: number;
-  productionFinish: number;
+  /** @nullable */
+  durabilityScore?: number | null;
+  /** @nullable */
+  productionFinish?: number | null;
+  /** @nullable */
+  age?: number | null;
+  isRookie: boolean;
+  /** @nullable */
+  gamesPlayed?: number | null;
+  /** @nullable */
+  snapShare?: number | null;
+  /**
+     * Dataset annotation, e.g. why a player has no 2025 production.
+     * @nullable
+     */
+  note?: string | null;
   nextGen: PlayerNextGen;
   consistency: PlayerConsistency;
-  weeklyScores: number[];
 }
 
 export interface Team {
   team: string;
   fullName: string;
-  aly: number;
-  stuffRate: number;
-  passBlockGrade: number;
-  proe: number;
-  snapContinuity: number;
-  vacatedOpportunity: number;
+  /**
+     * Adjusted line yards. Real values span roughly 2.4-3.5.
+     * @nullable
+     */
+  aly?: number | null;
+  /**
+     * Percentage
+     * @nullable
+     */
+  stuffRate?: number | null;
+  /** @nullable */
+  runBlockGrade?: number | null;
+  /** @nullable */
+  passBlockGrade?: number | null;
+  /** @nullable */
+  olGrade?: number | null;
+  /**
+     * Pass rate over expected
+     * @nullable
+     */
+  proe?: number | null;
+  /**
+     * Percentage of 2025 OL snaps returning in 2026.
+     * @nullable
+     */
+  snapContinuity?: number | null;
+  /** @nullable */
+  vacatedTargets?: number | null;
+  /** @nullable */
+  vacatedCarries?: number | null;
+  /** @nullable */
+  vacatedOpportunity?: number | null;
+  /** @nullable */
+  pointsPerGame?: number | null;
+  /** @nullable */
+  playsPerGame?: number | null;
+  /** @nullable */
+  returningStarters?: number | null;
+  /** @nullable */
+  compositeScore?: number | null;
+  tier: string;
   trend: string;
 }
 
@@ -79,7 +173,10 @@ export interface DraftSummary {
   playersTracked: number;
   draftedCount: number;
   averageAdp: number;
+  /** Players whose production materially outran their draft cost (value score of at least +0.5 SD). */
   valueTargets: number;
+  /** Scrape date of the dataset currently loaded, e.g. 2026-08-14. */
+  snapshotVersion: string;
   positionalNeeds: DraftSummaryPositionalNeeds;
   lastRefresh: string;
 }
@@ -120,11 +217,16 @@ export interface PlayerNote {
 export interface OLTeamScore {
   team: string;
   fullName: string;
-  compositeScore: number;
-  aly: number;
-  stuffRate: number;
-  passBlockGrade: number;
-  snapContinuity: number;
+  /** @nullable */
+  compositeScore?: number | null;
+  /** @nullable */
+  aly?: number | null;
+  /** @nullable */
+  stuffRate?: number | null;
+  /** @nullable */
+  passBlockGrade?: number | null;
+  /** @nullable */
+  snapContinuity?: number | null;
   trend: string;
   tier: string;
 }
@@ -134,9 +236,12 @@ export interface RBOLImpact {
   playerName: string;
   team: string;
   rank: number;
-  valueScore: number;
-  ppg: number;
-  olCompositeScore: number;
+  /** @nullable */
+  valueScore?: number | null;
+  /** @nullable */
+  ppg?: number | null;
+  /** @nullable */
+  olCompositeScore?: number | null;
   olTier: string;
   impactLabel: string;
   blurb: string;

@@ -8,23 +8,70 @@
 import type { PlayerConsistency } from './playerConsistency';
 import type { PlayerNextGen } from './playerNextGen';
 
+/**
+ * Nullable fields are nullable because the source data genuinely lacks
+ * them, and a blank is not a zero. 33 of the 250 players took no 2025
+ * snaps (rookies, or a missed season) so they have no production at all,
+ * and Next Gen Stats are only recorded for the positions they apply to —
+ * separation and catch rate for receivers, rushing yards over expected
+ * and eight-plus-box rate for backs. Clients must render these as "no
+ * data", never as 0.
+ */
 export interface Player {
+  /** nflverse gsis_id — stable across dataset refreshes. */
   id: string;
   rank: number;
   name: string;
   team: string;
   position: string;
   adp: number;
-  valueScore: number;
-  ppg: number;
-  share: number;
-  oLineGrade: number;
-  injuryStatus: string;
-  byeWeek: number;
+  /** @nullable */
+  adpSource?: string | null;
+  /**
+     * Production-versus-price gap in standard deviations, roughly
+     * Z(2025 positional finish) - Z(2026 ADP). Positive means the player
+     * produced better than his draft cost implies. Spans about -3 to
+     * +2.5 — this is not a 0-10 rating and must not be rendered as one.
+     * @nullable
+     */
+  valueScore?: number | null;
+  /** @nullable */
+  marketVerdict?: string | null;
+  /** @nullable */
+  ppg?: number | null;
+  /**
+     * Carry share for backs, target share for pass catchers, null for passers. Computed over weeks the player took a snap.
+     * @nullable
+     */
+  share?: number | null;
+  /** @nullable */
+  oLineGrade?: number | null;
+  /**
+     * Always null for now. The dataset is built from completed-season
+     * production and market data and carries no availability status;
+     * live status comes from a separate source.
+     * @nullable
+     */
+  injuryStatus?: string | null;
+  /** @nullable */
+  byeWeek?: number | null;
   tier: number;
-  durabilityScore: number;
-  productionFinish: number;
+  /** @nullable */
+  durabilityScore?: number | null;
+  /** @nullable */
+  productionFinish?: number | null;
+  /** @nullable */
+  age?: number | null;
+  isRookie: boolean;
+  /** @nullable */
+  gamesPlayed?: number | null;
+  /** @nullable */
+  snapShare?: number | null;
+  /**
+     * Dataset annotation, e.g. why a player has no 2025 production.
+     * @nullable
+     */
+  note?: string | null;
   nextGen: PlayerNextGen;
   consistency: PlayerConsistency;
-  weeklyScores: number[];
 }

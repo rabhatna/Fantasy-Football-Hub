@@ -9,11 +9,16 @@
 export interface OLTeamScore {
   team: string;
   fullName: string;
-  compositeScore: number;
-  aly: number;
-  stuffRate: number;
-  passBlockGrade: number;
-  snapContinuity: number;
+  /** @nullable */
+  compositeScore?: number | null;
+  /** @nullable */
+  aly?: number | null;
+  /** @nullable */
+  stuffRate?: number | null;
+  /** @nullable */
+  passBlockGrade?: number | null;
+  /** @nullable */
+  snapContinuity?: number | null;
   trend: string;
   tier: string;
 }

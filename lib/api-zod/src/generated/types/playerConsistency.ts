@@ -7,8 +7,16 @@
  */
 
 export type PlayerConsistency = {
-  floor: number;
-  ceiling: number;
-  boomRate: number;
-  bustRate: number;
+  /** @nullable */
+  floor: number | null;
+  /** @nullable */
+  median: number | null;
+  /** @nullable */
+  ceiling: number | null;
+  /** @nullable */
+  boomRate: number | null;
+  /** @nullable */
+  bustRate: number | null;
+  /** @nullable */
+  weeksPlayed: number | null;
 };

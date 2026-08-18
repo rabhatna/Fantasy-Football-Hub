@@ -11,7 +11,10 @@ export interface DraftSummary {
   playersTracked: number;
   draftedCount: number;
   averageAdp: number;
+  /** Players whose production materially outran their draft cost (value score of at least +0.5 SD). */
   valueTargets: number;
+  /** Scrape date of the dataset currently loaded, e.g. 2026-08-14. */
+  snapshotVersion: string;
   positionalNeeds: DraftSummaryPositionalNeeds;
   lastRefresh: string;
 }
