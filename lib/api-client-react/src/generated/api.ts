@@ -28,6 +28,8 @@ import type {
   NewsItem,
   OLImpactAnalysis,
   Player,
+  PlayerNote,
+  PlayerNoteInput,
   RefreshStatus,
   Team
 } from './api.schemas';
@@ -529,6 +531,83 @@ export function useGetDraftSummary<TData = Awaited<ReturnType<typeof getDraftSum
 
 
 
+export const getGetDraftPicksUrl = () => {
+
+
+
+
+  return `/api/draft/picks`
+}
+
+/**
+ * @summary List drafted players
+ */
+export const getDraftPicks = async ( options?: Parameters<typeof customFetch>[1]): Promise<DraftPick[]> => {
+
+  return customFetch<DraftPick[]>(getGetDraftPicksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDraftPicksQueryKey = () => {
+    return [
+    `/api/draft/picks`
+    ] as const;
+    }
+
+
+export const getGetDraftPicksQueryOptions = <TData = Awaited<ReturnType<typeof getDraftPicks>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftPicks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDraftPicksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDraftPicks>>> = ({ signal }) => getDraftPicks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDraftPicks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDraftPicksQueryResult = NonNullable<Awaited<ReturnType<typeof getDraftPicks>>>
+export type GetDraftPicksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List drafted players
+ */
+
+export function useGetDraftPicks<TData = Awaited<ReturnType<typeof getDraftPicks>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftPicks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDraftPicksQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getSaveDraftPickUrl = () => {
 
 
@@ -598,6 +677,227 @@ export const useSaveDraftPick = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSaveDraftPickMutationOptions(options));
+    }
+
+export const getDeleteDraftPickUrl = (playerId: string,) => {
+
+
+
+
+  return `/api/draft/picks/${playerId}`
+}
+
+/**
+ * Removes the pick for a player, so a misclick on a persistent board can be corrected.
+ * @summary Undo a drafted player
+ */
+export const deleteDraftPick = async (playerId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteDraftPickUrl(playerId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteDraftPickMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDraftPick>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteDraftPick>>, TError,{playerId: string}, TContext> => {
+
+const mutationKey = ['deleteDraftPick'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteDraftPick>>, {playerId: string}> = (props) => {
+          const {playerId} = props ?? {};
+
+          return  deleteDraftPick(playerId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteDraftPickMutationResult = NonNullable<Awaited<ReturnType<typeof deleteDraftPick>>>
+
+    export type DeleteDraftPickMutationError = ErrorType<void>
+
+    /**
+ * @summary Undo a drafted player
+ */
+export const useDeleteDraftPick = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDraftPick>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteDraftPick>>,
+        TError,
+        {playerId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteDraftPickMutationOptions(options));
+    }
+
+export const getGetNotesUrl = () => {
+
+
+
+
+  return `/api/notes`
+}
+
+/**
+ * @summary List all player notes
+ */
+export const getNotes = async ( options?: Parameters<typeof customFetch>[1]): Promise<PlayerNote[]> => {
+
+  return customFetch<PlayerNote[]>(getGetNotesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNotesQueryKey = () => {
+    return [
+    `/api/notes`
+    ] as const;
+    }
+
+
+export const getGetNotesQueryOptions = <TData = Awaited<ReturnType<typeof getNotes>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNotes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNotesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNotes>>> = ({ signal }) => getNotes({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNotes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNotesQueryResult = NonNullable<Awaited<ReturnType<typeof getNotes>>>
+export type GetNotesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all player notes
+ */
+
+export function useGetNotes<TData = Awaited<ReturnType<typeof getNotes>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNotes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNotesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSavePlayerNoteUrl = (playerId: string,) => {
+
+
+
+
+  return `/api/notes/${playerId}`
+}
+
+/**
+ * @summary Create or replace a player note
+ */
+export const savePlayerNote = async (playerId: string,
+    playerNoteInput: PlayerNoteInput, options?: Parameters<typeof customFetch>[1]): Promise<PlayerNote> => {
+
+  return customFetch<PlayerNote>(getSavePlayerNoteUrl(playerId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(playerNoteInput)
+  }
+);}
+
+
+
+
+
+export const getSavePlayerNoteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePlayerNote>>, TError,{playerId: string;data: BodyType<PlayerNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof savePlayerNote>>, TError,{playerId: string;data: BodyType<PlayerNoteInput>}, TContext> => {
+
+const mutationKey = ['savePlayerNote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof savePlayerNote>>, {playerId: string;data: BodyType<PlayerNoteInput>}> = (props) => {
+          const {playerId,data} = props ?? {};
+
+          return  savePlayerNote(playerId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SavePlayerNoteMutationResult = NonNullable<Awaited<ReturnType<typeof savePlayerNote>>>
+    export type SavePlayerNoteMutationBody = BodyType<PlayerNoteInput>
+    export type SavePlayerNoteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create or replace a player note
+ */
+export const useSavePlayerNote = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePlayerNote>>, TError,{playerId: string;data: BodyType<PlayerNoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof savePlayerNote>>,
+        TError,
+        {playerId: string;data: BodyType<PlayerNoteInput>},
+        TContext
+      > => {
+      return useMutation(getSavePlayerNoteMutationOptions(options));
     }
 
 export const getGetOLImpactUrl = () => {

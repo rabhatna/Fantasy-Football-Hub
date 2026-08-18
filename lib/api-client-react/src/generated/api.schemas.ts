@@ -89,11 +89,32 @@ export interface DraftPickInput {
   pickNumber: number;
 }
 
+/**
+ * playerName, team and position are denormalised onto the pick on
+ * purpose. playerId is derived from the player's name in the current
+ * dataset and changes when the dataset is refreshed, so these fields are
+ * what let an existing board be re-linked to new ids — and what make the
+ * stored CSV readable when opened in a spreadsheet.
+ */
 export interface DraftPick {
   id: string;
   playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
   pickNumber: number;
   draftedAt: string;
+}
+
+export interface PlayerNoteInput {
+  note: string;
+}
+
+export interface PlayerNote {
+  playerId: string;
+  playerName: string;
+  note: string;
+  updatedAt: string;
 }
 
 export interface OLTeamScore {

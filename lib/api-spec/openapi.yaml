@@ -128,6 +128,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/DraftSummary"
   /draft/picks:
+    get:
+      operationId: getDraftPicks
+      tags: [draft]
+      summary: List drafted players
+      responses:
+        "200":
+          description: Picks saved for this board
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DraftPick"
     post:
       operationId: saveDraftPick
       tags: [draft]
@@ -145,6 +158,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DraftPick"
+  /draft/picks/{playerId}:
+    delete:
+      operationId: deleteDraftPick
+      tags: [draft]
+      summary: Undo a drafted player
+      description: Removes the pick for a player, so a misclick on a persistent board can be corrected.
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Pick removed
+        "404":
+          description: No pick found for that player
+  /notes:
+    get:
+      operationId: getNotes
+      tags: [draft]
+      summary: List all player notes
+      responses:
+        "200":
+          description: Saved notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlayerNote"
+  /notes/{playerId}:
+    put:
+      operationId: savePlayerNote
+      tags: [draft]
+      summary: Create or replace a player note
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlayerNoteInput"
+      responses:
+        "200":
+          description: Saved note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerNote"
   /ol-impact:
     get:
       operationId: getOLImpact
@@ -267,12 +333,34 @@ components:
         pickNumber: { type: number }
     DraftPick:
       type: object
-      required: [id, playerId, pickNumber, draftedAt]
+      description: |
+        playerName, team and position are denormalised onto the pick on
+        purpose. playerId is derived from the player's name in the current
+        dataset and changes when the dataset is refreshed, so these fields are
+        what let an existing board be re-linked to new ids — and what make the
+        stored CSV readable when opened in a spreadsheet.
+      required: [id, playerId, playerName, team, position, pickNumber, draftedAt]
       properties:
         id: { type: string }
         playerId: { type: string }
+        playerName: { type: string }
+        team: { type: string }
+        position: { type: string }
         pickNumber: { type: number }
         draftedAt: { type: string }
+    PlayerNoteInput:
+      type: object
+      required: [note]
+      properties:
+        note: { type: string }
+    PlayerNote:
+      type: object
+      required: [playerId, playerName, note, updatedAt]
+      properties:
+        playerId: { type: string }
+        playerName: { type: string }
+        note: { type: string }
+        updatedAt: { type: string }
     OLTeamScore:
       type: object
       required: [team, fullName, compositeScore, aly, stuffRate, passBlockGrade, snapContinuity, trend, tier]

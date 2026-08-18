@@ -77,6 +77,9 @@ importers:
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
+      '@workspace/store':
+        specifier: workspace:*
+        version: link:../../lib/store
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -318,6 +321,12 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 3.25.76
+
+  lib/store:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.5
 
   scripts:
     devDependencies:

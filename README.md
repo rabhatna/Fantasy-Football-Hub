@@ -31,7 +31,24 @@ on port 8080, so both work from one origin in the browser.
 | `pnpm --filter @workspace/api-spec run codegen` | Regenerate React Query hooks and Zod schemas from the OpenAPI spec |
 
 Environment variables all have local defaults: `PORT` (8080 API / 5173 web),
-`HOST` (127.0.0.1), `BASE_PATH` (`/`), `API_URL` (the dev proxy target).
+`HOST` (127.0.0.1), `BASE_PATH` (`/`), `API_URL` (the dev proxy target), and
+`DATA_DIR` (`./data`).
+
+## Your data
+
+Draft state persists to CSV files under `DATA_DIR`, so it survives a restart, a
+rebuilt container, and a cleared browser:
+
+```
+data/user/draft_picks.csv    your board
+data/user/player_notes.csv   your notes
+data/user/backups/           snapshot taken before each session's first write
+```
+
+These are ordinary CSVs — open them in Excel, edit them, save, then hit
+**Refresh** in the app to reload from disk. Every write goes to a temp file and
+is renamed over the target, so an interrupted write cannot leave a truncated
+file. `data/` is gitignored.
 
 ## Layout
 
@@ -54,7 +71,6 @@ TanStack Query · Zod · Orval codegen · esbuild
   seeded PRNG using pools of first and last names; only the top 12 are real
   names, with invented numbers. The genuine dataset in `attached_assets/` is not
   yet wired in.
-- **Nothing persists.** Draft picks live in an in-memory array that dies with the
-  process, mirrored into browser `localStorage`. Player notes are localStorage
-  only. Both are lost on a restart or a cleared browser profile.
 - The news feed is five hardcoded headlines.
+- Reference data (the player list itself) is not yet file-backed — only your
+  draft state is. That arrives with the real dataset.
