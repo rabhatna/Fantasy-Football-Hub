@@ -7,8 +7,12 @@
  */
 
 export type PlayerNextGen = {
-  separation: number;
-  croe: number;
-  ryoe: number;
-  boxCount: number;
+  /** @nullable */
+  separation: number | null;
+  /** @nullable */
+  catchPct: number | null;
+  /** @nullable */
+  ryoe: number | null;
+  /** @nullable */
+  boxCount: number | null;
 };

@@ -9,11 +9,46 @@
 export interface Team {
   team: string;
   fullName: string;
-  aly: number;
-  stuffRate: number;
-  passBlockGrade: number;
-  proe: number;
-  snapContinuity: number;
-  vacatedOpportunity: number;
+  /**
+     * Adjusted line yards. Real values span roughly 2.4-3.5.
+     * @nullable
+     */
+  aly?: number | null;
+  /**
+     * Percentage
+     * @nullable
+     */
+  stuffRate?: number | null;
+  /** @nullable */
+  runBlockGrade?: number | null;
+  /** @nullable */
+  passBlockGrade?: number | null;
+  /** @nullable */
+  olGrade?: number | null;
+  /**
+     * Pass rate over expected
+     * @nullable
+     */
+  proe?: number | null;
+  /**
+     * Percentage of 2025 OL snaps returning in 2026.
+     * @nullable
+     */
+  snapContinuity?: number | null;
+  /** @nullable */
+  vacatedTargets?: number | null;
+  /** @nullable */
+  vacatedCarries?: number | null;
+  /** @nullable */
+  vacatedOpportunity?: number | null;
+  /** @nullable */
+  pointsPerGame?: number | null;
+  /** @nullable */
+  playsPerGame?: number | null;
+  /** @nullable */
+  returningStarters?: number | null;
+  /** @nullable */
+  compositeScore?: number | null;
+  tier: string;
   trend: string;
 }

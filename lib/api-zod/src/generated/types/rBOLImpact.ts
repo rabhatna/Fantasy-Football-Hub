@@ -11,9 +11,12 @@ export interface RBOLImpact {
   playerName: string;
   team: string;
   rank: number;
-  valueScore: number;
-  ppg: number;
-  olCompositeScore: number;
+  /** @nullable */
+  valueScore?: number | null;
+  /** @nullable */
+  ppg?: number | null;
+  /** @nullable */
+  olCompositeScore?: number | null;
   olTier: string;
   impactLabel: string;
   blurb: string;

@@ -247,54 +247,96 @@ components:
         - status
     Player:
       type: object
-      required: [id, rank, name, team, position, adp, valueScore, ppg, share, oLineGrade, injuryStatus, byeWeek, tier, durabilityScore, productionFinish, nextGen, consistency, weeklyScores]
+      description: |
+        Nullable fields are nullable because the source data genuinely lacks
+        them, and a blank is not a zero. 33 of the 250 players took no 2025
+        snaps (rookies, or a missed season) so they have no production at all,
+        and Next Gen Stats are only recorded for the positions they apply to —
+        separation and catch rate for receivers, rushing yards over expected
+        and eight-plus-box rate for backs. Clients must render these as "no
+        data", never as 0.
+      required: [id, rank, name, team, position, adp, tier, isRookie, nextGen, consistency]
       properties:
-        id: { type: string }
+        id:
+          type: string
+          description: nflverse gsis_id — stable across dataset refreshes.
         rank: { type: number }
         name: { type: string }
         team: { type: string }
         position: { type: string }
         adp: { type: number }
-        valueScore: { type: number }
-        ppg: { type: number }
-        share: { type: number }
-        oLineGrade: { type: number }
-        injuryStatus: { type: string }
-        byeWeek: { type: number }
+        adpSource: { type: [string, "null"] }
+        valueScore:
+          type: [number, "null"]
+          description: |
+            Production-versus-price gap in standard deviations, roughly
+            Z(2025 positional finish) - Z(2026 ADP). Positive means the player
+            produced better than his draft cost implies. Spans about -3 to
+            +2.5 — this is not a 0-10 rating and must not be rendered as one.
+        marketVerdict: { type: [string, "null"] }
+        ppg: { type: [number, "null"] }
+        share:
+          type: [number, "null"]
+          description: Carry share for backs, target share for pass catchers, null for passers. Computed over weeks the player took a snap.
+        oLineGrade: { type: [number, "null"] }
+        injuryStatus:
+          type: [string, "null"]
+          description: |
+            Always null for now. The dataset is built from completed-season
+            production and market data and carries no availability status;
+            live status comes from a separate source.
+        byeWeek: { type: [number, "null"] }
         tier: { type: number }
-        durabilityScore: { type: number }
-        productionFinish: { type: number }
+        durabilityScore: { type: [number, "null"] }
+        productionFinish: { type: [number, "null"] }
+        age: { type: [number, "null"] }
+        isRookie: { type: boolean }
+        gamesPlayed: { type: [number, "null"] }
+        snapShare: { type: [number, "null"] }
+        note:
+          type: [string, "null"]
+          description: Dataset annotation, e.g. why a player has no 2025 production.
         nextGen:
           type: object
-          required: [separation, croe, ryoe, boxCount]
+          required: [separation, catchPct, ryoe, boxCount]
           properties:
-            separation: { type: number }
-            croe: { type: number }
-            ryoe: { type: number }
-            boxCount: { type: number }
+            separation: { type: [number, "null"] }
+            catchPct: { type: [number, "null"] }
+            ryoe: { type: [number, "null"] }
+            boxCount: { type: [number, "null"] }
         consistency:
           type: object
-          required: [floor, ceiling, boomRate, bustRate]
+          required: [floor, median, ceiling, boomRate, bustRate, weeksPlayed]
           properties:
-            floor: { type: number }
-            ceiling: { type: number }
-            boomRate: { type: number }
-            bustRate: { type: number }
-        weeklyScores:
-          type: array
-          items: { type: number }
+            floor: { type: [number, "null"] }
+            median: { type: [number, "null"] }
+            ceiling: { type: [number, "null"] }
+            boomRate: { type: [number, "null"] }
+            bustRate: { type: [number, "null"] }
+            weeksPlayed: { type: [number, "null"] }
     Team:
       type: object
-      required: [team, fullName, aly, stuffRate, passBlockGrade, proe, snapContinuity, vacatedOpportunity, trend]
+      required: [team, fullName, tier, trend]
       properties:
         team: { type: string }
         fullName: { type: string }
-        aly: { type: number }
-        stuffRate: { type: number }
-        passBlockGrade: { type: number }
-        proe: { type: number }
-        snapContinuity: { type: number }
-        vacatedOpportunity: { type: number }
+        aly:
+          type: [number, "null"]
+          description: Adjusted line yards. Real values span roughly 2.4-3.5.
+        stuffRate: { type: [number, "null"], description: Percentage, not a fraction. }
+        runBlockGrade: { type: [number, "null"] }
+        passBlockGrade: { type: [number, "null"] }
+        olGrade: { type: [number, "null"] }
+        proe: { type: [number, "null"], description: Pass rate over expected, as a percentage. }
+        snapContinuity: { type: [number, "null"], description: Percentage of 2025 OL snaps returning in 2026. }
+        vacatedTargets: { type: [number, "null"] }
+        vacatedCarries: { type: [number, "null"] }
+        vacatedOpportunity: { type: [number, "null"] }
+        pointsPerGame: { type: [number, "null"] }
+        playsPerGame: { type: [number, "null"] }
+        returningStarters: { type: [number, "null"] }
+        compositeScore: { type: [number, "null"] }
+        tier: { type: string }
         trend: { type: string }
     NewsItem:
       type: object
@@ -310,12 +352,17 @@ components:
         playerId: { type: ["string", "null"] }
     DraftSummary:
       type: object
-      required: [playersTracked, draftedCount, averageAdp, valueTargets, positionalNeeds, lastRefresh]
+      required: [playersTracked, draftedCount, averageAdp, valueTargets, positionalNeeds, lastRefresh, snapshotVersion]
       properties:
         playersTracked: { type: number }
         draftedCount: { type: number }
         averageAdp: { type: number }
-        valueTargets: { type: number }
+        valueTargets:
+          type: number
+          description: Players whose production materially outran their draft cost (value score of at least +0.5 SD).
+        snapshotVersion:
+          type: string
+          description: Scrape date of the dataset currently loaded, e.g. 2026-08-14.
         positionalNeeds:
           type: object
           required: [QB, RB, WR, TE]
@@ -363,28 +410,28 @@ components:
         updatedAt: { type: string }
     OLTeamScore:
       type: object
-      required: [team, fullName, compositeScore, aly, stuffRate, passBlockGrade, snapContinuity, trend, tier]
+      required: [team, fullName, trend, tier]
       properties:
         team: { type: string }
         fullName: { type: string }
-        compositeScore: { type: number }
-        aly: { type: number }
-        stuffRate: { type: number }
-        passBlockGrade: { type: number }
-        snapContinuity: { type: number }
+        compositeScore: { type: [number, "null"] }
+        aly: { type: [number, "null"] }
+        stuffRate: { type: [number, "null"] }
+        passBlockGrade: { type: [number, "null"] }
+        snapContinuity: { type: [number, "null"] }
         trend: { type: string }
         tier: { type: string }
     RBOLImpact:
       type: object
-      required: [playerId, playerName, team, rank, valueScore, ppg, olCompositeScore, olTier, impactLabel, blurb]
+      required: [playerId, playerName, team, rank, olTier, impactLabel, blurb]
       properties:
         playerId: { type: string }
         playerName: { type: string }
         team: { type: string }
         rank: { type: number }
-        valueScore: { type: number }
-        ppg: { type: number }
-        olCompositeScore: { type: number }
+        valueScore: { type: [number, "null"] }
+        ppg: { type: [number, "null"] }
+        olCompositeScore: { type: [number, "null"] }
         olTier: { type: string }
         impactLabel: { type: string }
         blurb: { type: string }

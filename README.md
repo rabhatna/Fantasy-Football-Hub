@@ -28,6 +28,7 @@ on port 8080, so both work from one origin in the browser.
 |---|---|
 | `pnpm run typecheck` | Typecheck every package |
 | `pnpm run build` | Typecheck, then build API bundle + SPA |
+| `pnpm run test` | Run the store and dataset test suites |
 | `pnpm --filter @workspace/api-spec run codegen` | Regenerate React Query hooks and Zod schemas from the OpenAPI spec |
 
 Environment variables all have local defaults: `PORT` (8080 API / 5173 web),
@@ -43,6 +44,7 @@ rebuilt container, and a cleared browser:
 data/user/draft_picks.csv    your board
 data/user/player_notes.csv   your notes
 data/user/backups/           snapshot taken before each session's first write
+data/snapshots/<date>/       player data, seeded from datasets/ on first run
 ```
 
 These are ordinary CSVs — open them in Excel, edit them, save, then hit
@@ -57,8 +59,9 @@ file. `data/` is gitignored.
 - `artifacts/api-server/src/routes/fantasy.ts` — the `/api` endpoints.
 - `lib/api-spec/openapi.yaml` — source of truth for the API contract. Generates
   `lib/api-zod` (server validation) and `lib/api-client-react` (typed hooks).
-- `attached_assets/` — the real 250-player dataset (CSV + XLSX) and the Python
-  `ff_analytics` pipeline that produces it.
+- `lib/dataset` — reads the player snapshot; `lib/store` — CSV persistence.
+- `datasets/<date>/master.csv` — the 250-player dataset shipped with the app.
+- `attached_assets/` — the Python `ff_analytics` pipeline that produces it.
 
 ## Stack
 

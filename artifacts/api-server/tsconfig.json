@@ -18,6 +18,9 @@
     },
     {
       "path": "../../lib/store"
+    },
+    {
+      "path": "../../lib/dataset"
     }
   ]
 }

@@ -29,35 +29,43 @@ export const GetPlayersQueryParams = zod.object({
 })
 
 export const GetPlayersResponseItem = zod.object({
-  "id": zod.string(),
+  "id": zod.string().describe('nflverse gsis_id — stable across dataset refreshes.'),
   "rank": zod.number(),
   "name": zod.string(),
   "team": zod.string(),
   "position": zod.string(),
   "adp": zod.number(),
-  "valueScore": zod.number(),
-  "ppg": zod.number(),
-  "share": zod.number(),
-  "oLineGrade": zod.number(),
-  "injuryStatus": zod.string(),
-  "byeWeek": zod.number(),
+  "adpSource": zod.string().nullish(),
+  "valueScore": zod.number().nullish().describe('Production-versus-price gap in standard deviations, roughly\nZ(2025 positional finish) - Z(2026 ADP). Positive means the player\nproduced better than his draft cost implies. Spans about -3 to\n+2.5 — this is not a 0-10 rating and must not be rendered as one.\n'),
+  "marketVerdict": zod.string().nullish(),
+  "ppg": zod.number().nullish(),
+  "share": zod.number().nullish().describe('Carry share for backs, target share for pass catchers, null for passers. Computed over weeks the player took a snap.'),
+  "oLineGrade": zod.number().nullish(),
+  "injuryStatus": zod.string().nullish().describe('Always null for now. The dataset is built from completed-season\nproduction and market data and carries no availability status;\nlive status comes from a separate source.\n'),
+  "byeWeek": zod.number().nullish(),
   "tier": zod.number(),
-  "durabilityScore": zod.number(),
-  "productionFinish": zod.number(),
+  "durabilityScore": zod.number().nullish(),
+  "productionFinish": zod.number().nullish(),
+  "age": zod.number().nullish(),
+  "isRookie": zod.boolean(),
+  "gamesPlayed": zod.number().nullish(),
+  "snapShare": zod.number().nullish(),
+  "note": zod.string().nullish().describe('Dataset annotation, e.g. why a player has no 2025 production.'),
   "nextGen": zod.object({
-  "separation": zod.number(),
-  "croe": zod.number(),
-  "ryoe": zod.number(),
-  "boxCount": zod.number()
+  "separation": zod.number().nullable(),
+  "catchPct": zod.number().nullable(),
+  "ryoe": zod.number().nullable(),
+  "boxCount": zod.number().nullable()
 }),
   "consistency": zod.object({
-  "floor": zod.number(),
-  "ceiling": zod.number(),
-  "boomRate": zod.number(),
-  "bustRate": zod.number()
-}),
-  "weeklyScores": zod.array(zod.number())
+  "floor": zod.number().nullable(),
+  "median": zod.number().nullable(),
+  "ceiling": zod.number().nullable(),
+  "boomRate": zod.number().nullable(),
+  "bustRate": zod.number().nullable(),
+  "weeksPlayed": zod.number().nullable()
 })
+}).describe('Nullable fields are nullable because the source data genuinely lacks\nthem, and a blank is not a zero. 33 of the 250 players took no 2025\nsnaps (rookies, or a missed season) so they have no production at all,\nand Next Gen Stats are only recorded for the positions they apply to —\nseparation and catch rate for receivers, rushing yards over expected\nand eight-plus-box rate for backs. Clients must render these as \"no\ndata\", never as 0.\n')
 export const GetPlayersResponse = zod.array(GetPlayersResponseItem)
 
 
@@ -69,35 +77,43 @@ export const GetPlayerParams = zod.object({
 })
 
 export const GetPlayerResponse = zod.object({
-  "id": zod.string(),
+  "id": zod.string().describe('nflverse gsis_id — stable across dataset refreshes.'),
   "rank": zod.number(),
   "name": zod.string(),
   "team": zod.string(),
   "position": zod.string(),
   "adp": zod.number(),
-  "valueScore": zod.number(),
-  "ppg": zod.number(),
-  "share": zod.number(),
-  "oLineGrade": zod.number(),
-  "injuryStatus": zod.string(),
-  "byeWeek": zod.number(),
+  "adpSource": zod.string().nullish(),
+  "valueScore": zod.number().nullish().describe('Production-versus-price gap in standard deviations, roughly\nZ(2025 positional finish) - Z(2026 ADP). Positive means the player\nproduced better than his draft cost implies. Spans about -3 to\n+2.5 — this is not a 0-10 rating and must not be rendered as one.\n'),
+  "marketVerdict": zod.string().nullish(),
+  "ppg": zod.number().nullish(),
+  "share": zod.number().nullish().describe('Carry share for backs, target share for pass catchers, null for passers. Computed over weeks the player took a snap.'),
+  "oLineGrade": zod.number().nullish(),
+  "injuryStatus": zod.string().nullish().describe('Always null for now. The dataset is built from completed-season\nproduction and market data and carries no availability status;\nlive status comes from a separate source.\n'),
+  "byeWeek": zod.number().nullish(),
   "tier": zod.number(),
-  "durabilityScore": zod.number(),
-  "productionFinish": zod.number(),
+  "durabilityScore": zod.number().nullish(),
+  "productionFinish": zod.number().nullish(),
+  "age": zod.number().nullish(),
+  "isRookie": zod.boolean(),
+  "gamesPlayed": zod.number().nullish(),
+  "snapShare": zod.number().nullish(),
+  "note": zod.string().nullish().describe('Dataset annotation, e.g. why a player has no 2025 production.'),
   "nextGen": zod.object({
-  "separation": zod.number(),
-  "croe": zod.number(),
-  "ryoe": zod.number(),
-  "boxCount": zod.number()
+  "separation": zod.number().nullable(),
+  "catchPct": zod.number().nullable(),
+  "ryoe": zod.number().nullable(),
+  "boxCount": zod.number().nullable()
 }),
   "consistency": zod.object({
-  "floor": zod.number(),
-  "ceiling": zod.number(),
-  "boomRate": zod.number(),
-  "bustRate": zod.number()
-}),
-  "weeklyScores": zod.array(zod.number())
+  "floor": zod.number().nullable(),
+  "median": zod.number().nullable(),
+  "ceiling": zod.number().nullable(),
+  "boomRate": zod.number().nullable(),
+  "bustRate": zod.number().nullable(),
+  "weeksPlayed": zod.number().nullable()
 })
+}).describe('Nullable fields are nullable because the source data genuinely lacks\nthem, and a blank is not a zero. 33 of the 250 players took no 2025\nsnaps (rookies, or a missed season) so they have no production at all,\nand Next Gen Stats are only recorded for the positions they apply to —\nseparation and catch rate for receivers, rushing yards over expected\nand eight-plus-box rate for backs. Clients must render these as \"no\ndata\", never as 0.\n')
 
 
 /**
@@ -106,12 +122,21 @@ export const GetPlayerResponse = zod.object({
 export const GetTeamsResponseItem = zod.object({
   "team": zod.string(),
   "fullName": zod.string(),
-  "aly": zod.number(),
-  "stuffRate": zod.number(),
-  "passBlockGrade": zod.number(),
-  "proe": zod.number(),
-  "snapContinuity": zod.number(),
-  "vacatedOpportunity": zod.number(),
+  "aly": zod.number().nullish().describe('Adjusted line yards. Real values span roughly 2.4-3.5.'),
+  "stuffRate": zod.number().nullish().describe('Percentage'),
+  "runBlockGrade": zod.number().nullish(),
+  "passBlockGrade": zod.number().nullish(),
+  "olGrade": zod.number().nullish(),
+  "proe": zod.number().nullish().describe('Pass rate over expected'),
+  "snapContinuity": zod.number().nullish().describe('Percentage of 2025 OL snaps returning in 2026.'),
+  "vacatedTargets": zod.number().nullish(),
+  "vacatedCarries": zod.number().nullish(),
+  "vacatedOpportunity": zod.number().nullish(),
+  "pointsPerGame": zod.number().nullish(),
+  "playsPerGame": zod.number().nullish(),
+  "returningStarters": zod.number().nullish(),
+  "compositeScore": zod.number().nullish(),
+  "tier": zod.string(),
   "trend": zod.string()
 })
 export const GetTeamsResponse = zod.array(GetTeamsResponseItem)
@@ -140,7 +165,8 @@ export const GetDraftSummaryResponse = zod.object({
   "playersTracked": zod.number(),
   "draftedCount": zod.number(),
   "averageAdp": zod.number(),
-  "valueTargets": zod.number(),
+  "valueTargets": zod.number().describe('Players whose production materially outran their draft cost (value score of at least +0.5 SD).'),
+  "snapshotVersion": zod.string().describe('Scrape date of the dataset currently loaded, e.g. 2026-08-14.'),
   "positionalNeeds": zod.object({
   "QB": zod.number(),
   "RB": zod.number(),
@@ -235,11 +261,11 @@ export const GetOLImpactResponse = zod.object({
   "teamScores": zod.array(zod.object({
   "team": zod.string(),
   "fullName": zod.string(),
-  "compositeScore": zod.number(),
-  "aly": zod.number(),
-  "stuffRate": zod.number(),
-  "passBlockGrade": zod.number(),
-  "snapContinuity": zod.number(),
+  "compositeScore": zod.number().nullish(),
+  "aly": zod.number().nullish(),
+  "stuffRate": zod.number().nullish(),
+  "passBlockGrade": zod.number().nullish(),
+  "snapContinuity": zod.number().nullish(),
   "trend": zod.string(),
   "tier": zod.string()
 })),
@@ -248,9 +274,9 @@ export const GetOLImpactResponse = zod.object({
   "playerName": zod.string(),
   "team": zod.string(),
   "rank": zod.number(),
-  "valueScore": zod.number(),
-  "ppg": zod.number(),
-  "olCompositeScore": zod.number(),
+  "valueScore": zod.number().nullish(),
+  "ppg": zod.number().nullish(),
+  "olCompositeScore": zod.number().nullish(),
   "olTier": zod.string(),
   "impactLabel": zod.string(),
   "blurb": zod.string()
