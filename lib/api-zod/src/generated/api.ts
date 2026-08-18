@@ -152,6 +152,21 @@ export const GetDraftSummaryResponse = zod.object({
 
 
 /**
+ * @summary List drafted players
+ */
+export const GetDraftPicksResponseItem = zod.object({
+  "id": zod.string(),
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "pickNumber": zod.number(),
+  "draftedAt": zod.string()
+}).describe('playerName, team and position are denormalised onto the pick on\npurpose. playerId is derived from the player\'s name in the current\ndataset and changes when the dataset is refreshed, so these fields are\nwhat let an existing board be re-linked to new ids — and what make the\nstored CSV readable when opened in a spreadsheet.\n')
+export const GetDraftPicksResponse = zod.array(GetDraftPicksResponseItem)
+
+
+/**
  * @summary Save a drafted player
  */
 export const SaveDraftPickBody = zod.object({
@@ -162,8 +177,53 @@ export const SaveDraftPickBody = zod.object({
 export const SaveDraftPickResponse = zod.object({
   "id": zod.string(),
   "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
   "pickNumber": zod.number(),
   "draftedAt": zod.string()
+}).describe('playerName, team and position are denormalised onto the pick on\npurpose. playerId is derived from the player\'s name in the current\ndataset and changes when the dataset is refreshed, so these fields are\nwhat let an existing board be re-linked to new ids — and what make the\nstored CSV readable when opened in a spreadsheet.\n')
+
+
+/**
+ * Removes the pick for a player, so a misclick on a persistent board can be corrected.
+ * @summary Undo a drafted player
+ */
+export const DeleteDraftPickParams = zod.object({
+  "playerId": zod.coerce.string()
+})
+
+export const DeleteDraftPickResponse = zod.void()
+
+
+/**
+ * @summary List all player notes
+ */
+export const GetNotesResponseItem = zod.object({
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "note": zod.string(),
+  "updatedAt": zod.string()
+})
+export const GetNotesResponse = zod.array(GetNotesResponseItem)
+
+
+/**
+ * @summary Create or replace a player note
+ */
+export const SavePlayerNoteParams = zod.object({
+  "playerId": zod.coerce.string()
+})
+
+export const SavePlayerNoteBody = zod.object({
+  "note": zod.string()
+})
+
+export const SavePlayerNoteResponse = zod.object({
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "note": zod.string(),
+  "updatedAt": zod.string()
 })
 
 

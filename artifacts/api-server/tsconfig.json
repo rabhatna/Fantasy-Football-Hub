@@ -15,6 +15,9 @@
   "references": [
     {
       "path": "../../lib/api-zod"
+    },
+    {
+      "path": "../../lib/store"
     }
   ]
 }

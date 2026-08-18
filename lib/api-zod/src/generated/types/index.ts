@@ -18,6 +18,8 @@ export * from './oLTeamScore';
 export * from './player';
 export * from './playerConsistency';
 export * from './playerNextGen';
+export * from './playerNote';
+export * from './playerNoteInput';
 export * from './rBOLImpact';
 export * from './refreshStatus';
 export * from './team';
