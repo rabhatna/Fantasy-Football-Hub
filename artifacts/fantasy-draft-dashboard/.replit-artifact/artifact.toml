@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Fantasy Draft Dashboard"
+description = "An interactive 2026 fantasy football draft command center for evaluating the top 250 players, tracking injuries, comparing market value, and making draft decisions with confidence."
+version = "1.0.0"
+id = "artifacts/fantasy-draft-dashboard"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18250
+
+[services.development]
+run = "pnpm --filter @workspace/fantasy-draft-dashboard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/fantasy-draft-dashboard", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/fantasy-draft-dashboard/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18250"
+BASE_PATH = "/"

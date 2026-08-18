@@ -1,0 +1,66 @@
+Build a full-stack, interactive fantasy draft web dashboard in Python (FastAPI backend + React/Tailwind frontend or Streamlit) that aggregates 2025 NFL production, 2026 market/ADP data, team/O-line context, and real-time injury news from X/social feeds to help draft the top 250 players.
+
+---
+
+**App Architecture & Tech Stack**
+
+* **Backend:** FastAPI / Python 3.11 with `pandas`, `numpy`, `nfl_data_py`, `pyarrow`, and `rapidfuzz`.
+* **Frontend:** React + Tailwind CSS (or Streamlit with custom layout/components) featuring dark mode, data tables with custom sorting/filtering, modal drawers, and interactive visual charts (Recharts/Plotly).
+* **Data Storage & Caching:** SQLite / Parquet local cache in `~/.ff_cache` with a 24-hour TTL and a manually triggerable "Refresh Data" API endpoint.
+
+---
+
+**Core Interactive Web Features**
+
+**1. Live Draft Room & Cheat Sheet**
+
+* **Interactive Player Table:** Full list of Top 250 players with sortable columns: Rank, Name, Pos, 2026 Team, 2026 ADP/ECR, Value Score, 2025 PPG, Target Share, O-Line Grade, and Injury Status.
+* **Draft Mode Toggle:** One-click "Draft Player" button per row that greys out the player, moves them to a side drawer ("Drafted Players"), and dynamically updates remaining positional tiers and ADP value falloffs.
+* **Filter Bar:** Instant filter by Position (QB, RB, WR, TE), Bye Week, Max ADP, Minimum Target/Carry Share, and Health Status (Exclude PUP/IR).
+
+**2. Player Deep-Dive Drawer (Modal/Sidebar)**
+
+* **Stat Breakdown:** Split view displaying 2025 Actuals (`y25_`) vs. 2026 Market Metrics (`y26_`).
+* **Next Gen Stats Radar:** Efficiency visualizer comparing Separation, Catch Rate Over Expectation (CROE), Rush Yards Over Expectation (RYOE), and Box-Count % against positional medians.
+* **Consistency Profile:** Weekly score distribution chart showing Floor (25th percentile), Ceiling (85th percentile), Boom Rate (% Top-12 finishes), and Bust Rate.
+
+**3. Live Injury Radar & X/Social Hub**
+
+* **Real-Time News Stream:** Widget fetching live updates via Sleeper API (`/v1/players/nfl`) and RSS/X beat writer scrapers (@InStreetClothes, @ProFootballDoc).
+* **Durability Score & History:** 0–100 player health rating based on 3-year games missed and structural injury history timeline.
+* **Status Flags:** Highlighting active red/amber badges (Active, Questionable, Out, PUP, IR) next to player names on all boards.
+
+**4. Team & O-Line Context Matrix**
+
+* **32-Team Breakdown:** Table comparing Adjusted Line Yards (ALY), Stuff Rate, Pass Block Grade, PROE, and 2026 Returning O-Line Snap Continuity %.
+* **Opportunity Heatmap:** Highlight teams with high vacated targets/carries from departing 2025 players.
+
+**5. Market Arbitrage & Value Explorer**
+
+* **Discrepancy Finder:** Interactive scatterplot comparing 2025 Production Finish vs. 2026 ADP to isolate hyper-valued or heavily discounted players.
+
+---
+
+**Data Pipeline & Mathematical Engine**
+
+* **Identity Resolution Engine:** Map identifiers using `nflverse` crosswalk (`gsis_id`, `pfr_id`, `espn_id`, `pff_id`, `fp_id`) with a `rapidfuzz` fallback ($\ge 92$ similarity threshold) on name/position/team.
+* **Strict Naming Convention:** Store data as `y25_` (2025 actuals), `y26_` (2026 projections/market), `tm_` (team context), and `inj_` (injury metrics).
+* **O-Line Run Block Scoring:** Calculate Adjusted Line Yards (ALY) from 2025 play-by-play data:
+
+$$\text{ALY Credit} = \begin{cases} 1.20 \times \text{yards} & \text{if yards} < 0 \\ 1.00 \times \text{yards} & \text{if } 0 \le \text{yards} \le 4 \\ 0.50 \times \text{yards} & \text{if } 5 \le \text{yards} \le 10 \\ 0.00 & \text{if yards} \ge 11 \end{cases}$$
+
+
+* **Market Value Score Calculation:**
+
+$$\text{Value Score} = Z(\text{y25\_pos\_finish}) - Z(\text{y26\_adp\_ppr})$$
+
+
+
+---
+
+**Implementation Steps for Replit Agent**
+
+1. Set up backend data pipelines (`sources.py`, `identity.py`, `team_context.py`, `player_metrics.py`, `injuries.py`).
+2. Build FastAPI REST endpoints (`/api/players`, `/api/teams`, `/api/injuries`, `/api/draft/state`).
+3. Construct the React dashboard UI with custom data tables, filters, and modal inspection drawers.
+4. Integrate state management to store draft picks, custom player notes, and user rankings locally in the browser (`localStorage`).
