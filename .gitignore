@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Local data (draft state, snapshots, caches) — bind-mounted into the container
+data/
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
