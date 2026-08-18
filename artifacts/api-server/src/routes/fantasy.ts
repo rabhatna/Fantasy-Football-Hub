@@ -56,6 +56,11 @@ function snapshot(): Promise<Snapshot> {
 /** A player's value score at or above this is a genuine market discount. */
 const VALUE_TARGET_SD = 0.5;
 
+// Statuses that mean the player is unavailable; the dashboard mirrors this list.
+// Doubtful belongs here — it was previously omitted, so the Healthy filter let
+// doubtful players through on the server while the client excluded them.
+const UNAVAILABLE_INJURY_STATUSES = ["IR", "PUP", "Out", "Doubtful"];
+
 // ── Draft pick reconciliation ────────────────────────────────────────────────
 
 /**
@@ -193,8 +198,9 @@ router.get("/players", async (req, res, next) => {
       }
       // No availability data exists in this dataset, so this filter cannot be
       // honoured yet; it is a no-op rather than a filter that silently lies.
+      // Once a live status source is connected it starts working again.
       if (excludeUnhealthy && player.injuryStatus !== null) {
-        return !["PUP", "IR", "Out"].includes(player.injuryStatus);
+        return !UNAVAILABLE_INJURY_STATUSES.includes(player.injuryStatus);
       }
       return true;
     });
