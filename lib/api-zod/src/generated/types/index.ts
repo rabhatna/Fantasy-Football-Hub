@@ -43,6 +43,7 @@ export * from './rBOLImpact';
 export * from './recommendation';
 export * from './recommendationComponents';
 export * from './refreshStatus';
+export * from './sleeperPick';
 export * from './sourceResult';
 export * from './target';
 export * from './targetInput';

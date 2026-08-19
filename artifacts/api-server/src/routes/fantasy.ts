@@ -33,6 +33,7 @@ import {
   GetPlayersResponse,
   GetRecommendationsResponse,
   GetSettingsResponse,
+  GetSleepersResponse,
   GetTargetsResponse,
   GetTeamLineParams,
   GetTeamLineResponse,
@@ -76,6 +77,7 @@ import { VALUE_TARGET_SD, isUnavailableStatus } from "@workspace/shared";
 import { logger } from "../lib/logger";
 import { remainingPicks } from "../lib/draft-math";
 import { positionalNeeds, recommend } from "../lib/recommend";
+import { findSleepers } from "../lib/sleepers";
 import { consensusValueScores } from "../lib/value";
 
 // Draft picks and notes persist as CSV under the data directory; the player
@@ -641,6 +643,30 @@ router.get("/draft/recommendations", async (_req, res, next) => {
     });
 
     res.json(GetRecommendationsResponse.parse(suggestions));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/draft/sleepers", async (_req, res, next) => {
+  try {
+    const players = await enrichedPlayers();
+    const [picks, keepers, settings] = await Promise.all([
+      reconcilePicks(players),
+      reconcileKeepers(players),
+      store.leagueSettings.read(),
+    ]);
+
+    const sleepers = findSleepers({
+      players,
+      unavailableIds: new Set([
+        ...picks.map((pick) => pick.playerId),
+        ...keepers.map((keeper) => keeper.playerId),
+      ]),
+      teamCount: settings.teamCount,
+    });
+
+    res.json(GetSleepersResponse.parse(sleepers));
   } catch (error) {
     next(error);
   }

@@ -274,6 +274,28 @@ export const GetRecommendationsResponse = zod.array(GetRecommendationsResponseIt
 
 
 /**
+ * Under-the-radar picks, argued: rookies wherever they are priced, plus
+ * late-priced players with a real signal — early-career arcs, handcuffs
+ * one injury from a job (or already behind a hurt starter), committee
+ * backs with live touches, efficiency the box score hid, and boom-weeks
+ * ceilings. Tags allow filtering (rookie, early-career, handcuff,
+ * committee, value, boom); reasons carry the argument.
+ * @summary Sleepers and rookies
+ */
+export const GetSleepersResponseItem = zod.object({
+  "playerId": zod.string(),
+  "name": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "adp": zod.number(),
+  "score": zod.number(),
+  "tags": zod.array(zod.string()),
+  "reasons": zod.array(zod.string())
+})
+export const GetSleepersResponse = zod.array(GetSleepersResponseItem)
+
+
+/**
  * @summary List drafted players
  */
 export const GetDraftPicksResponseItem = zod.object({

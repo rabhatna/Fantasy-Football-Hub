@@ -171,6 +171,27 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Recommendation"
+  /draft/sleepers:
+    get:
+      operationId: getSleepers
+      tags: [draft]
+      summary: Sleepers and rookies
+      description: |
+        Under-the-radar picks, argued: rookies wherever they are priced, plus
+        late-priced players with a real signal — early-career arcs, handcuffs
+        one injury from a job (or already behind a hurt starter), committee
+        backs with live touches, efficiency the box score hid, and boom-weeks
+        ceilings. Tags allow filtering (rookie, early-career, handcuff,
+        committee, value, boom); reasons carry the argument.
+      responses:
+        "200":
+          description: Ranked sleeper picks, loudest argument first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SleeperPick"
   /draft/picks:
     get:
       operationId: getDraftPicks
@@ -826,6 +847,22 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Keeper"
+    SleeperPick:
+      type: object
+      required: [playerId, name, team, position, adp, score, tags, reasons]
+      properties:
+        playerId: { type: string }
+        name: { type: string }
+        team: { type: string }
+        position: { type: string }
+        adp: { type: number }
+        score: { type: number }
+        tags:
+          type: array
+          items: { type: string }
+        reasons:
+          type: array
+          items: { type: string }
     Recommendation:
       type: object
       description: |

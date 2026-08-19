@@ -33,6 +33,7 @@ import { useDraftBoard, usePlayerNote } from "@/hooks/use-draft-state";
 import { NO_DATA, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
 import DraftSheetPage from "@/pages/draft-sheet";
 import LeaguePage from "@/pages/league";
+import SleepersPage from "@/pages/sleepers";
 import SourcesPage from "@/pages/sources";
 import NotFound from "@/pages/not-found";
 import { TargetList } from "@/components/target-list";
@@ -117,10 +118,15 @@ function EmptyState({ label }: { label: string }) {
   </div>;
 }
 
+/**
+ * The chrome is a terminal window now: a title bar with the prompt and the
+ * status cluster, a tab strip for navigation, and the page below — no
+ * sidebar. Tabs scroll horizontally on narrow screens, so there is no
+ * hamburger to hide anything behind.
+ */
 function Shell({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const [dark, setDark] = useState(() => localStorage.getItem("draft-command-center:theme") === "dark");
-  const [mobileOpen, setMobileOpen] = useState(false);
   const refresh = useRefreshData();
   const client = useQueryClient();
   const health = useHealthCheck();
@@ -133,65 +139,50 @@ function Shell({ children }: { children: ReactNode }) {
   const doRefresh = () => {
     refresh.mutate(undefined, {
       onSuccess: () => {
-        void client.invalidateQueries({ queryKey: getGetPlayersQueryKey() });
-        void client.invalidateQueries({ queryKey: getGetTeamsQueryKey() });
-        void client.invalidateQueries({ queryKey: getGetNewsQueryKey() });
-        void client.invalidateQueries({ queryKey: getGetDraftSummaryQueryKey() });
-        void client.invalidateQueries({ queryKey: getGetOLImpactQueryKey() });
+        void client.invalidateQueries();
       },
     });
   };
 
   const links = [
-    { href: "/", label: "Draft room", icon: Command, detail: "Rankings + board" },
-    { href: "/league", label: "League", icon: Users, detail: "Rules, picks + keepers" },
-    { href: "/draft-sheet", label: "Draft sheet", icon: BookOpen, detail: "Targets → PDF" },
-    { href: "/ol-center", label: "O-Line center", icon: Activity, detail: "Team lines + skill impact" },
-    { href: "/news", label: "Signal feed", icon: Newspaper, detail: "Player news first" },
-    { href: "/sources", label: "Data sources", icon: LineChart, detail: "Provenance + freshness" },
+    { href: "/", label: "draft_room" },
+    { href: "/sleepers", label: "sleepers" },
+    { href: "/league", label: "league" },
+    { href: "/draft-sheet", label: "draft_sheet" },
+    { href: "/ol-center", label: "o-line" },
+    { href: "/news", label: "signal" },
+    { href: "/sources", label: "sources" },
   ];
 
   return <div className="min-h-[100dvh] bg-background text-foreground">
-    <aside className={`side-rail fixed inset-y-0 left-0 z-40 flex w-[252px] flex-col border-r border-sidebar-border text-sidebar-foreground transition-transform duration-300 print:hidden lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
-      <div className="flex h-[76px] items-center justify-between border-b border-sidebar-border px-5">
-        <Link href="/" onClick={() => setMobileOpen(false)} data-testid="link-brand" className="flex items-center gap-3">
-          <span className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground"><Command size={18} /><span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-accent ring-2 ring-sidebar" /></span>
-          <span><span className="display block text-[15px] font-bold tracking-tight">The Draft Room</span><span className="mono block text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/50">2026 / analyst terminal</span></span>
+    <div className="top-rail sticky top-0 z-40 print:hidden">
+      <div className="mx-auto flex h-[52px] max-w-[1500px] items-center justify-between gap-4 px-4 sm:px-6">
+        <Link href="/" data-testid="link-brand" className="flex min-w-0 items-center gap-2.5">
+          <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Command size={14} /><span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-accent" /></span>
+          <span className="mono truncate text-[13px] font-bold tracking-tight text-sidebar-foreground">the_draft_room<span className="cursor-blink text-primary">▊</span></span>
+          <span className="mono hidden text-[10px] text-sidebar-foreground/45 md:block">~/2026/analyst-terminal</span>
         </Link>
-        <button type="button" onClick={() => setMobileOpen(false)} data-testid="button-close-menu" className="rounded-lg p-1 text-sidebar-foreground/60 hover:bg-sidebar-accent lg:hidden"><X size={17} /></button>
-      </div>
-      <div className="px-4 pt-7"><Kicker>Workspace</Kicker><nav className="mt-3 space-y-1.5">
-        {links.map(({ href, label, icon: Icon, detail }) => {
-          const active = href === "/" ? location === "/" : location.startsWith(href);
-          return <Link href={href} key={href} onClick={() => setMobileOpen(false)} data-testid={`link-nav-${label.toLowerCase().replaceAll(" ", "-")}`} className={`nav-item group flex items-center gap-3 rounded-xl px-3 py-3 ${active ? "nav-active bg-sidebar-accent text-sidebar-primary" : "text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"}`}>
-            <Icon size={17} strokeWidth={active ? 2.2 : 1.7} /><span className="min-w-0"><span className="block text-[14px] font-semibold">{label}</span><span className="block text-[11px] text-sidebar-foreground/45">{detail}</span></span>{active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary pulse-dot" />}
-          </Link>;
-        })}
-      </nav></div>
-      <div className="mt-auto p-4">
-        <div className="rounded-2xl border border-sidebar-border bg-sidebar-accent/55 p-3.5">
-          <div className="flex items-center justify-between"><Kicker>System pulse</Kicker><span className={`h-2 w-2 rounded-full ${health.isError ? "bg-destructive" : "bg-sidebar-primary pulse-dot"}`} /></div>
-          <div className="mt-3 flex items-end justify-between"><span className="mono text-xl font-medium">{health.isLoading ? "--" : health.isError ? "ERR" : "OK"}</span><span className="text-[10px] text-sidebar-foreground/45">API / live</span></div>
-          <div className="mt-3 h-px bg-sidebar-border" /><p className="mt-2 text-[10px] leading-4 text-sidebar-foreground/45">Feeds are cached and normalized for draft speed.</p>
-        </div>
-        <p className="mt-2 text-[9px] leading-4 text-sidebar-foreground/40">ADP data courtesy of <a href="https://fantasyfootballcalculator.com" target="_blank" rel="noreferrer noopener" className="underline hover:text-sidebar-foreground">FantasyFootballCalculator.com</a></p>
-        <div className="mt-3 flex items-center justify-between text-[10px] text-sidebar-foreground/45"><span>Draft kit v0.8.6</span><CircleHelp size={13} /></div>
-      </div>
-    </aside>
-    {mobileOpen && <button type="button" aria-label="Close navigation" onClick={() => setMobileOpen(false)} className="fixed inset-0 z-30 bg-foreground/35 lg:hidden" data-testid="button-overlay-menu" />}
-    <div className="print:!pl-0 lg:pl-[252px]">
-      <header className="sticky top-0 z-20 flex h-[76px] items-center justify-between border-b border-border bg-background/90 px-4 backdrop-blur-xl print:hidden sm:px-6 lg:px-9">
-        <div className="flex items-center gap-3"><button type="button" onClick={() => setMobileOpen(true)} data-testid="button-open-menu" className="rounded-lg border border-border p-2 lg:hidden"><Menu size={17} /></button><div><Kicker>League room / 01</Kicker><p className="mt-1 hidden text-[11px] text-muted-foreground sm:block">Your board is private. The market is not.</p></div></div>
-        <div className="flex items-center gap-2 sm:gap-4">
-          <div className="hidden items-center gap-2 mono text-[10px] text-muted-foreground md:flex"><span className={`h-1.5 w-1.5 rounded-full ${health.isError ? "bg-destructive" : "bg-primary pulse-dot"}`} />{health.isError ? "feed degraded" : "feeds live"}<span className="text-border">/</span>{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
-          <button type="button" onClick={doRefresh} disabled={refresh.isPending} data-testid="button-refresh-data" className="group flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold shadow-sm transition hover:border-primary/40 hover:text-primary disabled:opacity-60"><RefreshCw size={14} className={refresh.isPending ? "animate-spin" : "transition-transform group-hover:rotate-45"} /> <span className="hidden sm:inline">{refresh.isPending ? "Refreshing" : "Refresh"}</span></button>
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <div className="hidden items-center gap-2 mono text-[10px] text-sidebar-foreground/60 md:flex"><span className={`h-1.5 w-1.5 rounded-full ${health.isError ? "bg-destructive" : "bg-primary pulse-dot"}`} />{health.isError ? "feed degraded" : "feeds live"}</div>
+          <button type="button" onClick={doRefresh} disabled={refresh.isPending} data-testid="button-refresh-data" className="group flex items-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent px-2.5 py-1.5 mono text-[11px] font-semibold text-sidebar-foreground transition hover:border-primary/50 hover:text-primary disabled:opacity-60"><RefreshCw size={12} className={refresh.isPending ? "animate-spin" : "transition-transform group-hover:rotate-45"} /> <span className="hidden sm:inline">{refresh.isPending ? "syncing" : "refresh"}</span></button>
           <SettingsDialog />
-          <button type="button" onClick={() => setDark((value) => !value)} data-testid="button-toggle-theme" aria-label="Toggle theme" className="rounded-xl border border-border bg-card p-2 text-muted-foreground shadow-sm hover:text-foreground">{dark ? <Sun size={15} /> : <Moon size={15} />}</button>
-          <div className="hidden h-8 w-8 items-center justify-center rounded-xl bg-foreground text-[10px] font-bold text-background sm:flex">DC</div>
+          <button type="button" onClick={() => setDark((value) => !value)} data-testid="button-toggle-theme" aria-label="Toggle theme" className="rounded-lg border border-sidebar-border bg-sidebar-accent p-1.5 text-sidebar-foreground/70 hover:text-sidebar-foreground">{dark ? <Sun size={13} /> : <Moon size={13} />}</button>
         </div>
-      </header>
-      <main className="terminal-grid min-h-[calc(100dvh-76px)] px-4 py-6 print:min-h-0 print:bg-none print:p-0 sm:px-6 lg:px-9 lg:py-8">{children}</main>
+      </div>
+      <nav className="border-t border-sidebar-border/60">
+        <div className="mx-auto flex max-w-[1500px] items-center gap-0.5 overflow-x-auto px-2 sm:px-4" data-testid="nav-tabs">
+          {links.map(({ href, label }) => {
+            const active = href === "/" ? location === "/" : location.startsWith(href) || (href === "/league" && location.startsWith("/keepers")) || (href === "/ol-center" && (location.startsWith("/teams") || location.startsWith("/ol-impact")));
+            return <Link href={href} key={href} data-testid={`link-nav-${label.replaceAll("_", "-")}`} className={`tab-item relative shrink-0 px-3.5 py-2.5 mono text-[11.5px] font-semibold transition-colors ${active ? "tab-active text-primary" : "text-sidebar-foreground/55 hover:text-sidebar-foreground"}`}>
+              <span className="text-sidebar-foreground/35">/</span>{label}
+            </Link>;
+          })}
+          <div className="mono ml-auto hidden shrink-0 items-center gap-2 py-2 pl-4 text-[9px] uppercase tracking-[0.14em] text-sidebar-foreground/35 lg:flex">adp data courtesy of <a href="https://fantasyfootballcalculator.com" target="_blank" rel="noreferrer noopener" className="underline hover:text-sidebar-foreground/70">ffcalculator.com</a></div>
+        </div>
+      </nav>
     </div>
+    <main className="terminal-grid mx-auto min-h-[calc(100dvh-92px)] max-w-[1560px] px-4 py-6 print:min-h-0 print:bg-none print:p-0 sm:px-6 lg:px-8 lg:py-8">{children}</main>
+    <footer className="border-t border-border px-4 py-3 text-center mono text-[9px] text-muted-foreground print:hidden">draft kit v0.9 · everything cached locally · ADP data courtesy of <a href="https://fantasyfootballcalculator.com" target="_blank" rel="noreferrer noopener" className="underline hover:text-foreground">FantasyFootballCalculator.com</a></footer>
   </div>;
 }
 
@@ -432,7 +423,7 @@ const IMPACT_COLORS: Record<string, { dot: string; badge: string; label: string 
   "Avoid":     { dot: "bg-destructive", badge: "border-destructive/30 bg-destructive/10 text-destructive", label: "Avoid" },
 };
 
-function OLScatterPlot({ rbImpacts }: { rbImpacts: RBOLImpact[]; onSelect: (rb: RBOLImpact) => void }) {
+function OLScatterPlot({ rbImpacts, onSelect }: { rbImpacts: RBOLImpact[]; onSelect: (rb: RBOLImpact) => void }) {
   const W = 480;
   const H = 320;
   const PAD = { top: 24, right: 24, bottom: 40, left: 48 };
@@ -470,7 +461,9 @@ function OLScatterPlot({ rbImpacts }: { rbImpacts: RBOLImpact[]; onSelect: (rb: 
         const cy = yScale(clamp(rb.valueScore as number, minVal, maxVal));
         const color = rb.impactLabel === "Favorable" ? "hsl(var(--primary))" : rb.impactLabel === "Buy Low" ? "hsl(var(--accent-foreground))" : rb.impactLabel === "Landmine" ? "hsl(var(--chart-3))" : "hsl(var(--destructive))";
         return (
-          <g key={rb.playerId}>
+          <g key={rb.playerId} onClick={() => onSelect(rb)} className="cursor-pointer" data-testid={`dot-rb-${rb.playerId}`}>
+            <title>{`${rb.playerName} — ${rb.impactLabel}`}</title>
+            <circle cx={cx} cy={cy} r={9} fill="transparent" />
             <circle cx={cx} cy={cy} r={5} fill={color} fillOpacity={0.8} stroke="hsl(var(--card))" strokeWidth={1.5} />
             {rb.rank <= 12 && <text x={cx + 7} y={cy + 3} style={{ fontSize: 7, fill: "hsl(var(--foreground))", fontFamily: "var(--font-mono, monospace)", fontWeight: 600 }}>{rb.playerName.split(" ").at(-1)}</text>}
           </g>
@@ -480,105 +473,64 @@ function OLScatterPlot({ rbImpacts }: { rbImpacts: RBOLImpact[]; onSelect: (rb: 
   );
 }
 
+/**
+ * Skill impact, condensed to one module: a Scatter/Matrix toggle inside a
+ * single panel of fixed height, the impact legend inline, and the analyst
+ * blurb as a strip inside the same frame. The 32-team composite list that
+ * used to sit beside it duplicated the ranked table above and is gone.
+ */
 function RBImpactSection() {
   const { data, isLoading, isError, refetch } = useGetOLImpact({ query: { queryKey: getGetOLImpactQueryKey() } });
   const [, setLocation] = useLocation();
+  const [view, setView] = useState<"scatter" | "matrix">("scatter");
   const [filter, setFilter] = useState("All");
   const [selected, setSelected] = useState<RBOLImpact | null>(null);
   const rbImpacts = data?.rbImpacts ?? [];
-  const teamScores = data?.teamScores ?? [];
   const filtered = filter === "All" ? rbImpacts : rbImpacts.filter((rb) => rb.impactLabel === filter);
 
   return (
     <div className="mt-8">
-      <div className="mb-5 flex items-end justify-between gap-4">
-        <div>
-          <Kicker>Skill impact</Kicker>
-          <h2 className="display mt-1.5 text-[22px] font-bold tracking-[-0.04em]">Which backs the line actually helps.</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Every RB plotted against his line's composite score — the edges the market has not priced yet.</p>
-        </div>
-      </div>
-
       {isLoading ? (
         <LoadingRows />
       ) : isError ? (
         <ErrorState label="OL impact data could not be loaded." onRetry={() => void refetch()} />
       ) : (
-        <>
-          {/* Scatter + team scores */}
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_340px]">
-            <Surface className="overflow-hidden">
-              <div className="flex items-center justify-between border-b border-border px-5 py-4">
-                <div><Kicker>Value vs line strength</Kicker><h2 className="mt-1 text-sm font-bold">RB scatter — OL composite vs value score</h2></div>
-                <BarChart3 size={15} className="text-primary" />
-              </div>
-              <div className="px-4 py-4">
-                <OLScatterPlot rbImpacts={rbImpacts} onSelect={setSelected} />
-              </div>
-              <div className="flex flex-wrap items-center gap-3 border-t border-border px-5 py-3">
-                {Object.values(IMPACT_COLORS).map(({ dot, badge, label }) => (
-                  <span key={label} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                    <span className={`h-2 w-2 rounded-full ${dot}`} />{label}
-                  </span>
+        <Surface className="overflow-hidden">
+          <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <Kicker>Skill impact</Kicker>
+              <h2 className="mt-1 text-sm font-bold">Which backs the line actually helps</h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex rounded-xl border border-border bg-muted/55 p-0.5">
+                {(["scatter", "matrix"] as const).map((item) => (
+                  <button type="button" key={item} onClick={() => setView(item)} data-testid={`button-impact-view-${item}`} className={`rounded-lg px-2.5 py-1.5 mono text-[11px] transition ${view === item ? "bg-card font-medium text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                    {item === "scatter" ? "Scatter" : "Matrix"}
+                  </button>
                 ))}
               </div>
-            </Surface>
-
-            <div className="space-y-4">
-              <Surface className="overflow-hidden">
-                <div className="border-b border-border px-4 py-4"><Kicker>OL team scores</Kicker><h2 className="mt-1 text-sm font-bold">Composite grades</h2></div>
-                <div className="divide-y divide-border/70">
-                  {[...teamScores].sort((a, b) => (b.compositeScore ?? -1) - (a.compositeScore ?? -1)).map((t) => (
-                    <div key={t.team} className="flex items-center gap-3 px-4 py-3" data-testid={`ol-team-${t.team}`}>
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary mono text-[10px] font-medium">{t.team}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-semibold">{t.fullName}</span>
-                          <span className="mono text-[11px] font-medium">{int(t.compositeScore)}</span>
-                        </div>
-                        <div className="mt-1 flex items-center gap-2">
-                          <ScoreBar value={t.compositeScore ?? 0} color="primary" />
-                          <span className={`shrink-0 mono text-[9px] ${t.tier === "Elite" ? "text-primary" : t.tier === "Above Average" ? "text-primary/70" : t.tier === "Average" ? "text-accent-foreground" : "text-destructive"}`}>{t.tier}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Surface>
-              <div className="grid grid-cols-2 gap-3">
-                {Object.entries(IMPACT_COLORS).map(([key, { badge }]) => (
-                  <div key={key} className="rounded-2xl border border-border bg-card p-3">
-                    <span className={`inline-flex rounded-md border px-1.5 py-0.5 mono text-[9px] font-medium ${badge}`}>{key}</span>
-                    <p className="mt-1.5 text-[10px] leading-4 text-muted-foreground">
-                      {key === "Favorable" ? "Elite RB + strong line" : key === "Buy Low" ? "Underpriced RB, good line" : key === "Landmine" ? "Skilled RB, poor support" : "Low RB + weak line"}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              {view === "matrix" && ["All", "Favorable", "Buy Low", "Landmine", "Avoid"].map((label) => (
+                <button
+                  type="button"
+                  key={label}
+                  onClick={() => setFilter(label)}
+                  data-testid={`button-ol-filter-${label.toLowerCase().replace(" ", "-")}`}
+                  className={`rounded-xl border px-2.5 py-1.5 mono text-[10px] font-semibold transition ${filter === label ? "border-primary/30 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
+                >{label}</button>
+              ))}
             </div>
           </div>
 
-          {/* RB ranked matrix */}
-          <div className="mt-6">
-            <Surface className="overflow-hidden">
-              <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div><Kicker>RB ranking matrix</Kicker><h2 className="mt-1 text-sm font-bold">{rbImpacts.length} running backs · ranked by composite rank</h2></div>
-                <div className="flex flex-wrap gap-1.5">
-                  {["All", "Favorable", "Buy Low", "Landmine", "Avoid"].map((label) => (
-                    <button
-                      type="button"
-                      key={label}
-                      onClick={() => setFilter(label)}
-                      data-testid={`button-ol-filter-${label.toLowerCase().replace(" ", "-")}`}
-                      className={`rounded-xl border px-2.5 py-1.5 mono text-[10px] font-semibold transition ${filter === label ? "border-primary/30 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
-                    >{label}</button>
-                  ))}
-                </div>
-              </div>
+          {view === "scatter" ? (
+            <div className="px-4 py-3">
+              <OLScatterPlot rbImpacts={rbImpacts} onSelect={setSelected} />
+            </div>
+          ) : (
+            <div className="max-h-[380px] overflow-y-auto scrollbar-thin">
               <div className="overflow-x-auto">
-                <div className="min-w-[780px]">
-                  <div className="grid grid-cols-[36px_minmax(160px,1.6fr)_64px_80px_80px_90px_minmax(200px,1fr)] gap-3 border-b border-border bg-muted/45 px-5 py-2.5 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
-                    <span>#</span><span>Player</span><span>Team</span><span>OL Score</span><span>OL Tier</span><span>Impact</span><span>PPG / Value</span>
+                <div className="min-w-[720px]">
+                  <div className="sticky top-0 z-10 grid grid-cols-[36px_minmax(150px,1.5fr)_54px_72px_92px_minmax(170px,1fr)] gap-3 border-b border-border bg-muted px-5 py-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
+                    <span>#</span><span>Player</span><span>Team</span><span>OL</span><span>Impact</span><span>PPG / Value</span>
                   </div>
                   {filtered.length === 0 ? (
                     <EmptyState label="No RBs match this filter." />
@@ -588,50 +540,52 @@ function RBImpactSection() {
                       return (
                         <div
                           key={rb.playerId}
-                          className="data-row grid grid-cols-[36px_minmax(160px,1.6fr)_64px_80px_80px_90px_minmax(200px,1fr)] items-center gap-3 border-b border-border/70 px-5 py-3 last:border-b-0 hover:bg-primary/[0.03] cursor-pointer"
+                          className="data-row grid grid-cols-[36px_minmax(150px,1.5fr)_54px_72px_92px_minmax(170px,1fr)] items-center gap-3 border-b border-border/70 px-5 py-2 last:border-b-0 hover:bg-primary/[0.03] cursor-pointer"
                           data-testid={`row-rb-ol-${rb.playerId}`}
                           onClick={() => setLocation(`/players/${rb.playerId}`)}
                         >
                           <span className="mono text-[11px] text-muted-foreground">{String(rb.rank).padStart(2, "0")}</span>
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-[10px] font-bold">{initials(rb.playerName)}</span>
-                            <span className="truncate text-[12px] font-bold hover:text-primary">{rb.playerName}</span>
-                          </div>
+                          <span className="truncate text-[12px] font-bold hover:text-primary">{rb.playerName}</span>
                           <span className="mono text-[11px] text-muted-foreground">{rb.team}</span>
-                          <span className="mono text-[12px] font-medium">{int(rb.olCompositeScore)}<span className="text-muted-foreground text-[9px]">/100</span></span>
-                          <span className={`mono text-[10px] font-medium ${rb.olTier === "Elite" ? "text-primary" : rb.olTier === "Above Average" ? "text-primary/70" : rb.olTier === "Average" ? "text-accent-foreground" : "text-destructive"}`}>{rb.olTier}</span>
+                          <span className="mono text-[12px] font-medium">{int(rb.olCompositeScore)}<span className={`ml-1 text-[9px] ${rb.olTier === "Elite" ? "text-primary" : rb.olTier === "Below Average" || rb.olTier === "Poor" ? "text-destructive" : "text-muted-foreground"}`}>{rb.olTier}</span></span>
                           <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 mono text-[9px] font-medium ${col.badge}`}>{rb.impactLabel}</span>
-                          <span className="mono text-[10px] text-muted-foreground">{num(rb.ppg)} PPG · <span className={`font-medium ${valueTone(rb.valueScore)}`}>{fmtValueScore(rb.valueScore)} val</span></span>
+                          <span className="mono text-[11px] text-muted-foreground">{num(rb.ppg)} PPG · <span className={`font-medium ${valueTone(rb.valueScore)}`}>{fmtValueScore(rb.valueScore)} val</span></span>
                         </div>
                       );
                     })
                   )}
                 </div>
               </div>
-              <div className="flex items-center justify-between border-t border-border px-5 py-3">
-                <span className="mono text-[9px] text-muted-foreground">Click any row to open the player detail · OL composite = weighted ALY + stuff rate + pass block + snap continuity</span>
-              </div>
-            </Surface>
-          </div>
-
-          {/* Selected RB blurb */}
-          {selected && (
-            <div className="mt-6">
-              <Surface className="p-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2"><Activity size={15} className="text-accent-foreground" /><Kicker>Analyst blurb — {selected.playerName}</Kicker></div>
-                  <button type="button" onClick={() => setSelected(null)} className="rounded-lg p-1 text-muted-foreground hover:bg-muted"><X size={14} /></button>
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <span className={`inline-flex items-center rounded-md border px-2 py-0.5 mono text-[10px] font-medium ${IMPACT_COLORS[selected.impactLabel]?.badge ?? ""}`}>{selected.impactLabel}</span>
-                  <span className="mono text-[10px] text-muted-foreground">OL {int(selected.olCompositeScore)}/100 · {selected.olTier}</span>
-                </div>
-                <p className="mt-3 text-[12px] leading-6 text-muted-foreground">{selected.blurb}</p>
-                <button type="button" onClick={() => setLocation(`/players/${selected.playerId}`)} className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-[10px] font-bold text-primary-foreground hover:-translate-y-0.5 hover:shadow-md transition"><Target size={12} />Open player detail</button>
-              </Surface>
             </div>
           )}
-        </>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-5 py-2.5">
+            <div className="flex flex-wrap items-center gap-3">
+              {Object.values(IMPACT_COLORS).map(({ dot, label }) => (
+                <span key={label} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <span className={`h-2 w-2 rounded-full ${dot}`} />{label}
+                </span>
+              ))}
+            </div>
+            <span className="mono text-[9px] text-muted-foreground">{rbImpacts.length} backs · click a dot or row for the read</span>
+          </div>
+
+          {selected && (
+            <div className="border-t border-border bg-muted/30 px-5 py-3" data-testid="strip-rb-blurb">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => setLocation(`/players/${selected.playerId}`)} className="text-[12px] font-bold hover:text-primary">{selected.playerName}</button>
+                    <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 mono text-[9px] font-medium ${IMPACT_COLORS[selected.impactLabel]?.badge ?? ""}`}>{selected.impactLabel}</span>
+                    <span className="mono text-[10px] text-muted-foreground">OL {int(selected.olCompositeScore)}/100 · {selected.olTier}</span>
+                  </div>
+                  <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground">{selected.blurb}</p>
+                </div>
+                <button type="button" onClick={() => setSelected(null)} aria-label="Dismiss blurb" className="shrink-0 rounded-lg p-1 text-muted-foreground hover:bg-muted"><X size={14} /></button>
+              </div>
+            </div>
+          )}
+        </Surface>
       )}
     </div>
   );
@@ -892,7 +846,7 @@ function ActivityIcon() {
 
 function Router() {
   const [location, setLocation] = useLocation();
-  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/league" component={LeaguePage} /><Route path="/keepers" component={LeaguePage} /><Route path="/draft-sheet" component={DraftSheetPage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route path="/sources" component={SourcesPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
+  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/sleepers" component={SleepersPage} /><Route path="/league" component={LeaguePage} /><Route path="/keepers" component={LeaguePage} /><Route path="/draft-sheet" component={DraftSheetPage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route path="/sources" component={SourcesPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
 }
 
 function App() {

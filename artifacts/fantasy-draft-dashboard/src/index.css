@@ -79,62 +79,62 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  --background: 42 35% 96%;
-  --foreground: 224 28% 15%;
-  --border: 35 21% 87%;
-  --card: 42 40% 98%;
-  --card-foreground: 224 28% 15%;
-  --card-border: 35 21% 87%;
-  --sidebar: 224 28% 16%;
-  --sidebar-foreground: 42 35% 96%;
-  --sidebar-border: 224 20% 25%;
-  --sidebar-primary: 174 70% 39%;
-  --sidebar-primary-foreground: 224 28% 12%;
-  --sidebar-accent: 224 22% 22%;
-  --sidebar-accent-foreground: 42 35% 96%;
-  --sidebar-ring: 174 70% 39%;
-  --popover: 42 40% 98%;
-  --popover-foreground: 224 28% 15%;
-  --popover-border: 35 21% 87%;
-  --primary: 172 78% 31%;
-  --primary-foreground: 42 40% 98%;
-  --secondary: 36 34% 91%;
-  --secondary-foreground: 224 28% 20%;
-  --muted: 38 24% 92%;
-  --muted-foreground: 221 13% 43%;
-  --accent: 28 92% 53%;
-  --accent-foreground: 224 28% 15%;
-  --destructive: 5 68% 49%;
-  --destructive-foreground: 42 40% 98%;
-  --input: 35 21% 82%;
-  --ring: 174 70% 35%;
-  --chart-1: 174 70% 35%;
-  --chart-2: 34 88% 55%;
-  --chart-3: 224 62% 54%;
+  --background: 42 30% 96%;
+  --foreground: 165 14% 12%;
+  --border: 40 16% 86%;
+  --card: 42 35% 98%;
+  --card-foreground: 165 14% 12%;
+  --card-border: 40 16% 86%;
+  --sidebar: 165 14% 8%;
+  --sidebar-foreground: 40 25% 95%;
+  --sidebar-border: 165 10% 20%;
+  --sidebar-primary: 165 90% 42%;
+  --sidebar-primary-foreground: 165 14% 8%;
+  --sidebar-accent: 165 11% 14%;
+  --sidebar-accent-foreground: 40 25% 95%;
+  --sidebar-ring: 165 90% 42%;
+  --popover: 42 35% 98%;
+  --popover-foreground: 165 14% 12%;
+  --popover-border: 40 16% 86%;
+  --primary: 168 85% 29%;
+  --primary-foreground: 42 35% 98%;
+  --secondary: 40 26% 90%;
+  --secondary-foreground: 165 12% 18%;
+  --muted: 40 20% 91%;
+  --muted-foreground: 165 8% 40%;
+  --accent: 28 92% 51%;
+  --accent-foreground: 165 14% 12%;
+  --destructive: 5 68% 46%;
+  --destructive-foreground: 42 35% 98%;
+  --input: 40 16% 81%;
+  --ring: 168 85% 29%;
+  --chart-1: 168 85% 32%;
+  --chart-2: 34 88% 52%;
+  --chart-3: 258 60% 55%;
   --chart-4: 5 68% 49%;
-  --chart-5: 281 42% 49%;
+  --chart-5: 199 85% 40%;
   --app-font-sans: 'Manrope', sans-serif;
   --app-font-serif: 'Space Grotesk', sans-serif;
   --app-font-mono: 'DM Mono', monospace;
   --radius: 0.5rem; /* 8px */
-  --shadow-2xs: 0px 2px 0px 0px hsl(224 28% 15% / 0.02);
-  --shadow-xs: 0px 2px 0px 0px hsl(224 28% 15% / 0.03);
+  --shadow-2xs: 0px 2px 0px 0px hsl(165 14% 12% / 0.02);
+  --shadow-xs: 0px 2px 0px 0px hsl(165 14% 12% / 0.03);
   --shadow-sm:
-    0px 2px 0px 0px hsl(224 28% 15% / 0.02),
-    0px 1px 2px -1px hsl(224 28% 15% / 0.06);
+    0px 2px 0px 0px hsl(165 14% 12% / 0.02),
+    0px 1px 2px -1px hsl(165 14% 12% / 0.06);
   --shadow:
-    0px 2px 0px 0px hsl(224 28% 15% / 0.02),
-    0px 1px 2px -1px hsl(224 28% 15% / 0.06);
+    0px 2px 0px 0px hsl(165 14% 12% / 0.02),
+    0px 1px 2px -1px hsl(165 14% 12% / 0.06);
   --shadow-md:
-    0px 2px 0px 0px hsl(224 28% 15% / 0.02),
-    0px 2px 4px -1px hsl(224 28% 15% / 0.07);
+    0px 2px 0px 0px hsl(165 14% 12% / 0.02),
+    0px 2px 4px -1px hsl(165 14% 12% / 0.07);
   --shadow-lg:
-    0px 2px 0px 0px hsl(224 28% 15% / 0.02),
-    0px 4px 6px -1px hsl(224 28% 15% / 0.09);
+    0px 2px 0px 0px hsl(165 14% 12% / 0.02),
+    0px 4px 6px -1px hsl(165 14% 12% / 0.09);
   --shadow-xl:
     0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
     0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0);
-  --shadow-2xl: 0px 2px 0px 0px hsl(224 28% 15% / 0.12);
+  --shadow-2xl: 0px 2px 0px 0px hsl(165 14% 12% / 0.12);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -200,36 +200,36 @@
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
 
-  --background: 233 32% 10%;
-  --foreground: 40 36% 95%;
-  --border: 232 22% 23%;
-  --card: 232 27% 14%;
-  --card-foreground: 40 36% 95%;
-  --card-border: 232 22% 24%;
-  --sidebar: 237 38% 8%;
-  --sidebar-foreground: 40 36% 95%;
-  --sidebar-border: 234 24% 18%;
-  --sidebar-primary: 168 85% 48%;
-  --sidebar-primary-foreground: 237 38% 8%;
-  --sidebar-accent: 233 26% 15%;
-  --sidebar-accent-foreground: 40 36% 95%;
-  --sidebar-ring: 168 85% 48%;
-  --popover: 232 27% 14%;
-  --popover-foreground: 40 36% 95%;
-  --popover-border: 232 22% 24%;
-  --primary: 168 85% 46%;
-  --primary-foreground: 237 38% 8%;
-  --secondary: 232 23% 21%;
-  --secondary-foreground: 40 36% 95%;
-  --muted: 232 23% 19%;
-  --muted-foreground: 230 14% 68%;
+  --background: 165 10% 6%;
+  --foreground: 40 28% 95%;
+  --border: 163 9% 17%;
+  --card: 164 9% 9%;
+  --card-foreground: 40 28% 95%;
+  --card-border: 163 9% 18%;
+  --sidebar: 166 13% 4%;
+  --sidebar-foreground: 40 28% 95%;
+  --sidebar-border: 164 10% 14%;
+  --sidebar-primary: 163 95% 48%;
+  --sidebar-primary-foreground: 166 13% 4%;
+  --sidebar-accent: 165 10% 10%;
+  --sidebar-accent-foreground: 40 28% 95%;
+  --sidebar-ring: 163 95% 48%;
+  --popover: 164 9% 9%;
+  --popover-foreground: 40 28% 95%;
+  --popover-border: 163 9% 18%;
+  --primary: 163 95% 45%;
+  --primary-foreground: 166 13% 4%;
+  --secondary: 164 9% 15%;
+  --secondary-foreground: 40 28% 95%;
+  --muted: 164 9% 13%;
+  --muted-foreground: 163 6% 64%;
   --accent: 28 96% 58%;
-  --accent-foreground: 237 38% 8%;
+  --accent-foreground: 166 13% 4%;
   --destructive: 4 78% 60%;
-  --destructive-foreground: 40 36% 95%;
-  --input: 232 22% 28%;
-  --ring: 168 85% 46%;
-  --chart-1: 168 85% 46%;
+  --destructive-foreground: 40 28% 95%;
+  --input: 163 9% 23%;
+  --ring: 163 95% 45%;
+  --chart-1: 163 95% 45%;
   --chart-2: 28 96% 58%;
   --chart-3: 258 74% 70%;
   --chart-4: 4 78% 60%;
@@ -304,29 +304,23 @@
   .enter-3 { animation-delay: 210ms; }
   .pulse-dot { animation: pulse-dot 2.2s ease-in-out infinite; box-shadow: 0 0 8px 1px hsl(var(--primary) / .55); }
 
-  /* The sidebar is lit, not flat: teal breathing in from the brand corner,
-     an ember of amber at the foot, over a deep indigo-to-black sweep, with a
-     neon seam where it meets the page. */
-  .side-rail {
+  /* The chrome is a terminal title bar: near-black graphite with phosphor
+     light bleeding in from the brand corner and a hairline neon seam below. */
+  .top-rail {
     background:
-      radial-gradient(30rem 20rem at -10% -5%, hsl(var(--sidebar-primary) / 0.16), transparent 62%),
-      radial-gradient(20rem 14rem at 110% 105%, hsl(28 96% 58% / 0.09), transparent 58%),
-      linear-gradient(200deg, hsl(242 42% 12%), hsl(237 38% 8%) 48%, hsl(222 48% 6%));
+      radial-gradient(40rem 8rem at 8% 0%, hsl(var(--sidebar-primary) / 0.13), transparent 60%),
+      radial-gradient(24rem 6rem at 96% 100%, hsl(28 96% 58% / 0.07), transparent 55%),
+      linear-gradient(180deg, hsl(var(--sidebar)), hsl(var(--sidebar-accent)));
+    border-bottom: 1px solid hsl(var(--sidebar-primary) / 0.35);
+    box-shadow: 0 1px 24px -12px hsl(var(--sidebar-primary) / 0.5);
   }
-  .side-rail::after {
-    content: '';
-    position: absolute;
-    top: 0; bottom: 0; right: -1px;
-    width: 1px;
-    background: linear-gradient(180deg, transparent, hsl(var(--sidebar-primary) / 0.55) 30%, hsl(var(--sidebar-primary) / 0.55) 70%, transparent);
-    pointer-events: none;
+  .tab-item { border-bottom: 2px solid transparent; }
+  .tab-active {
+    border-bottom-color: hsl(var(--sidebar-primary));
+    text-shadow: 0 0 12px hsl(var(--sidebar-primary) / 0.6);
+    background: linear-gradient(180deg, transparent 55%, hsl(var(--sidebar-primary) / 0.1));
   }
-  .nav-item { transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
-  .nav-item:hover { transform: translateX(3px); }
-  .nav-active {
-    box-shadow: inset 2.5px 0 0 hsl(var(--sidebar-primary)), 0 0 22px -8px hsl(var(--sidebar-primary) / 0.8);
-  }
-  .nav-active svg { filter: drop-shadow(0 0 5px hsl(var(--sidebar-primary) / 0.8)); }
+  .cursor-blink { animation: cursor-blink 1.1s step-end infinite; }
   .scanline { position: relative; overflow: hidden; }
   .scanline::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 0%, hsl(var(--primary) / .04) 50%, transparent 100%); transform: translateY(-100%); animation: scan 5s linear infinite; }
 }
@@ -351,6 +345,7 @@
 @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes pulse-dot { 0%, 100% { opacity: .42; transform: scale(.88); } 50% { opacity: 1; transform: scale(1); } }
 @keyframes scan { to { transform: translateY(100%); } }
+@keyframes cursor-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
 /**
  * Using the elevate system.

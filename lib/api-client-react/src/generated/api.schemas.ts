@@ -489,6 +489,17 @@ export interface KeeperImportResult {
   keepers: Keeper[];
 }
 
+export interface SleeperPick {
+  playerId: string;
+  name: string;
+  team: string;
+  position: string;
+  adp: number;
+  score: number;
+  tags: string[];
+  reasons: string[];
+}
+
 export type RecommendationComponents = {
   availability: number;
   need: number;

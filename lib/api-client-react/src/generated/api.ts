@@ -38,6 +38,7 @@ import type {
   PlayerNoteInput,
   Recommendation,
   RefreshStatus,
+  SleeperPick,
   Target,
   TargetInput,
   Team,
@@ -692,6 +693,89 @@ export function useGetRecommendations<TData = Awaited<ReturnType<typeof getRecom
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRecommendationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSleepersUrl = () => {
+
+
+
+
+  return `/api/draft/sleepers`
+}
+
+/**
+ * Under-the-radar picks, argued: rookies wherever they are priced, plus
+ * late-priced players with a real signal — early-career arcs, handcuffs
+ * one injury from a job (or already behind a hurt starter), committee
+ * backs with live touches, efficiency the box score hid, and boom-weeks
+ * ceilings. Tags allow filtering (rookie, early-career, handcuff,
+ * committee, value, boom); reasons carry the argument.
+ * @summary Sleepers and rookies
+ */
+export const getSleepers = async ( options?: Parameters<typeof customFetch>[1]): Promise<SleeperPick[]> => {
+
+  return customFetch<SleeperPick[]>(getGetSleepersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSleepersQueryKey = () => {
+    return [
+    `/api/draft/sleepers`
+    ] as const;
+    }
+
+
+export const getGetSleepersQueryOptions = <TData = Awaited<ReturnType<typeof getSleepers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSleepers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSleepersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSleepers>>> = ({ signal }) => getSleepers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSleepers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSleepersQueryResult = NonNullable<Awaited<ReturnType<typeof getSleepers>>>
+export type GetSleepersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Sleepers and rookies
+ */
+
+export function useGetSleepers<TData = Awaited<ReturnType<typeof getSleepers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSleepers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSleepersQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
