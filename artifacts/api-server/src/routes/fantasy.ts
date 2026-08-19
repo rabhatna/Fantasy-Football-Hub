@@ -12,6 +12,7 @@ import {
   DeleteDraftPickParams,
   GetDraftPicksResponse,
   GetDraftSummaryResponse,
+  GetLiveStatusResponse,
   GetNewsResponse,
   GetNotesResponse,
   GetOLImpactResponse,
@@ -27,6 +28,15 @@ import {
   SavePlayerNoteParams,
   SavePlayerNoteResponse,
 } from "@workspace/api-zod";
+import {
+  injuriesByPlayer,
+  newsItems,
+  readLiveCache,
+  readLiveStatus,
+  refreshLive,
+  type LiveCache,
+  type PlayerInjury,
+} from "@workspace/live";
 import { logger } from "../lib/logger";
 
 // Draft picks and notes persist as CSV under the data directory; the player
@@ -42,6 +52,35 @@ const dataDir = resolveDataDir(process.env, defaultDataDir);
 
 let snapshotPromise: Promise<Snapshot> | null = null;
 let loadedAt = new Date().toISOString();
+
+// The live cache is read from disk, never fetched implicitly: a page load must
+// not cause an outbound request. Only POST /data/refresh fetches.
+let livePromise: Promise<LiveCache | null> | null = null;
+
+function live(): Promise<LiveCache | null> {
+  const pending = (livePromise ??= readLiveCache(dataDir));
+  return pending;
+}
+
+/**
+ * Merge live availability onto the ranked players.
+ *
+ * A player the injury source has no record of keeps a null status. Null means
+ * unknown — it is never rendered or treated as "healthy".
+ */
+async function playersWithInjuries(): Promise<DatasetPlayer[]> {
+  const [{ players }, cache] = await Promise.all([snapshot(), live()]);
+  if (!cache) return players;
+
+  const injuries = injuriesByPlayer(cache, players);
+  if (injuries.size === 0) return players;
+
+  return players.map((player) => {
+    const injury: PlayerInjury | undefined = injuries.get(player.id);
+    if (!injury) return player;
+    return { ...player, injuryStatus: injury.status, injuryBodyPart: injury.bodyPart };
+  });
+}
 
 function snapshot(): Promise<Snapshot> {
   if (snapshotPromise === null) {
@@ -186,7 +225,7 @@ router.get("/players", async (req, res, next) => {
     }
 
     const { position, search, maxAdp, minShare, excludeUnhealthy } = parsed.data;
-    const { players } = await snapshot();
+    const players = await playersWithInjuries();
     const normalizedSearch = search?.trim().toLowerCase();
 
     const filtered = players.filter((player) => {
@@ -203,9 +242,8 @@ router.get("/players", async (req, res, next) => {
       if (typeof minShare === "number" && player.share !== null && player.share < minShare) {
         return false;
       }
-      // No availability data exists in this dataset, so this filter cannot be
-      // honoured yet; it is a no-op rather than a filter that silently lies.
-      // Once a live status source is connected it starts working again.
+      // A player with no known status is not filtered out: unknown is not the
+      // same as unavailable, and hiding him would be a claim we cannot support.
       if (excludeUnhealthy && player.injuryStatus !== null) {
         return !UNAVAILABLE_INJURY_STATUSES.includes(player.injuryStatus);
       }
@@ -226,7 +264,7 @@ router.get("/players/:id", async (req, res, next) => {
       return;
     }
 
-    const { players } = await snapshot();
+    const players = await playersWithInjuries();
     const player = players.find((item) => item.id === params.data.id);
     if (!player) {
       res.status(404).json({ error: "Player not found" });
@@ -248,11 +286,24 @@ router.get("/teams", async (_req, res, next) => {
   }
 });
 
-router.get("/news", (_req, res) => {
-  // The dataset carries no injury or beat reporting, and this endpoint
-  // previously returned invented headlines about invented players. It stays
-  // empty until a live source is wired up rather than fabricating a feed.
-  res.json(GetNewsResponse.parse([]));
+router.get("/news", async (_req, res, next) => {
+  try {
+    const [{ players }, cache] = await Promise.all([snapshot(), live()]);
+    // Empty until the user runs a refresh. Reading this endpoint never
+    // triggers a fetch, so opening the app makes no outbound request.
+    const injuries = injuriesByPlayer(cache, players);
+    res.json(GetNewsResponse.parse(newsItems(cache, players, injuries)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/live/status", async (_req, res, next) => {
+  try {
+    res.json(GetLiveStatusResponse.parse(await readLiveStatus(dataDir)));
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.get("/draft/summary", async (_req, res, next) => {
@@ -463,20 +514,30 @@ router.get("/ol-impact", async (_req, res, next) => {
 
 router.post("/data/refresh", async (_req, res, next) => {
   try {
-    // Drop both caches so a newly added snapshot, or an edit made directly in
+    // Drop cached rows so a newly added snapshot, or an edit made directly in
     // Excel, is picked up without restarting the server.
     store.invalidate();
     snapshotPromise = null;
+    livePromise = null;
+
     const { version, players, teams } = await snapshot();
+
+    // The only outbound network call in the app, and only from here.
+    const { status } = await refreshLive(dataDir);
+    livePromise = null;
 
     res.json(
       RefreshDataResponse.parse({
-        status: "ok",
-        refreshedAt: loadedAt,
+        // "partial" when some feed failed: the caller should not treat a
+        // degraded refresh as a clean one.
+        status: status.stale ? "partial" : "ok",
+        refreshedAt: status.attemptedAt ?? loadedAt,
+        live: status,
         sources: [
-          { name: `dataset snapshot ${version}`, status: `${players.length} players` },
-          { name: "team context", status: `${teams.length} teams` },
-          { name: "draft board", status: "reloaded from disk" },
+          { name: `dataset snapshot ${version}`, ok: true, detail: `${players.length} players` },
+          { name: "team context", ok: true, detail: `${teams.length} teams` },
+          { name: "draft board", ok: true, detail: "reloaded from disk" },
+          ...status.sources,
         ],
       }),
     );

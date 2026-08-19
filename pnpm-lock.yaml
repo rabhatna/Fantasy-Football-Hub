@@ -80,6 +80,9 @@ importers:
       '@workspace/dataset':
         specifier: workspace:*
         version: link:../../lib/dataset
+      '@workspace/live':
+        specifier: workspace:*
+        version: link:../../lib/live
       '@workspace/store':
         specifier: workspace:*
         version: link:../../lib/store
@@ -326,6 +329,16 @@ importers:
         version: 3.25.76
 
   lib/dataset:
+    dependencies:
+      '@workspace/store':
+        specifier: workspace:*
+        version: link:../store
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.5
+
+  lib/live:
     dependencies:
       '@workspace/store':
         specifier: workspace:*

@@ -34,7 +34,7 @@ http://localhost:5173, with `/api` proxied to the API on 8080.
 | `pnpm run serve` | Serve an existing build |
 | `pnpm dev` | Both dev servers, with hot reload |
 | `pnpm run build` | Typecheck, then build API bundle + SPA |
-| `pnpm run test` | Run the store and dataset test suites |
+| `pnpm run test` | Run the store, dataset and live test suites |
 | `pnpm run typecheck` | Typecheck every package |
 | `pnpm --filter @workspace/api-spec run codegen` | Regenerate React Query hooks and Zod schemas from the OpenAPI spec |
 

@@ -224,11 +224,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OLImpactAnalysis"
+  /live/status:
+    get:
+      operationId: getLiveStatus
+      tags: [injuries]
+      summary: State of the live feeds
+      description: Read-only. Never performs a network fetch — refreshing is always explicit.
+      responses:
+        "200":
+          description: Current live-feed state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveStatus"
   /data/refresh:
     post:
       operationId: refreshData
       tags: [draft]
       summary: Refresh cached data
+      description: |
+        Reloads the dataset and draft board from disk and fetches the live
+        feeds. This is the only path that makes outbound network requests, and
+        it runs only when the user asks for it.
       responses:
         "200":
           description: Refresh result
@@ -282,9 +299,10 @@ components:
         injuryStatus:
           type: [string, "null"]
           description: |
-            Always null for now. The dataset is built from completed-season
-            production and market data and carries no availability status;
-            live status comes from a separate source.
+            Live availability, merged from the injury feed when one has been
+            fetched. Null means unknown — either no refresh has run, or the
+            source has no record of the player. It never means "healthy".
+        injuryBodyPart: { type: [string, "null"] }
         byeWeek: { type: [number, "null"] }
         tier: { type: number }
         durabilityScore: { type: [number, "null"] }
@@ -340,16 +358,25 @@ components:
         trend: { type: string }
     NewsItem:
       type: object
-      required: [id, source, author, headline, timestamp, sentiment, status]
+      description: |
+        A headline from a public NFL news feed. Fields map to what RSS actually
+        provides; there is no sentiment field because sentiment cannot be
+        derived from a headline without inventing it. `playerId` is set only
+        when exactly one ranked player is named in full — a surname alone is
+        too ambiguous to attribute.
+      required: [id, source, headline]
       properties:
         id: { type: string }
         source: { type: string }
-        author: { type: string }
+        author: { type: [string, "null"] }
         headline: { type: string }
-        timestamp: { type: string }
-        sentiment: { type: string }
-        status: { type: string }
-        playerId: { type: ["string", "null"] }
+        url: { type: [string, "null"] }
+        timestamp: { type: [string, "null"] }
+        playerId: { type: [string, "null"] }
+        playerName: { type: [string, "null"] }
+        status:
+          type: [string, "null"]
+          description: The named player's current availability, when known.
     DraftSummary:
       type: object
       required: [playersTracked, draftedCount, averageAdp, valueTargets, positionalNeeds, lastRefresh, snapshotVersion]
@@ -453,7 +480,32 @@ components:
       properties:
         status: { type: string }
         refreshedAt: { type: string }
+        live:
+          $ref: "#/components/schemas/LiveStatus"
         sources:
           type: array
-          items: { type: string }
+          items:
+            $ref: "#/components/schemas/SourceResult"
+    SourceResult:
+      type: object
+      required: [name, ok, detail]
+      properties:
+        name: { type: string }
+        ok: { type: boolean }
+        detail: { type: string }
+    LiveStatus:
+      type: object
+      description: |
+        State of the live feeds. `stale` is true when the most recent attempt
+        had any source fail, meaning some of what is being served predates it —
+        clients must say so rather than presenting cached data as current.
+      required: [stale, sources]
+      properties:
+        fetchedAt: { type: [string, "null"] }
+        attemptedAt: { type: [string, "null"] }
+        stale: { type: boolean }
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceResult"
 

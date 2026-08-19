@@ -25,6 +25,7 @@ import type {
   DraftSummary,
   GetPlayersParams,
   HealthStatus,
+  LiveStatus,
   NewsItem,
   OLImpactAnalysis,
   Player,
@@ -978,6 +979,84 @@ export function useGetOLImpact<TData = Awaited<ReturnType<typeof getOLImpact>>, 
 
 
 
+export const getGetLiveStatusUrl = () => {
+
+
+
+
+  return `/api/live/status`
+}
+
+/**
+ * Read-only. Never performs a network fetch — refreshing is always explicit.
+ * @summary State of the live feeds
+ */
+export const getLiveStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<LiveStatus> => {
+
+  return customFetch<LiveStatus>(getGetLiveStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLiveStatusQueryKey = () => {
+    return [
+    `/api/live/status`
+    ] as const;
+    }
+
+
+export const getGetLiveStatusQueryOptions = <TData = Awaited<ReturnType<typeof getLiveStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiveStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLiveStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLiveStatus>>> = ({ signal }) => getLiveStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLiveStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLiveStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getLiveStatus>>>
+export type GetLiveStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary State of the live feeds
+ */
+
+export function useGetLiveStatus<TData = Awaited<ReturnType<typeof getLiveStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiveStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLiveStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getRefreshDataUrl = () => {
 
 
@@ -987,6 +1066,9 @@ export const getRefreshDataUrl = () => {
 }
 
 /**
+ * Reloads the dataset and draft board from disk and fetches the live
+ * feeds. This is the only path that makes outbound network requests, and
+ * it runs only when the user asks for it.
  * @summary Refresh cached data
  */
 export const refreshData = async ( options?: Parameters<typeof customFetch>[1]): Promise<RefreshStatus> => {

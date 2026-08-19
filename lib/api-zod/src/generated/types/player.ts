@@ -47,12 +47,14 @@ export interface Player {
   /** @nullable */
   oLineGrade?: number | null;
   /**
-     * Always null for now. The dataset is built from completed-season
-     * production and market data and carries no availability status;
-     * live status comes from a separate source.
+     * Live availability, merged from the injury feed when one has been
+     * fetched. Null means unknown — either no refresh has run, or the
+     * source has no record of the player. It never means "healthy".
      * @nullable
      */
   injuryStatus?: string | null;
+  /** @nullable */
+  injuryBodyPart?: string | null;
   /** @nullable */
   byeWeek?: number | null;
   tier: number;
