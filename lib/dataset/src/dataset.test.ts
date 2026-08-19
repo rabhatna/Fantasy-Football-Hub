@@ -158,6 +158,42 @@ describe("teams", () => {
     assert.ok(snapshot.teams.every((team) => team.tier !== "Unrated"));
   });
 
+  test("OL health tracks the share of the line that actually returns", () => {
+    for (const team of snapshot.teams) {
+      assert.notEqual(team.olHealthScore, null, `${team.team} has no health score`);
+      assert.ok(
+        (team.olHealthScore as number) >= 0 && (team.olHealthScore as number) <= 100,
+        `${team.team} health is off the 0-100 scale`,
+      );
+    }
+
+    // A line keeping one of five starters and a fifth of its snaps is the
+    // clearest alert on the 2026 board; a line keeping all five is not.
+    const chargers = snapshot.teams.find((team) => team.team === "LAC");
+    assert.equal(chargers?.returningStarters, 1);
+    assert.equal(chargers?.olHealthStatus, "Critical");
+
+    const rams = snapshot.teams.find((team) => team.team === "LAR");
+    assert.equal(rams?.returningStarters, 5);
+    assert.equal(rams?.olHealthStatus, "Intact");
+    assert.ok((rams?.olHealthScore ?? 0) > (chargers?.olHealthScore ?? 0));
+  });
+
+  test("health is graded independently of how good the line is", () => {
+    // Continuity is not quality: a bad line can return intact, and the board
+    // has to be able to say both things about the same team.
+    const intactButPoor = snapshot.teams.filter(
+      (team) => team.olHealthStatus === "Intact" && (team.compositeScore ?? 0) < 50,
+    );
+    assert.ok(intactButPoor.length > 0, "expected an intact line that still grades poorly");
+  });
+
+  test("every team lands in a health band, none unknown", () => {
+    const bands = new Set(snapshot.teams.map((team) => team.olHealthStatus));
+    assert.ok(!bands.has("Unknown"), "the 2026 snapshot has continuity for every team");
+    assert.deepEqual([...bands].sort(), ["Critical", "Degraded", "Intact"]);
+  });
+
   test("percentages are percentages, not fractions", () => {
     for (const team of snapshot.teams) {
       assert.ok((team.snapContinuity ?? 0) > 1, `${team.team} continuity looks like a fraction`);
