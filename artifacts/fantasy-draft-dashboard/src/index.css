@@ -96,13 +96,13 @@
   --popover: 42 40% 98%;
   --popover-foreground: 224 28% 15%;
   --popover-border: 35 21% 87%;
-  --primary: 174 70% 35%;
+  --primary: 172 78% 31%;
   --primary-foreground: 42 40% 98%;
   --secondary: 36 34% 91%;
   --secondary-foreground: 224 28% 20%;
   --muted: 38 24% 92%;
   --muted-foreground: 221 13% 43%;
-  --accent: 34 88% 55%;
+  --accent: 28 92% 53%;
   --accent-foreground: 224 28% 15%;
   --destructive: 5 68% 49%;
   --destructive-foreground: 42 40% 98%;
@@ -200,40 +200,40 @@
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
 
-  --background: 224 28% 12%;
-  --foreground: 42 35% 94%;
-  --border: 224 20% 24%;
-  --card: 224 25% 16%;
-  --card-foreground: 42 35% 94%;
-  --card-border: 224 20% 25%;
-  --sidebar: 224 32% 9%;
-  --sidebar-foreground: 42 35% 94%;
-  --sidebar-border: 224 20% 19%;
-  --sidebar-primary: 174 70% 45%;
-  --sidebar-primary-foreground: 224 32% 9%;
-  --sidebar-accent: 224 24% 16%;
-  --sidebar-accent-foreground: 42 35% 94%;
-  --sidebar-ring: 174 70% 45%;
-  --popover: 224 25% 16%;
-  --popover-foreground: 42 35% 94%;
-  --popover-border: 224 20% 25%;
-  --primary: 174 70% 45%;
-  --primary-foreground: 224 32% 9%;
-  --secondary: 224 22% 22%;
-  --secondary-foreground: 42 35% 94%;
-  --muted: 224 22% 20%;
-  --muted-foreground: 224 12% 66%;
-  --accent: 34 88% 58%;
-  --accent-foreground: 224 32% 9%;
-  --destructive: 5 68% 57%;
-  --destructive-foreground: 42 35% 94%;
-  --input: 224 20% 29%;
-  --ring: 174 70% 45%;
-  --chart-1: 174 70% 45%;
-  --chart-2: 34 88% 58%;
-  --chart-3: 224 62% 65%;
-  --chart-4: 5 68% 57%;
-  --chart-5: 281 42% 62%;
+  --background: 233 32% 10%;
+  --foreground: 40 36% 95%;
+  --border: 232 22% 23%;
+  --card: 232 27% 14%;
+  --card-foreground: 40 36% 95%;
+  --card-border: 232 22% 24%;
+  --sidebar: 237 38% 8%;
+  --sidebar-foreground: 40 36% 95%;
+  --sidebar-border: 234 24% 18%;
+  --sidebar-primary: 168 85% 48%;
+  --sidebar-primary-foreground: 237 38% 8%;
+  --sidebar-accent: 233 26% 15%;
+  --sidebar-accent-foreground: 40 36% 95%;
+  --sidebar-ring: 168 85% 48%;
+  --popover: 232 27% 14%;
+  --popover-foreground: 40 36% 95%;
+  --popover-border: 232 22% 24%;
+  --primary: 168 85% 46%;
+  --primary-foreground: 237 38% 8%;
+  --secondary: 232 23% 21%;
+  --secondary-foreground: 40 36% 95%;
+  --muted: 232 23% 19%;
+  --muted-foreground: 230 14% 68%;
+  --accent: 28 96% 58%;
+  --accent-foreground: 237 38% 8%;
+  --destructive: 4 78% 60%;
+  --destructive-foreground: 40 36% 95%;
+  --input: 232 22% 28%;
+  --ring: 168 85% 46%;
+  --chart-1: 168 85% 46%;
+  --chart-2: 28 96% 58%;
+  --chart-3: 258 74% 70%;
+  --chart-4: 4 78% 60%;
+  --chart-5: 199 90% 60%;
 
   --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
   --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
@@ -264,6 +264,27 @@
     @apply font-sans antialiased bg-background text-foreground;
     min-width: 320px;
   }
+
+  /* Faint colour glows anchor the corners so the ground reads as lit, not
+     flat — teal from the brand corner, amber from the opposite one. Fixed so
+     scrolling content moves over the light rather than dragging it. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(52rem 34rem at 12% -8%, hsl(var(--primary) / 0.07), transparent 62%),
+      radial-gradient(46rem 30rem at 105% 108%, hsl(var(--accent) / 0.06), transparent 60%);
+  }
+  .dark body::before {
+    background:
+      radial-gradient(52rem 34rem at 12% -8%, hsl(var(--primary) / 0.1), transparent 62%),
+      radial-gradient(46rem 30rem at 105% 108%, hsl(var(--accent) / 0.08), transparent 60%),
+      radial-gradient(38rem 26rem at 55% 45%, hsl(258 74% 60% / 0.05), transparent 65%);
+  }
+  body > * { position: relative; z-index: 1; }
 }
 
 @layer utilities {
@@ -281,7 +302,7 @@
   .enter-1 { animation-delay: 70ms; }
   .enter-2 { animation-delay: 140ms; }
   .enter-3 { animation-delay: 210ms; }
-  .pulse-dot { animation: pulse-dot 2.2s ease-in-out infinite; }
+  .pulse-dot { animation: pulse-dot 2.2s ease-in-out infinite; box-shadow: 0 0 8px 1px hsl(var(--primary) / .55); }
   .scanline { position: relative; overflow: hidden; }
   .scanline::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 0%, hsl(var(--primary) / .04) 50%, transparent 100%); transform: translateY(-100%); animation: scan 5s linear infinite; }
 }

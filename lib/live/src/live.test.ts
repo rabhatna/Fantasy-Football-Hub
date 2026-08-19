@@ -126,9 +126,37 @@ describe("matching", () => {
       playersMentioned("Puka Nacua limited in practice", PLAYERS).map((p) => p.name),
       ["Puka Nacua"],
     );
-    // A surname alone must not tag a player: too many share one.
+    // "Chase" is a verb and a first name as well as a surname: never taggable alone.
     assert.deepEqual(playersMentioned("Chase traded to the Jets", PLAYERS), []);
     assert.deepEqual(playersMentioned("Generic league news", PLAYERS), []);
+  });
+
+  test("a name only one ranked player carries tags him without the full name", () => {
+    assert.deepEqual(
+      playersMentioned("Nacua expected to return Sunday", PLAYERS).map((p) => p.name),
+      ["Puka Nacua"],
+    );
+    // A token shared by two players (surname or first name) tags nobody.
+    const roster = [
+      ...PLAYERS,
+      { id: "x1", name: "Marvin Harrison Jr.", team: "ARI", position: "WR" },
+      { id: "x2", name: "Tre Harrison", team: "SEA", position: "RB" },
+    ];
+    assert.deepEqual(playersMentioned("Harrison misses practice", roster), []);
+    // A lone name is not unique across the whole NFL: when the headline
+    // names a position that disagrees, the tag is dropped.
+    assert.deepEqual(playersMentioned("RB Nacua signs with the Giants", PLAYERS), []);
+    assert.deepEqual(
+      playersMentioned("WR Nacua limited again", PLAYERS).map((p) => p.name),
+      ["Puka Nacua"],
+    );
+    // A different capitalized first name in front of the surname means the
+    // headline is about someone off the board entirely.
+    assert.deepEqual(playersMentioned("Giants sign Bobby Nacua to a deal", PLAYERS), []);
+    assert.deepEqual(
+      playersMentioned("Puka Nacua ramps up", PLAYERS).map((p) => p.name),
+      ["Puka Nacua"],
+    );
   });
 });
 

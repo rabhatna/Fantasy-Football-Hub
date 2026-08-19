@@ -32,6 +32,7 @@ import { TeamLineFive } from "@/components/team-line";
 import { useDraftBoard, usePlayerNote } from "@/hooks/use-draft-state";
 import { NO_DATA, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
 import LeaguePage from "@/pages/league";
+import SourcesPage from "@/pages/sources";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -142,7 +143,8 @@ function Shell({ children }: { children: ReactNode }) {
     { href: "/", label: "Draft room", icon: Command, detail: "Rankings + board" },
     { href: "/league", label: "League", icon: Users, detail: "Rules, picks + keepers" },
     { href: "/ol-center", label: "O-Line center", icon: Activity, detail: "Team lines + skill impact" },
-    { href: "/news", label: "Signal feed", icon: Newspaper, detail: "Injury + market" },
+    { href: "/news", label: "Signal feed", icon: Newspaper, detail: "Player news first" },
+    { href: "/sources", label: "Data sources", icon: LineChart, detail: "Provenance + freshness" },
   ];
 
   return <div className="min-h-[100dvh] bg-background text-foreground">
@@ -221,6 +223,9 @@ function PlayerRow({ player, drafted, kept, onDraft, onInspect }: { player: Play
 
 function NewsRail({ news, players, live }: { news: NewsItem[]; players: Player[]; live?: LiveStatus }) {
   const playerById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
+  // The rail is small: headlines naming a ranked player outrank the rest,
+  // chronological within each group.
+  news = [...news].sort((a, b) => Number(Boolean(b.playerId)) - Number(Boolean(a.playerId)));
   return <Surface className="scanline overflow-hidden"><div className="flex items-center justify-between border-b border-border px-4 py-4"><div><Kicker>Live pulse</Kicker><h2 className="mt-1 text-sm font-bold">League headlines</h2></div><Bell size={15} className={live?.stale ? "text-accent-foreground" : "text-primary"} /></div>
     {news.length === 0 ? <EmptyState label="No headlines yet. Hit Refresh to pull the live feeds — nothing leaves your machine until you do." /> : <div className="divide-y divide-border/70">{news.slice(0, 5).map((item) => {
       const player = item.playerId ? playerById.get(item.playerId) : undefined;
@@ -821,16 +826,21 @@ function NewsPage() {
   const { data: live } = useGetLiveStatus();
   const news = newsData ?? [];
   const players = playersData ?? [];
-  const [filter, setFilter] = useState("all");
+  // Player-related signal is the point of this feed, so the player lens is
+  // the default; the full firehose stays one click away.
+  const [filter, setFilter] = useState("players");
   const playerById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
   // Filters reflect what the feed actually provides. There is no positive or
   // negative lens because a headline carries no sentiment we could read
-  // without inventing it.
-  const visible = news.filter((item) => filter === "all" || (filter === "players" ? Boolean(item.playerId) : Boolean(item.status)));
+  // without inventing it. In the "all" view, tagged headlines float to the
+  // top; within each group the feed stays chronological.
+  const visible = news
+    .filter((item) => filter === "all" || (filter === "players" ? Boolean(item.playerId) : Boolean(item.status)))
+    .sort((a, b) => (filter === "all" ? Number(Boolean(b.playerId)) - Number(Boolean(a.playerId)) : 0));
 
   return <div className="mx-auto max-w-[1250px]">
     <SectionHeading eyebrow="Signal feed" title="Know what changed." detail="Headlines from public NFL feeds, tagged with the ranked players they name." action={<div className="flex items-center gap-2"><LiveIndicator live={live} /></div>} />
-    <div className="mb-5 flex gap-2 overflow-x-auto">{[["all", `All (${news.length})`], ["players", `Names a ranked player (${news.filter((item) => item.playerId).length})`], ["status", `Carries a status (${news.filter((item) => item.status).length})`]].map(([value, label]) => <button type="button" key={value} onClick={() => setFilter(value)} data-testid={`button-news-filter-${value}`} className={`shrink-0 rounded-xl border px-3 py-2 text-[10px] font-semibold ${filter === value ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>{label}</button>)}</div>
+    <div className="mb-5 flex gap-2 overflow-x-auto">{[["players", `Names a ranked player (${news.filter((item) => item.playerId).length})`], ["status", `Carries a status (${news.filter((item) => item.status).length})`], ["all", `All (${news.length})`]].map(([value, label]) => <button type="button" key={value} onClick={() => setFilter(value)} data-testid={`button-news-filter-${value}`} className={`shrink-0 rounded-xl border px-3 py-2 text-[10px] font-semibold ${filter === value ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>{label}</button>)}</div>
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_310px]">
       <Surface className="overflow-hidden">
         {isLoading ? <LoadingRows /> : isError ? <ErrorState label="The signal feed is not responding." onRetry={() => void refetch()} /> : visible.length === 0 ? <EmptyState label={news.length === 0 ? "No headlines yet. Hit Refresh to pull the live feeds — nothing leaves your machine until you ask." : "No headlines match the current lens."} /> : <div className="divide-y divide-border">{visible.map((item, index) => {
@@ -855,7 +865,7 @@ function NewsPage() {
             <div className="mt-4 space-y-2">{live.sources.map((source) => <div key={source.name} className="flex items-start gap-2 text-[10px]"><span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${source.ok ? "bg-primary" : "bg-destructive"}`} /><div className="min-w-0"><p className="font-semibold">{source.name}</p><p className="text-muted-foreground">{source.detail}</p></div></div>)}</div>
           </>}
         </Surface>
-        <Surface className="p-5"><Kicker>How players are tagged</Kicker><p className="mt-3 text-[11px] leading-5 text-muted-foreground">A headline is linked to a player only when it names them in full and exactly one ranked player matches. A surname alone is left untagged rather than attributed to the wrong player.</p></Surface>
+        <Surface className="p-5"><Kicker>How players are tagged</Kicker><p className="mt-3 text-[11px] leading-5 text-muted-foreground">A headline links to a player when it names them in full, or by a name only one ranked player carries ("Nacua" tags Puka). Names shared by anyone — or that read as ordinary words, like Chase or London — stay untagged rather than risk the wrong player.</p></Surface>
       </div>
     </div>
   </div>;
@@ -876,7 +886,7 @@ function ActivityIcon() {
 
 function Router() {
   const [location, setLocation] = useLocation();
-  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/league" component={LeaguePage} /><Route path="/keepers" component={LeaguePage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
+  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/league" component={LeaguePage} /><Route path="/keepers" component={LeaguePage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route path="/sources" component={SourcesPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
 }
 
 function App() {
