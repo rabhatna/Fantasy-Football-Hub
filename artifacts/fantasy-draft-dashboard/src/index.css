@@ -303,8 +303,49 @@
   .enter-2 { animation-delay: 140ms; }
   .enter-3 { animation-delay: 210ms; }
   .pulse-dot { animation: pulse-dot 2.2s ease-in-out infinite; box-shadow: 0 0 8px 1px hsl(var(--primary) / .55); }
+
+  /* The sidebar is lit, not flat: teal breathing in from the brand corner,
+     an ember of amber at the foot, over a deep indigo-to-black sweep, with a
+     neon seam where it meets the page. */
+  .side-rail {
+    background:
+      radial-gradient(30rem 20rem at -10% -5%, hsl(var(--sidebar-primary) / 0.16), transparent 62%),
+      radial-gradient(20rem 14rem at 110% 105%, hsl(28 96% 58% / 0.09), transparent 58%),
+      linear-gradient(200deg, hsl(242 42% 12%), hsl(237 38% 8%) 48%, hsl(222 48% 6%));
+  }
+  .side-rail::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0; right: -1px;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, hsl(var(--sidebar-primary) / 0.55) 30%, hsl(var(--sidebar-primary) / 0.55) 70%, transparent);
+    pointer-events: none;
+  }
+  .nav-item { transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
+  .nav-item:hover { transform: translateX(3px); }
+  .nav-active {
+    box-shadow: inset 2.5px 0 0 hsl(var(--sidebar-primary)), 0 0 22px -8px hsl(var(--sidebar-primary) / 0.8);
+  }
+  .nav-active svg { filter: drop-shadow(0 0 5px hsl(var(--sidebar-primary) / 0.8)); }
   .scanline { position: relative; overflow: hidden; }
   .scanline::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 0%, hsl(var(--primary) / .04) 50%, transparent 100%); transform: translateY(-100%); animation: scan 5s linear infinite; }
+}
+
+/* The draft sheet prints black-on-white regardless of theme: the page it
+   produces goes to paper or PDF, where a dark terminal palette would just
+   burn toner. Everything outside the sheet is hidden by print:hidden. */
+@media print {
+  :root, .dark {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 8%;
+    --border: 0 0% 55%;
+    --muted-foreground: 0 0% 30%;
+  }
+  body::before { display: none; }
+  body { background: white; }
+  .sheet-body { box-shadow: none; }
 }
 
 @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }

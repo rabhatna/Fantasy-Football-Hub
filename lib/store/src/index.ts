@@ -55,6 +55,20 @@ export interface KeeperRecord {
   createdAt: string;
 }
 
+/**
+ * A draft target: a player the user intends to take, and the round they
+ * expect to spend on him. The printable draft sheet is built from these.
+ */
+export interface TargetRecord {
+  playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
+  targetRound: number;
+  note: string;
+  createdAt: string;
+}
+
 /** A free-text note attached to a player. */
 export interface PlayerNoteRecord {
   playerId: string;
@@ -143,6 +157,35 @@ const keeperSchema: TableSchema<KeeperRecord> = {
   },
 };
 
+const targetSchema: TableSchema<TargetRecord> = {
+  columns: ["player_id", "player_name", "team", "position", "target_round", "note", "created_at"],
+  encode: (record) => ({
+    player_id: record.playerId,
+    player_name: record.playerName,
+    team: record.team,
+    position: record.position,
+    target_round: String(record.targetRound),
+    note: record.note,
+    created_at: record.createdAt,
+  }),
+  decode: (row) => {
+    const playerId = requireField(row, "player_id");
+    if (!playerId) return null;
+
+    const targetRound = Number(row["target_round"]);
+
+    return {
+      playerId,
+      playerName: row["player_name"] ?? "",
+      team: row["team"] ?? "",
+      position: row["position"] ?? "",
+      targetRound: Number.isFinite(targetRound) && targetRound > 0 ? targetRound : 1,
+      note: row["note"] ?? "",
+      createdAt: row["created_at"] ?? "",
+    };
+  },
+};
+
 const playerNoteSchema: TableSchema<PlayerNoteRecord> = {
   columns: ["player_id", "player_name", "note", "updated_at"],
   encode: (record) => ({
@@ -176,6 +219,7 @@ export class Store {
   readonly draftPicks: CsvTable<DraftPickRecord>;
   readonly playerNotes: CsvTable<PlayerNoteRecord>;
   readonly keepers: CsvTable<KeeperRecord>;
+  readonly targets: CsvTable<TargetRecord>;
   readonly leagueSettings: LeagueSettingsStore;
 
   constructor(dataDir: string) {
@@ -196,6 +240,7 @@ export class Store {
       backupDir,
     );
     this.keepers = new CsvTable(path.join(userDir, "keepers.csv"), keeperSchema, backupDir);
+    this.targets = new CsvTable(path.join(userDir, "target_list.csv"), targetSchema, backupDir);
   }
 
   /** Force everything to re-read from disk (after an external edit). */
@@ -203,6 +248,7 @@ export class Store {
     this.draftPicks.invalidate();
     this.playerNotes.invalidate();
     this.keepers.invalidate();
+    this.targets.invalidate();
     this.leagueSettings.invalidate();
   }
 }

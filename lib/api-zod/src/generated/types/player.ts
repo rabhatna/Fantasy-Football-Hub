@@ -52,6 +52,18 @@ export interface Player {
      */
   valueScoreConsensus: number | null;
   /**
+     * The player's current FantasyPros expert-consensus overall rank,
+     * fetched live on refresh. Null before market data is cached. Where
+     * it disagrees with `rank`, the live number is the newer read.
+     * @nullable
+     */
+  ecrRank: number | null;
+  /**
+     * Rank movement since the previous expert-consensus scrape; positive = rising.
+     * @nullable
+     */
+  ecrDelta: number | null;
+  /**
      * The player's rank on his team's ESPN depth chart at his position
      * (1 = starter; for receivers it is the overall WR pecking order).
      * Null until depth charts have been fetched or when the chart does

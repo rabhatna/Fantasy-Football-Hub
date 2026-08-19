@@ -11,11 +11,13 @@
 import path from "node:path";
 import { readFileOrNull, writeFileAtomic } from "@workspace/store";
 import {
+  fetchEcr,
   fetchEspnMarket,
   fetchFfcAdp,
   fetchSleeperMarket,
   type AdpRecord,
   type AuctionRecord,
+  type EcrRecord,
   type ProjectionRecord,
 } from "./market-sources.ts";
 import type { FetchOptions } from "./sources.ts";
@@ -35,6 +37,8 @@ export interface MarketCache {
   auction: {
     espn: AuctionRecord[];
   };
+  /** Absent in caches written before the live-rankings overlay existed. */
+  ecr?: EcrRecord[];
 }
 
 const EMPTY_STATUS: LiveStatus = {
@@ -89,7 +93,7 @@ export async function refreshMarket(
   const previous = await readMarketCache(dataDir);
   const sources: SourceResult[] = [];
 
-  const [ffc, sleeper, espn] = await Promise.all([
+  const [ffc, sleeper, espn, ecr] = await Promise.all([
     fetchFfcAdp(teams, year, fetchOptions).then(
       (records) => ({ ok: true as const, records }),
       (error: unknown) => ({ ok: false as const, error }),
@@ -99,6 +103,10 @@ export async function refreshMarket(
       (error: unknown) => ({ ok: false as const, error }),
     ),
     fetchEspnMarket(year, fetchOptions).then(
+      (records) => ({ ok: true as const, records }),
+      (error: unknown) => ({ ok: false as const, error }),
+    ),
+    fetchEcr(fetchOptions).then(
       (records) => ({ ok: true as const, records }),
       (error: unknown) => ({ ok: false as const, error }),
     ),
@@ -113,6 +121,7 @@ export async function refreshMarket(
     },
     projections: { sleeper: previous?.projections.sleeper ?? [] },
     auction: { espn: previous?.auction.espn ?? [] },
+    ecr: previous?.ecr ?? [],
   };
 
   if (ffc.ok) {
@@ -150,7 +159,19 @@ export async function refreshMarket(
     sources.push({ name: "ESPN market values", ok: false, detail: describeError(espn.error) });
   }
 
-  const anythingArrived = ffc.ok || sleeper.ok || espn.ok;
+  if (ecr.ok) {
+    next.ecr = ecr.records;
+    const asOf = ecr.records[0]?.scrapeDate;
+    sources.push({
+      name: "FantasyPros ECR",
+      ok: true,
+      detail: `${ecr.records.length} overall ranks${asOf ? `, scraped ${asOf}` : ""}`,
+    });
+  } else {
+    sources.push({ name: "FantasyPros ECR", ok: false, detail: describeError(ecr.error) });
+  }
+
+  const anythingArrived = ffc.ok || sleeper.ok || espn.ok || ecr.ok;
   const cache = anythingArrived ? next : previous;
   if (anythingArrived) {
     await writeFileAtomic(cachePath(dataDir), JSON.stringify(cache, null, 2));
@@ -194,6 +215,9 @@ export interface PlayerMarket {
     standard: number | null;
   } | null;
   aav: number | null;
+  /** Live expert-consensus overall rank and its movement since last scrape. */
+  ecrRank: number | null;
+  ecrDelta: number | null;
 }
 
 /**
@@ -217,6 +241,7 @@ export function marketByPlayer(
   ];
   const projectionMatch = buildMatcher(cache.projections.sleeper);
   const auctionMatch = buildMatcher(cache.auction.espn);
+  const ecrMatch = buildMatcher(cache.ecr ?? []);
 
   for (const player of players) {
     const adpSources: AdpSourceValue[] = [];
@@ -230,8 +255,9 @@ export function marketByPlayer(
 
     const projection = projectionMatch(player);
     const auction = auctionMatch(player);
+    const ecr = ecrMatch(player);
 
-    if (adpSources.length === 0 && !projection && !auction) continue;
+    if (adpSources.length === 0 && !projection && !auction && !ecr) continue;
     result.set(player.id, {
       adpSources,
       adpStdev,
@@ -243,6 +269,8 @@ export function marketByPlayer(
           }
         : null,
       aav: auction?.aav ?? null,
+      ecrRank: ecr?.ecr ?? null,
+      ecrDelta: ecr?.rankDelta ?? null,
     });
   }
 

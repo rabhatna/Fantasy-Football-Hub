@@ -38,6 +38,8 @@ import type {
   PlayerNoteInput,
   Recommendation,
   RefreshStatus,
+  Target,
+  TargetInput,
   Team,
   TeamLine
 } from './api.schemas';
@@ -1215,6 +1217,226 @@ export const useDeleteKeeper = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteKeeperMutationOptions(options));
+    }
+
+export const getGetTargetsUrl = () => {
+
+
+
+
+  return `/api/targets`
+}
+
+/**
+ * @summary List draft targets
+ */
+export const getTargets = async ( options?: Parameters<typeof customFetch>[1]): Promise<Target[]> => {
+
+  return customFetch<Target[]>(getGetTargetsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTargetsQueryKey = () => {
+    return [
+    `/api/targets`
+    ] as const;
+    }
+
+
+export const getGetTargetsQueryOptions = <TData = Awaited<ReturnType<typeof getTargets>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTargets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTargetsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTargets>>> = ({ signal }) => getTargets({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTargets>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTargetsQueryResult = NonNullable<Awaited<ReturnType<typeof getTargets>>>
+export type GetTargetsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List draft targets
+ */
+
+export function useGetTargets<TData = Awaited<ReturnType<typeof getTargets>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTargets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTargetsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveTargetUrl = (playerId: string,) => {
+
+
+
+
+  return `/api/targets/${playerId}`
+}
+
+/**
+ * @summary Add or update a draft target
+ */
+export const saveTarget = async (playerId: string,
+    targetInput: TargetInput, options?: Parameters<typeof customFetch>[1]): Promise<Target> => {
+
+  return customFetch<Target>(getSaveTargetUrl(playerId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(targetInput)
+  }
+);}
+
+
+
+
+
+export const getSaveTargetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveTarget>>, TError,{playerId: string;data: BodyType<TargetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveTarget>>, TError,{playerId: string;data: BodyType<TargetInput>}, TContext> => {
+
+const mutationKey = ['saveTarget'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveTarget>>, {playerId: string;data: BodyType<TargetInput>}> = (props) => {
+          const {playerId,data} = props ?? {};
+
+          return  saveTarget(playerId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveTargetMutationResult = NonNullable<Awaited<ReturnType<typeof saveTarget>>>
+    export type SaveTargetMutationBody = BodyType<TargetInput>
+    export type SaveTargetMutationError = ErrorType<void>
+
+    /**
+ * @summary Add or update a draft target
+ */
+export const useSaveTarget = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveTarget>>, TError,{playerId: string;data: BodyType<TargetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveTarget>>,
+        TError,
+        {playerId: string;data: BodyType<TargetInput>},
+        TContext
+      > => {
+      return useMutation(getSaveTargetMutationOptions(options));
+    }
+
+export const getDeleteTargetUrl = (playerId: string,) => {
+
+
+
+
+  return `/api/targets/${playerId}`
+}
+
+/**
+ * @summary Remove a draft target
+ */
+export const deleteTarget = async (playerId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteTargetUrl(playerId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteTargetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTarget>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTarget>>, TError,{playerId: string}, TContext> => {
+
+const mutationKey = ['deleteTarget'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTarget>>, {playerId: string}> = (props) => {
+          const {playerId} = props ?? {};
+
+          return  deleteTarget(playerId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTargetMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTarget>>>
+
+    export type DeleteTargetMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove a draft target
+ */
+export const useDeleteTarget = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTarget>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTarget>>,
+        TError,
+        {playerId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteTargetMutationOptions(options));
     }
 
 export const getGetNotesUrl = () => {

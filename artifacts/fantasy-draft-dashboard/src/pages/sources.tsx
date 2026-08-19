@@ -23,6 +23,10 @@ const SOURCE_NOTES: Record<string, { provides: string; from: string }> = {
     provides: "Crowd average auction values and ESPN ADP from live drafts",
     from: "ESPN fantasy API",
   },
+  "FantasyPros ECR": {
+    provides: "Live expert-consensus overall ranks and rank movement — the ▲▼ arrows on the board",
+    from: "FantasyPros via dynastyprocess — the same feed the snapshot was built from",
+  },
   "ESPN NFL": { provides: "Headlines for the signal feed", from: "RSS" },
   "CBS Sports NFL": { provides: "Headlines for the signal feed", from: "RSS" },
   ProFootballTalk: { provides: "Headlines for the signal feed", from: "RSS" },
@@ -136,11 +140,17 @@ export default function SourcesPage() {
             <span className="mono mt-1 block text-[13px] font-medium">{formatWhen(summary?.lastRefresh)}</span>
           </div>
         </div>
-        <p className="mt-3 text-[10px] leading-4 text-muted-foreground">
+        <p className="mt-3 text-[11px] leading-4 text-muted-foreground">
           Built offline by the ff_analytics pipeline from nflverse (2025 play-by-play, snap
-          counts, Next Gen Stats, PFR advanced stats) and FantasyPros ECR. It carries the 2025
-          production and market baseline; everything live above is layered on top at read time.
-          ADP data courtesy of{" "}
+          counts, Next Gen Stats, PFR advanced stats) and FantasyPros ECR. Its 2025 production
+          columns are final and cannot go stale; the parts that can — rankings, ADP, injuries,
+          depth charts, projections — are all refreshed live above and layered on top at read
+          time, so the board does not age with the snapshot. To regenerate the snapshot itself
+          (new player pool, updated season baselines), run{" "}
+          <span className="mono">python -m ff_analytics.build</span> from the pipeline in{" "}
+          <span className="mono">attached_assets/</span> and drop the dated folder into{" "}
+          <span className="mono">datasets/</span> — the app picks up the newest one on the next
+          refresh. ADP data courtesy of{" "}
           <a href="https://fantasyfootballcalculator.com" target="_blank" rel="noreferrer noopener" className="underline hover:text-foreground">
             FantasyFootballCalculator.com
           </a>.

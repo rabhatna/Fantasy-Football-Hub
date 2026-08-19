@@ -290,6 +290,59 @@ paths:
           description: Keeper removed
         "404":
           description: No keeper with that id
+  /targets:
+    get:
+      operationId: getTargets
+      tags: [draft]
+      summary: List draft targets
+      responses:
+        "200":
+          description: The user's target list, ordered by intended round
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Target"
+  /targets/{playerId}:
+    put:
+      operationId: saveTarget
+      tags: [draft]
+      summary: Add or update a draft target
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TargetInput"
+      responses:
+        "200":
+          description: Saved target
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Target"
+        "404":
+          description: Player not found
+    delete:
+      operationId: deleteTarget
+      tags: [draft]
+      summary: Remove a draft target
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Target removed
+        "404":
+          description: No target for that player
   /notes:
     get:
       operationId: getNotes
@@ -421,7 +474,7 @@ components:
         separation and catch rate for receivers, rushing yards over expected
         and eight-plus-box rate for backs. Clients must render these as "no
         data", never as 0.
-      required: [id, rank, name, team, position, adp, adpConsensus, adpConsensusStdev, adpSources, valueScoreConsensus, depthRank, projectedPoints, aav, tier, isRookie, nextGen, consistency]
+      required: [id, rank, name, team, position, adp, adpConsensus, adpConsensusStdev, adpSources, valueScoreConsensus, ecrRank, ecrDelta, depthRank, projectedPoints, aav, tier, isRookie, nextGen, consistency]
       properties:
         id:
           type: string
@@ -458,6 +511,15 @@ components:
             of the single-source ADP column, on the same SD scale. Computed
             locally, so it can differ slightly from the pipeline's number;
             null until market data has been fetched.
+        ecrRank:
+          type: [number, "null"]
+          description: |
+            The player's current FantasyPros expert-consensus overall rank,
+            fetched live on refresh. Null before market data is cached. Where
+            it disagrees with `rank`, the live number is the newer read.
+        ecrDelta:
+          type: [number, "null"]
+          description: Rank movement since the previous expert-consensus scrape; positive = rising.
         depthRank:
           type: [number, "null"]
           description: |
@@ -833,6 +895,28 @@ components:
           type: string
           enum: [round, dollars]
         costValue: { type: number }
+        createdAt: { type: string }
+    TargetInput:
+      type: object
+      required: [targetRound]
+      properties:
+        targetRound:
+          type: number
+          minimum: 1
+          description: The round the user intends to spend on him.
+        note:
+          type: string
+          description: A short reminder for draft day.
+    Target:
+      type: object
+      required: [playerId, playerName, team, position, targetRound, note, createdAt]
+      properties:
+        playerId: { type: string }
+        playerName: { type: string }
+        team: { type: string }
+        position: { type: string }
+        targetRound: { type: number }
+        note: { type: string }
         createdAt: { type: string }
     PlayerNoteInput:
       type: object

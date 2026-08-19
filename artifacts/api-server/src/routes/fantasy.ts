@@ -19,6 +19,7 @@ import {
 import {
   DeleteDraftPickParams,
   DeleteKeeperParams,
+  DeleteTargetParams,
   GetDraftPicksResponse,
   GetKeepersResponse,
   GetDraftSummaryResponse,
@@ -32,6 +33,7 @@ import {
   GetPlayersResponse,
   GetRecommendationsResponse,
   GetSettingsResponse,
+  GetTargetsResponse,
   GetTeamLineParams,
   GetTeamLineResponse,
   GetTeamsResponse,
@@ -42,6 +44,9 @@ import {
   SaveDraftPickResponse,
   SaveKeeperBody,
   SaveKeeperResponse,
+  SaveTargetBody,
+  SaveTargetParams,
+  SaveTargetResponse,
   SavePlayerNoteBody,
   SavePlayerNoteParams,
   SavePlayerNoteResponse,
@@ -109,6 +114,8 @@ type ApiPlayer = DatasetPlayer & {
   adpConsensusStdev: number | null;
   adpSources: { source: string; adp: number }[];
   valueScoreConsensus: number | null;
+  ecrRank: number | null;
+  ecrDelta: number | null;
   depthRank: number | null;
   projectedPoints: number | null;
   aav: number | null;
@@ -178,6 +185,8 @@ async function enrichedPlayers(): Promise<ApiPlayer[]> {
       adpConsensusStdev: consensus.stdev === null ? null : Number(consensus.stdev.toFixed(1)),
       adpSources,
       valueScoreConsensus: null,
+      ecrRank: playerMarket?.ecrRank ?? null,
+      ecrDelta: playerMarket?.ecrDelta ?? null,
       depthRank: depthRanks.get(player.id) ?? null,
       projectedPoints: projectedPoints === null ? null : Number(projectedPoints.toFixed(1)),
       aav: playerMarket?.aav ?? null,
@@ -896,6 +905,74 @@ router.delete("/keepers/:id", async (req, res, next) => {
     const removed = await store.keepers.remove((keeper) => keeper.id === params.data.id);
     if (removed === 0) {
       res.status(404).json({ error: "No keeper with that id" });
+      return;
+    }
+
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/targets", async (_req, res, next) => {
+  try {
+    const targets = await store.targets.all();
+    // Draft order: the round you plan to spend, then when you added him.
+    targets.sort(
+      (a, b) => a.targetRound - b.targetRound || a.createdAt.localeCompare(b.createdAt),
+    );
+    res.json(GetTargetsResponse.parse(targets));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/targets/:playerId", async (req, res, next) => {
+  try {
+    const params = SaveTargetParams.safeParse(req.params);
+    const body = SaveTargetBody.safeParse(req.body);
+    if (!params.success || !body.success) {
+      res.status(400).json({ error: "Invalid target" });
+      return;
+    }
+
+    const { players } = await snapshot();
+    const player = players.find((candidate) => candidate.id === params.data.playerId);
+    if (!player) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+
+    const target = {
+      playerId: player.id,
+      playerName: player.name,
+      team: player.team,
+      position: player.position,
+      targetRound: body.data.targetRound,
+      note: body.data.note ?? "",
+      createdAt: new Date().toISOString(),
+    };
+
+    await store.targets.upsert(target, (existing) => existing.playerId === player.id);
+    res.json(SaveTargetResponse.parse(target));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/targets/:playerId", async (req, res, next) => {
+  try {
+    const params = DeleteTargetParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid player id" });
+      return;
+    }
+
+    const removed = await store.targets.remove(
+      (target) => target.playerId === params.data.playerId,
+    );
+    if (removed === 0) {
+      res.status(404).json({ error: "No target for that player" });
       return;
     }
 

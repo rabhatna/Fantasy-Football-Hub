@@ -43,6 +43,8 @@ export const GetPlayersResponseItem = zod.object({
   "adp": zod.number()
 })).describe('Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.'),
   "valueScoreConsensus": zod.number().nullable().describe('The dataset\'s value score recomputed against consensus ADP instead\nof the single-source ADP column, on the same SD scale. Computed\nlocally, so it can differ slightly from the pipeline\'s number;\nnull until market data has been fetched.\n'),
+  "ecrRank": zod.number().nullable().describe('The player\'s current FantasyPros expert-consensus overall rank,\nfetched live on refresh. Null before market data is cached. Where\nit disagrees with `rank`, the live number is the newer read.\n'),
+  "ecrDelta": zod.number().nullable().describe('Rank movement since the previous expert-consensus scrape; positive = rising.'),
   "depthRank": zod.number().nullable().describe('The player\'s rank on his team\'s ESPN depth chart at his position\n(1 = starter; for receivers it is the overall WR pecking order).\nNull until depth charts have been fetched or when the chart does\nnot list him.\n'),
   "projectedPoints": zod.number().nullable().describe('Projected 2026 season total in the league\'s scoring format, from\nthe cached market sources. Null when no source projects the\nplayer — never a zero, which would read as \"projected to score\nnothing\".\n'),
   "aav": zod.number().nullable().describe('Average auction value in league dollars, from live ESPN drafts.\nNull before the first market refresh or for players the crowd is\nnot bidding on.\n'),
@@ -102,6 +104,8 @@ export const GetPlayerResponse = zod.object({
   "adp": zod.number()
 })).describe('Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.'),
   "valueScoreConsensus": zod.number().nullable().describe('The dataset\'s value score recomputed against consensus ADP instead\nof the single-source ADP column, on the same SD scale. Computed\nlocally, so it can differ slightly from the pipeline\'s number;\nnull until market data has been fetched.\n'),
+  "ecrRank": zod.number().nullable().describe('The player\'s current FantasyPros expert-consensus overall rank,\nfetched live on refresh. Null before market data is cached. Where\nit disagrees with `rank`, the live number is the newer read.\n'),
+  "ecrDelta": zod.number().nullable().describe('Rank movement since the previous expert-consensus scrape; positive = rising.'),
   "depthRank": zod.number().nullable().describe('The player\'s rank on his team\'s ESPN depth chart at his position\n(1 = starter; for receivers it is the overall WR pecking order).\nNull until depth charts have been fetched or when the chart does\nnot list him.\n'),
   "projectedPoints": zod.number().nullable().describe('Projected 2026 season total in the league\'s scoring format, from\nthe cached market sources. Null when no source projects the\nplayer — never a zero, which would read as \"projected to score\nnothing\".\n'),
   "aav": zod.number().nullable().describe('Average auction value in league dollars, from live ESPN drafts.\nNull before the first market refresh or for players the crowd is\nnot bidding on.\n'),
@@ -403,6 +407,57 @@ export const DeleteKeeperParams = zod.object({
 })
 
 export const DeleteKeeperResponse = zod.void()
+
+
+/**
+ * @summary List draft targets
+ */
+export const GetTargetsResponseItem = zod.object({
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "targetRound": zod.number(),
+  "note": zod.string(),
+  "createdAt": zod.string()
+})
+export const GetTargetsResponse = zod.array(GetTargetsResponseItem)
+
+
+/**
+ * @summary Add or update a draft target
+ */
+export const SaveTargetParams = zod.object({
+  "playerId": zod.coerce.string()
+})
+
+
+
+
+export const SaveTargetBody = zod.object({
+  "targetRound": zod.number().min(1).describe('The round the user intends to spend on him.'),
+  "note": zod.string().optional().describe('A short reminder for draft day.')
+})
+
+export const SaveTargetResponse = zod.object({
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "targetRound": zod.number(),
+  "note": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Remove a draft target
+ */
+export const DeleteTargetParams = zod.object({
+  "playerId": zod.coerce.string()
+})
+
+export const DeleteTargetResponse = zod.void()
 
 
 /**

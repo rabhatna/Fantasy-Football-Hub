@@ -64,20 +64,33 @@ const espnPayload = {
   ],
 };
 
+const ecrCsv = [
+  "fp_page,page_type,ecr_type,player,pos,tm,ecr,sd,rank_delta,scrape_date",
+  "x,redraft-overall,rp,Kenneth Walker III,RB,SEA,21,3,2,2026-08-14",
+  "x,redraft-overall,rp,Marvin Harrison Jr.,WR,ARI,17,2,-1,2026-08-14",
+  "x,best-overall,rp,Best Ball Guy,RB,KC,5,1,0,2026-08-14",
+].join("\n");
+
 function jsonResponse(body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  // Strings are served raw (the ECR fixture is CSV); everything else as JSON.
+  return typeof body === "string"
+    ? new Response(body, { status: 200, headers: { "content-type": "text/csv" } })
+    : new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
 }
 
-function fakeFetch(overrides: Partial<Record<"ffc" | "sleeper" | "espn", unknown>> = {}) {
+type SourceKey = "ffc" | "sleeper" | "espn" | "ecr";
+
+function fakeFetch(overrides: Partial<Record<SourceKey, unknown>> = {}) {
   return (async (input: RequestInfo | URL) => {
     const url = String(input);
-    const routes: [string, "ffc" | "sleeper" | "espn", unknown][] = [
+    const routes: [string, SourceKey, unknown][] = [
       ["fantasyfootballcalculator", "ffc", ffcPayload],
       ["sleeper", "sleeper", sleeperPayload],
       ["espn", "espn", espnPayload],
+      ["githubusercontent", "ecr", ecrCsv],
     ];
     for (const [needle, key, fallback] of routes) {
       if (!url.includes(needle)) continue;
@@ -100,7 +113,7 @@ const players = [
 test("a full refresh caches all three sources and matches suffix names", async () => {
   const { cache, status } = await refreshMarket(dataDir, { fetchImpl: fakeFetch() });
   assert.equal(status.stale, false);
-  assert.equal(status.sources.length, 3);
+  assert.equal(status.sources.length, 4);
   assert.ok(cache);
 
   const market = marketByPlayer(cache, players);
@@ -114,6 +127,9 @@ test("a full refresh caches all three sources and matches suffix names", async (
   assert.equal(walker.adpStdev, 3.1);
   assert.equal(walker.projection?.ppr, 210.5);
   assert.equal(walker.aav, 18.4);
+  // Live ECR overlays the newest expert consensus; best-ball rows are ignored.
+  assert.equal(walker.ecrRank, 21);
+  assert.equal(walker.ecrDelta, 2);
 
   // Harrison's Sleeper ADP is the 999 sentinel — projection kept, ADP dropped.
   const harrison = market.get("00-002");
@@ -150,7 +166,7 @@ test("when every source fails the previous cache is left untouched", async () =>
 
   const failure = new Error("offline");
   const { status } = await refreshMarket(dataDir, {
-    fetchImpl: fakeFetch({ ffc: failure, sleeper: failure, espn: failure }),
+    fetchImpl: fakeFetch({ ffc: failure, sleeper: failure, espn: failure, ecr: failure }),
   });
 
   assert.equal(status.stale, true);

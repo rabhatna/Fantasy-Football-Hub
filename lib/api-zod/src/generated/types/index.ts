@@ -44,5 +44,7 @@ export * from './recommendation';
 export * from './recommendationComponents';
 export * from './refreshStatus';
 export * from './sourceResult';
+export * from './target';
+export * from './targetInput';
 export * from './team';
 export * from './teamLine';
