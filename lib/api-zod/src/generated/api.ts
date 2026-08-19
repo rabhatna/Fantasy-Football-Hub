@@ -41,7 +41,8 @@ export const GetPlayersResponseItem = zod.object({
   "ppg": zod.number().nullish(),
   "share": zod.number().nullish().describe('Carry share for backs, target share for pass catchers, null for passers. Computed over weeks the player took a snap.'),
   "oLineGrade": zod.number().nullish(),
-  "injuryStatus": zod.string().nullish().describe('Always null for now. The dataset is built from completed-season\nproduction and market data and carries no availability status;\nlive status comes from a separate source.\n'),
+  "injuryStatus": zod.string().nullish().describe('Live availability, merged from the injury feed when one has been\nfetched. Null means unknown — either no refresh has run, or the\nsource has no record of the player. It never means \"healthy\".\n'),
+  "injuryBodyPart": zod.string().nullish(),
   "byeWeek": zod.number().nullish(),
   "tier": zod.number(),
   "durabilityScore": zod.number().nullish(),
@@ -89,7 +90,8 @@ export const GetPlayerResponse = zod.object({
   "ppg": zod.number().nullish(),
   "share": zod.number().nullish().describe('Carry share for backs, target share for pass catchers, null for passers. Computed over weeks the player took a snap.'),
   "oLineGrade": zod.number().nullish(),
-  "injuryStatus": zod.string().nullish().describe('Always null for now. The dataset is built from completed-season\nproduction and market data and carries no availability status;\nlive status comes from a separate source.\n'),
+  "injuryStatus": zod.string().nullish().describe('Live availability, merged from the injury feed when one has been\nfetched. Null means unknown — either no refresh has run, or the\nsource has no record of the player. It never means \"healthy\".\n'),
+  "injuryBodyPart": zod.string().nullish(),
   "byeWeek": zod.number().nullish(),
   "tier": zod.number(),
   "durabilityScore": zod.number().nullish(),
@@ -148,13 +150,14 @@ export const GetTeamsResponse = zod.array(GetTeamsResponseItem)
 export const GetNewsResponseItem = zod.object({
   "id": zod.string(),
   "source": zod.string(),
-  "author": zod.string(),
+  "author": zod.string().nullish(),
   "headline": zod.string(),
-  "timestamp": zod.string(),
-  "sentiment": zod.string(),
-  "status": zod.string(),
-  "playerId": zod.string().nullish()
-})
+  "url": zod.string().nullish(),
+  "timestamp": zod.string().nullish(),
+  "playerId": zod.string().nullish(),
+  "playerName": zod.string().nullish(),
+  "status": zod.string().nullish().describe('The named player\'s current availability, when known.')
+}).describe('A headline from a public NFL news feed. Fields map to what RSS actually\nprovides; there is no sentiment field because sentiment cannot be\nderived from a headline without inventing it. `playerId` is set only\nwhen exactly one ranked player is named in full — a surname alone is\ntoo ambiguous to attribute.\n')
 export const GetNewsResponse = zod.array(GetNewsResponseItem)
 
 
@@ -285,12 +288,45 @@ export const GetOLImpactResponse = zod.object({
 
 
 /**
+ * Read-only. Never performs a network fetch — refreshing is always explicit.
+ * @summary State of the live feeds
+ */
+export const GetLiveStatusResponse = zod.object({
+  "fetchedAt": zod.string().nullish(),
+  "attemptedAt": zod.string().nullish(),
+  "stale": zod.boolean(),
+  "sources": zod.array(zod.object({
+  "name": zod.string(),
+  "ok": zod.boolean(),
+  "detail": zod.string()
+}))
+}).describe('State of the live feeds. `stale` is true when the most recent attempt\nhad any source fail, meaning some of what is being served predates it —\nclients must say so rather than presenting cached data as current.\n')
+
+
+/**
+ * Reloads the dataset and draft board from disk and fetches the live
+ * feeds. This is the only path that makes outbound network requests, and
+ * it runs only when the user asks for it.
  * @summary Refresh cached data
  */
 export const RefreshDataResponse = zod.object({
   "status": zod.string(),
   "refreshedAt": zod.string(),
-  "sources": zod.array(zod.string())
+  "live": zod.object({
+  "fetchedAt": zod.string().nullish(),
+  "attemptedAt": zod.string().nullish(),
+  "stale": zod.boolean(),
+  "sources": zod.array(zod.object({
+  "name": zod.string(),
+  "ok": zod.boolean(),
+  "detail": zod.string()
+}))
+}).optional().describe('State of the live feeds. `stale` is true when the most recent attempt\nhad any source fail, meaning some of what is being served predates it —\nclients must say so rather than presenting cached data as current.\n'),
+  "sources": zod.array(zod.object({
+  "name": zod.string(),
+  "ok": zod.boolean(),
+  "detail": zod.string()
+}))
 })
 
 

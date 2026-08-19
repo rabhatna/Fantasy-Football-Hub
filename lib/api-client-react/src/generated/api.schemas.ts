@@ -74,12 +74,14 @@ export interface Player {
   /** @nullable */
   oLineGrade?: number | null;
   /**
-     * Always null for now. The dataset is built from completed-season
-     * production and market data and carries no availability status;
-     * live status comes from a separate source.
+     * Live availability, merged from the injury feed when one has been
+     * fetched. Null means unknown — either no refresh has run, or the
+     * source has no record of the player. It never means "healthy".
      * @nullable
      */
   injuryStatus?: string | null;
+  /** @nullable */
+  injuryBodyPart?: string | null;
   /** @nullable */
   byeWeek?: number | null;
   tier: number;
@@ -150,16 +152,32 @@ export interface Team {
   trend: string;
 }
 
+/**
+ * A headline from a public NFL news feed. Fields map to what RSS actually
+ * provides; there is no sentiment field because sentiment cannot be
+ * derived from a headline without inventing it. `playerId` is set only
+ * when exactly one ranked player is named in full — a surname alone is
+ * too ambiguous to attribute.
+ */
 export interface NewsItem {
   id: string;
   source: string;
-  author: string;
+  /** @nullable */
+  author?: string | null;
   headline: string;
-  timestamp: string;
-  sentiment: string;
-  status: string;
+  /** @nullable */
+  url?: string | null;
+  /** @nullable */
+  timestamp?: string | null;
   /** @nullable */
   playerId?: string | null;
+  /** @nullable */
+  playerName?: string | null;
+  /**
+     * The named player's current availability, when known.
+     * @nullable
+     */
+  status?: string | null;
 }
 
 export type DraftSummaryPositionalNeeds = {
@@ -252,10 +270,31 @@ export interface OLImpactAnalysis {
   rbImpacts: RBOLImpact[];
 }
 
+export interface SourceResult {
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+
+/**
+ * State of the live feeds. `stale` is true when the most recent attempt
+ * had any source fail, meaning some of what is being served predates it —
+ * clients must say so rather than presenting cached data as current.
+ */
+export interface LiveStatus {
+  /** @nullable */
+  fetchedAt?: string | null;
+  /** @nullable */
+  attemptedAt?: string | null;
+  stale: boolean;
+  sources: SourceResult[];
+}
+
 export interface RefreshStatus {
   status: string;
   refreshedAt: string;
-  sources: string[];
+  live?: LiveStatus;
+  sources: SourceResult[];
 }
 
 export type GetPlayersParams = {

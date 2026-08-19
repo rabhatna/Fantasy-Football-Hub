@@ -12,6 +12,7 @@
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
     "@workspace/dataset": "workspace:*",
+    "@workspace/live": "workspace:*",
     "@workspace/store": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",

@@ -6,14 +6,30 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * A headline from a public NFL news feed. Fields map to what RSS actually
+ * provides; there is no sentiment field because sentiment cannot be
+ * derived from a headline without inventing it. `playerId` is set only
+ * when exactly one ranked player is named in full — a surname alone is
+ * too ambiguous to attribute.
+ */
 export interface NewsItem {
   id: string;
   source: string;
-  author: string;
+  /** @nullable */
+  author?: string | null;
   headline: string;
-  timestamp: string;
-  sentiment: string;
-  status: string;
+  /** @nullable */
+  url?: string | null;
+  /** @nullable */
+  timestamp?: string | null;
   /** @nullable */
   playerId?: string | null;
+  /** @nullable */
+  playerName?: string | null;
+  /**
+     * The named player's current availability, when known.
+     * @nullable
+     */
+  status?: string | null;
 }

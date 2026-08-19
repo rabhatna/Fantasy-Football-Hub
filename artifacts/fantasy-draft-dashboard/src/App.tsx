@@ -17,11 +17,12 @@ import {
   useGetOLImpact,
   useGetPlayer,
   useGetPlayers,
+  useGetLiveStatus,
   useGetTeams,
   useHealthCheck,
   useRefreshData,
 } from "@workspace/api-client-react";
-import type { DraftPick, DraftSummary, NewsItem, OLImpactAnalysis, RBOLImpact, OLTeamScore, Player, Team } from "@workspace/api-client-react";
+import type { DraftPick, DraftSummary, LiveStatus, NewsItem, OLImpactAnalysis, RBOLImpact, OLTeamScore, Player, Team } from "@workspace/api-client-react";
 import { useDraftBoard, usePlayerNote } from "@/hooks/use-draft-state";
 import { NO_DATA, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
 import NotFound from "@/pages/not-found";
@@ -33,12 +34,28 @@ const queryClient = new QueryClient();
 // unknown, which is neither healthy nor unhealthy, so it is never filtered out
 // and never coloured as bad news.
 const UNAVAILABLE_INJURY_STATUSES = ["ir", "pup", "out", "doubtful"];
+// Designations are shown in a narrow column, so the longer ones are shortened.
+// Anything not listed is shown as-is rather than truncated into ambiguity.
+const STATUS_ABBREVIATIONS: Record<string, string> = {
+  questionable: "Q",
+  doubtful: "D",
+  out: "OUT",
+  ir: "IR",
+  pup: "PUP",
+  "injured reserve": "IR",
+  "physically unable to perform": "PUP",
+  "did not report": "DNR",
+  suspended: "SUS",
+  "non-football injury": "NFI",
+};
+const abbreviateStatus = (status: string) =>
+  STATUS_ABBREVIATIONS[status.trim().toLowerCase()] ?? status;
 const isHealthy = (status: string | null | undefined) =>
   !status || !UNAVAILABLE_INJURY_STATUSES.includes(status.trim().toLowerCase());
 const injuryTone = (status: string | null | undefined) =>
   !status ? "text-muted-foreground" : status.trim().toLowerCase() === "active" ? "text-primary" : isHealthy(status) ? "text-accent-foreground" : "text-destructive";
 
-const formatTime = (value?: string) => {
+const formatTime = (value?: string | null) => {
   if (!value) return "awaiting refresh";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -178,26 +195,43 @@ function PlayerRow({ player, drafted, onDraft, onInspect }: { player: Player; dr
     <span className="mono text-[11px] text-muted-foreground">{String(player.rank).padStart(2, "0")}</span>
     <button type="button" onClick={() => onInspect(player)} data-testid={`button-inspect-player-${player.id}`} className="flex min-w-0 items-center gap-2 text-left">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-[10px] font-bold">{initials(player.name)}</span>
-      <span className="min-w-0"><span className="block truncate text-[12px] font-bold group-hover:text-primary">{player.name}</span><span className="mono block text-[10px] text-muted-foreground">{player.team} / {player.byeWeek === 0 ? "BYE —" : `BYE ${player.byeWeek}`}</span></span>
+      <span className="min-w-0"><span className="flex items-center gap-1.5"><span className="truncate text-[12px] font-bold group-hover:text-primary">{player.name}</span>{player.injuryStatus && player.injuryStatus !== "Active" && <span title={player.injuryBodyPart ? `${player.injuryStatus} — ${player.injuryBodyPart}` : player.injuryStatus} data-testid={`badge-injury-${player.id}`} className={`shrink-0 rounded px-1 py-px mono text-[9px] font-semibold ${tone} bg-current/10`}>{abbreviateStatus(player.injuryStatus)}</span>}</span><span className="mono block text-[10px] text-muted-foreground">{player.team} / {player.byeWeek === 0 ? "BYE —" : `BYE ${player.byeWeek}`}</span></span>
     </button>
     <span><PositionBadge position={player.position} /></span>
     <span className="mono text-right text-[11px]">{player.adp.toFixed(1)}</span>
     <span className={`mono text-right text-[11px] font-medium ${delta > 0 ? "text-primary" : "text-destructive"}`}>{delta > 0 ? "+" : ""}{delta.toFixed(1)}</span>
     <span className="text-right"><span className={`mono text-[12px] font-medium ${valueTone(player.valueScore)}`}>{fmtValueScore(player.valueScore)}</span><ScoreBar value={valueScoreBar(player.valueScore)} color="accent" /></span>
     <span className="text-right"><button type="button" onClick={() => onDraft(player)} disabled={drafted} data-testid={`button-draft-player-${player.id}`} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition ${drafted ? "cursor-default bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:-translate-y-0.5 hover:shadow-md"}`}>{drafted ? <Check size={12} /> : <Target size={12} />}{drafted ? "Drafted" : "Draft"}</button></span>
-    <span className={`col-span-full -mt-1 pl-[42px] text-[10px] ${tone} sm:hidden`}>{player.injuryStatus}</span>
+    {player.injuryStatus && player.injuryStatus !== "Active" && player.injuryBodyPart && <span className={`col-span-full -mt-1 pl-[42px] text-[10px] ${tone} sm:hidden`}>{player.injuryStatus} · {player.injuryBodyPart}</span>}
   </div>;
 }
 
-function NewsRail({ news, players }: { news: NewsItem[]; players: Player[] }) {
+function NewsRail({ news, players, live }: { news: NewsItem[]; players: Player[]; live?: LiveStatus }) {
   const playerById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
-  return <Surface className="scanline overflow-hidden"><div className="flex items-center justify-between border-b border-border px-4 py-4"><div><Kicker>Live pulse</Kicker><h2 className="mt-1 text-sm font-bold">Injury & market radar</h2></div><Bell size={15} className="text-primary" /></div>
-    {news.length === 0 ? <EmptyState label="No live feed connected. Injury and beat reporting arrive when a live source is wired up — the player dataset carries none." /> : <div className="divide-y divide-border/70">{news.slice(0, 5).map((item) => {
+  return <Surface className="scanline overflow-hidden"><div className="flex items-center justify-between border-b border-border px-4 py-4"><div><Kicker>Live pulse</Kicker><h2 className="mt-1 text-sm font-bold">League headlines</h2></div><Bell size={15} className={live?.stale ? "text-accent-foreground" : "text-primary"} /></div>
+    {news.length === 0 ? <EmptyState label="No headlines yet. Hit Refresh to pull the live feeds — nothing leaves your machine until you do." /> : <div className="divide-y divide-border/70">{news.slice(0, 5).map((item) => {
       const player = item.playerId ? playerById.get(item.playerId) : undefined;
-      return <div className="group px-4 py-3.5 transition-colors hover:bg-primary/[0.04]" key={item.id} data-testid={`news-item-${item.id}`}><div className="flex items-center justify-between gap-3"><span className="mono text-[9px] uppercase tracking-[0.13em] text-primary">{item.source}</span><span className="mono text-[9px] text-muted-foreground">{formatTime(item.timestamp)}</span></div><p className="mt-1.5 text-[11px] font-semibold leading-4">{item.headline}</p><div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">{player && <span className="rounded bg-secondary px-1.5 py-0.5 font-semibold text-foreground">{player.name}</span>}<span className={item.sentiment.toLowerCase().includes("positive") ? "text-primary" : item.sentiment.toLowerCase().includes("negative") ? "text-destructive" : "text-muted-foreground"}>{item.status}</span><span className="ml-auto">{item.author}</span></div></div>;
+      const body = <><div className="flex items-center justify-between gap-3"><span className="mono text-[9px] uppercase tracking-[0.13em] text-primary">{item.source}</span><span className="mono text-[9px] text-muted-foreground">{formatTime(item.timestamp)}</span></div><p className="mt-1.5 text-[11px] font-semibold leading-4">{item.headline}</p>{(player || item.status) && <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px]">{player && <span className="rounded bg-secondary px-1.5 py-0.5 font-semibold text-foreground">{player.name}</span>}{item.status && <span className={injuryTone(item.status)}>{item.status}</span>}</div>}</>;
+      return item.url
+        ? <a className="group block px-4 py-3.5 transition-colors hover:bg-primary/[0.04]" key={item.id} href={item.url} target="_blank" rel="noreferrer noopener" data-testid={`news-item-${item.id}`}>{body}</a>
+        : <div className="group px-4 py-3.5" key={item.id} data-testid={`news-item-${item.id}`}>{body}</div>;
     })}</div>}
     <Link href="/news" data-testid="link-view-all-news" className="flex items-center justify-between border-t border-border px-4 py-3 text-[10px] font-bold uppercase tracking-[0.12em] text-primary hover:bg-primary/[0.04]">Open signal feed <ChevronRight size={14} /></Link>
   </Surface>;
+}
+
+/**
+ * How current the live feeds are.
+ *
+ * Never silently presents cached data as fresh: if the last refresh had a
+ * source fail, this says the data is older than it looks.
+ */
+function LiveIndicator({ live }: { live?: LiveStatus }) {
+  if (!live || !live.fetchedAt) {
+    return <span className="mono rounded-lg bg-card px-2.5 py-2 text-[10px] font-medium text-muted-foreground shadow-sm" data-testid="status-live">never synced</span>;
+  }
+  const failed = live.sources.filter((source) => !source.ok);
+  return <span title={failed.length ? `Failing: ${failed.map((source) => `${source.name} (${source.detail})`).join(", ")}` : `${live.sources.length} sources OK`} className={`mono rounded-lg px-2.5 py-2 text-[10px] font-medium shadow-sm ${live.stale ? "bg-accent/15 text-accent-foreground" : "bg-card"}`} data-testid="status-live">{live.stale ? `cached · ${formatTime(live.fetchedAt)}` : formatTime(live.fetchedAt)}</span>;
 }
 
 function MarketArbitrage({ players, draftedIds, onInspect }: { players: Player[]; draftedIds: string[]; onInspect: (player: Player) => void }) {
@@ -215,6 +249,7 @@ function HomePage() {
   const { data: playersData, isLoading, isError, refetch } = useGetPlayers();
   const { data: summary } = useGetDraftSummary();
   const { data: newsData } = useGetNews();
+  const { data: live } = useGetLiveStatus();
   const [, setLocation] = useLocation();
   const players = playersData ?? [];
   const board = useDraftBoard(players);
@@ -226,7 +261,7 @@ function HomePage() {
   const news = newsData ?? [];
   const filteredPlayers = useMemo(() => players.filter((player) => (position === "ALL" || player.position === position) && player.name.toLowerCase().includes(search.toLowerCase()) && (!showHealthyOnly || isHealthy(player.injuryStatus))).sort((a, b) => sort === "value" ? (b.valueScore ?? -Infinity) - (a.valueScore ?? -Infinity) : sort === "adp" ? a.adp - b.adp : a.rank - b.rank), [players, position, search, showHealthyOnly, sort]);
   return <div className="mx-auto max-w-[1500px]">
-    <div className="enter"><SectionHeading eyebrow="Live draft room" title="Make the next pick count." detail="Top 250 board · ranked by your composite value model" action={<div className="hidden items-center gap-2 sm:flex"><span className="mono text-[10px] text-muted-foreground">last sync</span><span className="mono rounded-lg bg-card px-2.5 py-2 text-[10px] font-medium shadow-sm">{formatTime(summary?.lastRefresh)}</span></div>} /></div>
+    <div className="enter"><SectionHeading eyebrow="Live draft room" title="Make the next pick count." detail="Top 250 board · ranked by your composite value model" action={<div className="hidden items-center gap-2 sm:flex"><span className="mono text-[10px] text-muted-foreground">live feeds</span><LiveIndicator live={live} /></div>} /></div>
     <div className="enter enter-1 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:gap-3"><Metric label="Players tracked" value={(summary?.playersTracked ?? players.length) || "—"} detail="of 250" /><Metric label="Drafted" value={draftedIds.length} detail={`${draftedIds.length ? "saved to disk" : "start picking"}`} accent /><Metric label="Room avg ADP" value={summary?.averageAdp?.toFixed(1) ?? "—"} detail="current room" /><Metric label="Value targets" value={summary?.valueTargets ?? "—"} detail="above market" /></div>
     <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_350px]">
       <div className="min-w-0">
@@ -239,7 +274,7 @@ function HomePage() {
           <div className="flex items-center justify-between border-t border-border px-4 py-3"><span className="mono text-[9px] text-muted-foreground">Showing {filteredPlayers.length} / {summary?.playersTracked ?? players.length} · model v26.04</span><span className="flex items-center gap-1 text-[10px] text-muted-foreground"><SlidersHorizontal size={12} /> sort by column</span></div>
         </Surface>
       </div>
-      <div className="space-y-6"><div className="enter enter-3"><MarketArbitrage players={players} draftedIds={draftedIds} onInspect={(player) => setLocation(`/players/${player.id}`)} /></div><div className="enter enter-3"><DraftBoard draftedPlayers={board.draftedPlayers} summary={summary} onUndraft={board.undraftPlayer} pendingId={pendingId} /></div><div className="enter enter-3"><NewsRail news={news} players={players} /></div></div>
+      <div className="space-y-6"><div className="enter enter-3"><MarketArbitrage players={players} draftedIds={draftedIds} onInspect={(player) => setLocation(`/players/${player.id}`)} /></div><div className="enter enter-3"><DraftBoard draftedPlayers={board.draftedPlayers} summary={summary} onUndraft={board.undraftPlayer} pendingId={pendingId} /></div><div className="enter enter-3"><NewsRail news={news} players={players} live={live} /></div></div>
     </div>
     {board.isUnavailable && <div className="fixed bottom-5 right-5 z-30 rounded-xl border border-destructive/30 bg-card px-4 py-3 text-xs shadow-lg" data-testid="status-board-unavailable">Could not read your saved board. It is still on disk — reconnect before drafting.</div>}
     {board.saveFailed && !board.isUnavailable && <div className="fixed bottom-5 right-5 z-30 rounded-xl border border-destructive/30 bg-card px-4 py-3 text-xs shadow-lg" data-testid="status-draft-error">That change was not written to disk. Retry before relying on the board.</div>}
@@ -601,12 +636,56 @@ function TeamsPage() {
 function NewsPage() {
   const { data: newsData, isLoading, isError, refetch } = useGetNews();
   const { data: playersData } = useGetPlayers();
+  const { data: live } = useGetLiveStatus();
   const news = newsData ?? [];
   const players = playersData ?? [];
   const [filter, setFilter] = useState("all");
   const playerById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
-  const visible = news.filter((item) => filter === "all" || item.status.toLowerCase().includes(filter) || item.sentiment.toLowerCase().includes(filter));
-  return <div className="mx-auto max-w-[1250px]"><SectionHeading eyebrow="Signal feed" title="Know what changed." detail="The stories that can move a pick, filtered for draft relevance." action={<div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2"><span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" /><span className="mono text-[10px] text-muted-foreground">no live source</span></div>} /><div className="mb-5 flex gap-2 overflow-x-auto">{[["all", "All signals"], ["injury", "Injury"], ["positive", "Positive"], ["negative", "Negative"]].map(([value, label]) => <button type="button" key={value} onClick={() => setFilter(value)} data-testid={`button-news-filter-${value}`} className={`shrink-0 rounded-xl border px-3 py-2 text-[10px] font-semibold ${filter === value ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>{label}</button>)}</div><div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_310px]"><Surface className="overflow-hidden">{isLoading ? <LoadingRows /> : isError ? <ErrorState label="The signal feed is not responding." onRetry={() => void refetch()} /> : visible.length === 0 ? <EmptyState label={news.length === 0 ? "No live feed connected. The player dataset is built from completed-season production and market data, and carries no injury or beat reporting." : "No reports match the current lens."} /> : <div className="divide-y divide-border">{visible.map((item, index) => { const player = item.playerId ? playerById.get(item.playerId) : undefined; const positive = item.sentiment.toLowerCase().includes("positive"); const negative = item.sentiment.toLowerCase().includes("negative"); return <article key={item.id} className="enter flex gap-4 p-5 transition-colors hover:bg-primary/[0.035]" style={{ animationDelay: `${index * 55}ms` }} data-testid={`article-news-${item.id}`}><div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[10px] font-bold ${positive ? "bg-primary/12 text-primary" : negative ? "bg-destructive/10 text-destructive" : "bg-secondary text-secondary-foreground"}`}>{initials(item.source)}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-2 gap-y-1"><span className="mono text-[9px] font-medium uppercase tracking-[0.15em] text-primary">{item.source}</span><span className="text-border">/</span><span className="mono text-[9px] text-muted-foreground">{formatTime(item.timestamp)}</span>{player && <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[9px] font-semibold">{player.name}</span>}</div><h2 className="mt-2 text-sm font-bold leading-5">{item.headline}</h2><div className="mt-3 flex items-center gap-3"><span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${positive ? "text-primary" : negative ? "text-destructive" : "text-muted-foreground"}`}>{positive ? <TrendingUp size={12} /> : negative ? <TrendingDown size={12} /> : <ActivityIcon />}{item.status}</span><span className="text-[10px] text-muted-foreground">reported by {item.author}</span></div></div><button type="button" data-testid={`button-save-news-${item.id}`} aria-label={`Save ${item.headline}`} className="self-start rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-primary"><BookOpen size={14} /></button></article>; })}</div>}<div className="border-t border-border px-5 py-3 mono text-[9px] text-muted-foreground">Source timestamps are normalized to your local clock.</div></Surface><div className="space-y-6"><Surface className="p-5"><div className="flex items-center justify-between"><div><Kicker>Radar legend</Kicker><h2 className="mt-1 text-sm font-bold">Read the tape</h2></div><ShieldAlert size={15} className="text-accent-foreground" /></div><div className="mt-5 space-y-4"><div className="flex gap-3"><span className="mt-1 h-2 w-2 rounded-full bg-destructive" /><div><p className="text-[11px] font-bold">Negative / risk</p><p className="mt-1 text-[10px] leading-4 text-muted-foreground">Injuries, role erosion, or market pressure.</p></div></div><div className="flex gap-3"><span className="mt-1 h-2 w-2 rounded-full bg-primary" /><div><p className="text-[11px] font-bold">Positive / tailwind</p><p className="mt-1 text-[10px] leading-4 text-muted-foreground">Usage, health, or opportunity breaking right.</p></div></div><div className="flex gap-3"><span className="mt-1 h-2 w-2 rounded-full bg-accent" /><div><p className="text-[11px] font-bold">Monitor</p><p className="mt-1 text-[10px] leading-4 text-muted-foreground">Worth a flag before your next nomination.</p></div></div></div></Surface><Surface className="p-5"><Kicker>Draft room protocol</Kicker><h2 className="mt-2 display text-xl font-semibold leading-tight">Read once. Verify twice. Act before the room does.</h2><div className="mt-5 flex items-center gap-2 text-[10px] text-muted-foreground"><span className="mono rounded bg-secondary px-1.5 py-1">01</span><span>Scan the headline</span></div><div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground"><span className="mono rounded bg-secondary px-1.5 py-1">02</span><span>Check player context</span></div><div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground"><span className="mono rounded bg-secondary px-1.5 py-1">03</span><span>Re-price your board</span></div></Surface></div></div></div>;
+  // Filters reflect what the feed actually provides. There is no positive or
+  // negative lens because a headline carries no sentiment we could read
+  // without inventing it.
+  const visible = news.filter((item) => filter === "all" || (filter === "players" ? Boolean(item.playerId) : Boolean(item.status)));
+
+  return <div className="mx-auto max-w-[1250px]">
+    <SectionHeading eyebrow="Signal feed" title="Know what changed." detail="Headlines from public NFL feeds, tagged with the ranked players they name." action={<div className="flex items-center gap-2"><LiveIndicator live={live} /></div>} />
+    <div className="mb-5 flex gap-2 overflow-x-auto">{[["all", `All (${news.length})`], ["players", `Names a ranked player (${news.filter((item) => item.playerId).length})`], ["status", `Carries a status (${news.filter((item) => item.status).length})`]].map(([value, label]) => <button type="button" key={value} onClick={() => setFilter(value)} data-testid={`button-news-filter-${value}`} className={`shrink-0 rounded-xl border px-3 py-2 text-[10px] font-semibold ${filter === value ? "border-primary/30 bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>{label}</button>)}</div>
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_310px]">
+      <Surface className="overflow-hidden">
+        {isLoading ? <LoadingRows /> : isError ? <ErrorState label="The signal feed is not responding." onRetry={() => void refetch()} /> : visible.length === 0 ? <EmptyState label={news.length === 0 ? "No headlines yet. Hit Refresh to pull the live feeds — nothing leaves your machine until you ask." : "No headlines match the current lens."} /> : <div className="divide-y divide-border">{visible.map((item, index) => {
+          const player = item.playerId ? playerById.get(item.playerId) : undefined;
+          return <article key={item.id} className="enter flex gap-4 p-5 transition-colors hover:bg-primary/[0.035]" style={{ animationDelay: `${Math.min(index, 12) * 45}ms` }} data-testid={`article-news-${item.id}`}>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-[10px] font-bold text-secondary-foreground">{initials(item.source)}</div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><span className="mono text-[9px] font-medium uppercase tracking-[0.15em] text-primary">{item.source}</span><span className="text-border">/</span><span className="mono text-[9px] text-muted-foreground">{formatTime(item.timestamp)}</span>{player && <Link href={`/players/${player.id}`} className="rounded-md bg-secondary px-1.5 py-0.5 text-[9px] font-semibold hover:text-primary">{player.name}</Link>}</div>
+              <h2 className="mt-2 text-sm font-bold leading-5">{item.url ? <a href={item.url} target="_blank" rel="noreferrer noopener" className="hover:text-primary">{item.headline}</a> : item.headline}</h2>
+              <div className="mt-3 flex flex-wrap items-center gap-3">{item.status && <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${injuryTone(item.status)}`}><ActivityIcon />{item.status}</span>}{item.author && <span className="text-[10px] text-muted-foreground">by {item.author}</span>}{item.url && <span className="mono text-[9px] text-muted-foreground">{safeHost(item.url)}</span>}</div>
+            </div>
+            {item.url && <a href={item.url} target="_blank" rel="noreferrer noopener" data-testid={`link-news-${item.id}`} aria-label={`Open: ${item.headline}`} className="self-start rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-primary"><ExternalLink size={14} /></a>}
+          </article>;
+        })}</div>}
+        <div className="border-t border-border px-5 py-3 mono text-[9px] text-muted-foreground">Timestamps are normalized to your local clock. Headlines link to their source.</div>
+      </Surface>
+      <div className="space-y-6">
+        <Surface className="p-5">
+          <div className="flex items-center justify-between"><div><Kicker>Feed status</Kicker><h2 className="mt-1 text-sm font-bold">Where this comes from</h2></div><ShieldAlert size={15} className={live?.stale ? "text-accent-foreground" : "text-muted-foreground"} /></div>
+          {!live || !live.fetchedAt ? <p className="mt-4 text-[11px] leading-5 text-muted-foreground">Nothing fetched yet. Refresh pulls public NFL feeds and injury designations; until then the app makes no outbound requests.</p> : <>
+            <p className="mt-4 text-[11px] leading-5 text-muted-foreground">{live.stale ? "Some sources failed on the last attempt, so what you see below is from an earlier fetch." : "All sources answered on the last refresh."}</p>
+            <div className="mt-4 space-y-2">{live.sources.map((source) => <div key={source.name} className="flex items-start gap-2 text-[10px]"><span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${source.ok ? "bg-primary" : "bg-destructive"}`} /><div className="min-w-0"><p className="font-semibold">{source.name}</p><p className="text-muted-foreground">{source.detail}</p></div></div>)}</div>
+          </>}
+        </Surface>
+        <Surface className="p-5"><Kicker>How players are tagged</Kicker><p className="mt-3 text-[11px] leading-5 text-muted-foreground">A headline is linked to a player only when it names them in full and exactly one ranked player matches. A surname alone is left untagged rather than attributed to the wrong player.</p></Surface>
+      </div>
+    </div>
+  </div>;
+}
+
+/** Hostname of a feed link, or nothing if the URL will not parse. */
+function safeHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }
 
 function ActivityIcon() {

@@ -5,9 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { LiveStatus } from './liveStatus';
+import type { SourceResult } from './sourceResult';
 
 export interface RefreshStatus {
   status: string;
   refreshedAt: string;
-  sources: string[];
+  live?: LiveStatus;
+  sources: SourceResult[];
 }

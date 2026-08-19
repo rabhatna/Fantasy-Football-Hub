@@ -21,6 +21,9 @@
     },
     {
       "path": "../../lib/dataset"
+    },
+    {
+      "path": "../../lib/live"
     }
   ]
 }
