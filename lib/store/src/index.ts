@@ -123,13 +123,24 @@ export class Store {
 }
 
 /**
- * Resolve the data directory: `DATA_DIR` when set (the container sets it to
- * /app/data), otherwise ./data relative to the working directory.
+ * Resolve the data directory.
+ *
+ * `DATA_DIR` wins when set. Otherwise `defaultDir` is used, which callers
+ * should anchor to a fixed location rather than leaving to the process working
+ * directory: package scripts run with the cwd set to their own package, so a
+ * cwd-relative default silently produces a *different* draft board depending on
+ * which command started the server.
  */
-export function resolveDataDir(env: NodeJS.ProcessEnv = process.env): string {
-  return path.resolve(env["DATA_DIR"] ?? "data");
+export function resolveDataDir(
+  env: NodeJS.ProcessEnv = process.env,
+  defaultDir = "data",
+): string {
+  return path.resolve(env["DATA_DIR"] ?? defaultDir);
 }
 
-export function createStore(env: NodeJS.ProcessEnv = process.env): Store {
-  return new Store(resolveDataDir(env));
+export function createStore(
+  env: NodeJS.ProcessEnv = process.env,
+  defaultDir = "data",
+): Store {
+  return new Store(resolveDataDir(env, defaultDir));
 }

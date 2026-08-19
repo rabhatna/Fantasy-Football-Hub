@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, test } from "node:test";
-import { normalizeName, parseSnapshot } from "./index.ts";
+import { loadSnapshot, normalizeName, parseSnapshot } from "./index.ts";
 import { normalize, percent, weightedAverage } from "./fields.ts";
 
 const masterCsv = path.resolve(
@@ -162,5 +163,42 @@ describe("teams", () => {
       assert.ok((team.snapContinuity ?? 0) > 1, `${team.team} continuity looks like a fraction`);
       assert.ok((team.stuffRate ?? 0) > 1, `${team.team} stuff rate looks like a fraction`);
     }
+  });
+});
+
+describe("loadSnapshot", () => {
+  test("seeds an empty data directory from the bundled snapshot", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ff-snap-"));
+    const loaded = await loadSnapshot(dir);
+
+    assert.equal(loaded.players.length, 250);
+    assert.equal(loaded.version, "2026-08-14");
+    // Seeded into the data directory, so the user owns a copy they can replace.
+    assert.deepEqual(await readdir(path.join(dir, "snapshots")), ["2026-08-14"]);
+  });
+
+  test("refuses to serve a truncated snapshot as an empty board", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ff-snap-"));
+    // Exactly what an interrupted copy leaves behind: a directory that looks
+    // like a valid snapshot holding a zero-byte master.csv.
+    const broken = path.join(dir, "snapshots", "2099-01-01");
+    await mkdir(broken, { recursive: true });
+    await writeFile(path.join(broken, "master.csv"), "", "utf8");
+
+    const loaded = await loadSnapshot(dir);
+
+    // Falls back to the bundled copy rather than reporting zero players.
+    assert.equal(loaded.players.length, 250);
+    assert.notEqual(loaded.version, "2099-01-01");
+  });
+
+  test("ignores a seed staging directory left by an interrupted copy", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ff-snap-"));
+    const staging = path.join(dir, "snapshots", ".2099-01-01.incoming");
+    await mkdir(staging, { recursive: true });
+    await writeFile(path.join(staging, "master.csv"), "", "utf8");
+
+    const loaded = await loadSnapshot(dir);
+    assert.equal(loaded.players.length, 250);
   });
 });

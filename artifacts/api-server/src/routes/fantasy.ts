@@ -1,3 +1,4 @@
+import path from "node:path";
 import { Router, type IRouter } from "express";
 import { createStore, resolveDataDir, type DraftPickRecord } from "@workspace/store";
 import {
@@ -30,8 +31,14 @@ import { logger } from "../lib/logger";
 
 // Draft picks and notes persist as CSV under the data directory; the player
 // board is read from a dated snapshot in the same place.
-const store = createStore();
-const dataDir = resolveDataDir();
+//
+// Anchored to the repository root rather than the working directory. pnpm runs
+// package scripts with the cwd set to the package, so `pnpm start` (root) and
+// `pnpm dev` (artifacts/api-server) would otherwise read and write two
+// different draft boards. The bundle lives at artifacts/api-server/dist.
+const defaultDataDir = path.resolve(import.meta.dirname, "..", "..", "..", "data");
+const store = createStore(process.env, defaultDataDir);
+const dataDir = resolveDataDir(process.env, defaultDataDir);
 
 let snapshotPromise: Promise<Snapshot> | null = null;
 let loadedAt = new Date().toISOString();

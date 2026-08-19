@@ -1,4 +1,4 @@
-import { cp, mkdir, readdir, stat } from "node:fs/promises";
+import { cp, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseCsv, readFileOrNull } from "@workspace/store";
@@ -29,6 +29,8 @@ async function listSnapshotDirs(root: string): Promise<string[]> {
     const entries = await readdir(root, { withFileTypes: true });
     return entries
       .filter((entry) => entry.isDirectory())
+      // Hidden entries are seed staging directories, not finished snapshots.
+      .filter((entry) => !entry.name.startsWith("."))
       // Directory names are ISO dates, so lexicographic order is chronological.
       .map((entry) => entry.name)
       .sort();
@@ -40,9 +42,13 @@ async function listSnapshotDirs(root: string): Promise<string[]> {
 /**
  * Copy the newest bundled snapshot into the data directory when it has none.
  *
- * This is what lets a clean clone — and a fresh container with an empty
- * bind-mounted volume — start with data, while still leaving the user free to
- * drop in their own newer snapshot afterwards.
+ * This is what lets a clean clone start with data while leaving the user free
+ * to drop in their own newer snapshot afterwards.
+ *
+ * Copies into a temporary directory and renames it into place, because a
+ * partial copy is worse than no copy: a half-written snapshot directory still
+ * *looks* like a valid snapshot to the loader, which would then serve an empty
+ * board as though the dataset simply had no players in it.
  */
 async function seedSnapshots(snapshotsDir: string): Promise<void> {
   if ((await listSnapshotDirs(snapshotsDir)).length > 0) return;
@@ -53,7 +59,16 @@ async function seedSnapshots(snapshotsDir: string): Promise<void> {
   if (!newest) return;
 
   await mkdir(snapshotsDir, { recursive: true });
-  await cp(path.join(bundled, newest), path.join(snapshotsDir, newest), { recursive: true });
+  const staging = path.join(snapshotsDir, `.${newest}.incoming`);
+  await rm(staging, { recursive: true, force: true });
+
+  try {
+    await cp(path.join(bundled, newest), staging, { recursive: true });
+    await rename(staging, path.join(snapshotsDir, newest));
+  } catch (error) {
+    await rm(staging, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 /**
@@ -72,6 +87,7 @@ export async function loadSnapshot(dataDir: string): Promise<Snapshot> {
     // Fall through to the bundled copy below.
   }
 
+  const rejected: string[] = [];
   const candidates: { root: string; versions: string[] }[] = [
     { root: snapshotsDir, versions: await listSnapshotDirs(snapshotsDir) },
     { root: bundledDatasetsDir(), versions: await listSnapshotDirs(bundledDatasetsDir()) },
@@ -86,13 +102,23 @@ export async function loadSnapshot(dataDir: string): Promise<Snapshot> {
       const text = await readFileOrNull(file);
       if (text === null) continue;
 
-      return { version, directory, ...parseSnapshot(text) };
+      const parsed = parseSnapshot(text);
+      if (parsed.players.length === 0) {
+        // An empty or truncated file — a half-finished copy, or a bad edit.
+        // Serving it would show an empty board that looks like a real one, so
+        // fall through to the next candidate and report what was rejected.
+        rejected.push(`${directory} (parsed 0 players from master.csv)`);
+        continue;
+      }
+
+      return { version, directory, ...parsed };
     }
   }
 
   throw new Error(
-    `No dataset snapshot found. Expected a dated directory containing master.csv ` +
-      `under ${snapshotsDir} or ${bundledDatasetsDir()}.`,
+    `No usable dataset snapshot found. Expected a dated directory containing a ` +
+      `non-empty master.csv under ${snapshotsDir} or ${bundledDatasetsDir()}.` +
+      (rejected.length > 0 ? ` Rejected: ${rejected.join("; ")}.` : ""),
   );
 }
 
