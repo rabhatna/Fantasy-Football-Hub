@@ -92,6 +92,8 @@ type ApiPlayer = DatasetPlayer & {
   adpConsensusStdev: number | null;
   adpSources: { source: string; adp: number }[];
   valueScoreConsensus: number | null;
+  projectedPoints: number | null;
+  aav: number | null;
 };
 
 /**
@@ -137,6 +139,17 @@ async function enrichedPlayers(): Promise<ApiPlayer[]> {
         ? consensusAdp(adpSources.map((entry) => entry.adp))
         : { mean: null, stdev: null };
 
+    // Projections arrive in all three scoring formats; serve the league's.
+    const projection = playerMarket?.projection ?? null;
+    const projectedPoints =
+      projection === null
+        ? null
+        : settings.scoring === "half_ppr"
+          ? projection.halfPpr
+          : settings.scoring === "standard"
+            ? projection.standard
+            : projection.ppr;
+
     return {
       ...player,
       ppg,
@@ -146,6 +159,8 @@ async function enrichedPlayers(): Promise<ApiPlayer[]> {
       adpConsensusStdev: consensus.stdev === null ? null : Number(consensus.stdev.toFixed(1)),
       adpSources,
       valueScoreConsensus: null,
+      projectedPoints: projectedPoints === null ? null : Number(projectedPoints.toFixed(1)),
+      aav: playerMarket?.aav ?? null,
     };
   });
 

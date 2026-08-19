@@ -52,6 +52,21 @@ export interface Player {
      */
   valueScoreConsensus: number | null;
   /**
+     * Projected 2026 season total in the league's scoring format, from
+     * the cached market sources. Null when no source projects the
+     * player — never a zero, which would read as "projected to score
+     * nothing".
+     * @nullable
+     */
+  projectedPoints: number | null;
+  /**
+     * Average auction value in league dollars, from live ESPN drafts.
+     * Null before the first market refresh or for players the crowd is
+     * not bidding on.
+     * @nullable
+     */
+  aav: number | null;
+  /**
      * Production-versus-price gap in standard deviations, roughly
      * Z(2025 positional finish) - Z(2026 ADP). Positive means the player
      * produced better than his draft cost implies. Spans about -3 to

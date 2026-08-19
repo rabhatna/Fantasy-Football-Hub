@@ -43,6 +43,8 @@ export const GetPlayersResponseItem = zod.object({
   "adp": zod.number()
 })).describe('Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.'),
   "valueScoreConsensus": zod.number().nullable().describe('The dataset\'s value score recomputed against consensus ADP instead\nof the single-source ADP column, on the same SD scale. Computed\nlocally, so it can differ slightly from the pipeline\'s number;\nnull until market data has been fetched.\n'),
+  "projectedPoints": zod.number().nullable().describe('Projected 2026 season total in the league\'s scoring format, from\nthe cached market sources. Null when no source projects the\nplayer — never a zero, which would read as \"projected to score\nnothing\".\n'),
+  "aav": zod.number().nullable().describe('Average auction value in league dollars, from live ESPN drafts.\nNull before the first market refresh or for players the crowd is\nnot bidding on.\n'),
   "valueScore": zod.number().nullish().describe('Production-versus-price gap in standard deviations, roughly\nZ(2025 positional finish) - Z(2026 ADP). Positive means the player\nproduced better than his draft cost implies. Spans about -3 to\n+2.5 — this is not a 0-10 rating and must not be rendered as one.\n'),
   "marketVerdict": zod.string().nullish(),
   "ppg": zod.number().nullish(),
@@ -99,6 +101,8 @@ export const GetPlayerResponse = zod.object({
   "adp": zod.number()
 })).describe('Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.'),
   "valueScoreConsensus": zod.number().nullable().describe('The dataset\'s value score recomputed against consensus ADP instead\nof the single-source ADP column, on the same SD scale. Computed\nlocally, so it can differ slightly from the pipeline\'s number;\nnull until market data has been fetched.\n'),
+  "projectedPoints": zod.number().nullable().describe('Projected 2026 season total in the league\'s scoring format, from\nthe cached market sources. Null when no source projects the\nplayer — never a zero, which would read as \"projected to score\nnothing\".\n'),
+  "aav": zod.number().nullable().describe('Average auction value in league dollars, from live ESPN drafts.\nNull before the first market refresh or for players the crowd is\nnot bidding on.\n'),
   "valueScore": zod.number().nullish().describe('Production-versus-price gap in standard deviations, roughly\nZ(2025 positional finish) - Z(2026 ADP). Positive means the player\nproduced better than his draft cost implies. Spans about -3 to\n+2.5 — this is not a 0-10 rating and must not be rendered as one.\n'),
   "marketVerdict": zod.string().nullish(),
   "ppg": zod.number().nullish(),

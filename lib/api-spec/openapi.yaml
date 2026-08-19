@@ -305,7 +305,7 @@ components:
         separation and catch rate for receivers, rushing yards over expected
         and eight-plus-box rate for backs. Clients must render these as "no
         data", never as 0.
-      required: [id, rank, name, team, position, adp, adpConsensus, adpConsensusStdev, adpSources, valueScoreConsensus, tier, isRookie, nextGen, consistency]
+      required: [id, rank, name, team, position, adp, adpConsensus, adpConsensusStdev, adpSources, valueScoreConsensus, projectedPoints, aav, tier, isRookie, nextGen, consistency]
       properties:
         id:
           type: string
@@ -342,6 +342,19 @@ components:
             of the single-source ADP column, on the same SD scale. Computed
             locally, so it can differ slightly from the pipeline's number;
             null until market data has been fetched.
+        projectedPoints:
+          type: [number, "null"]
+          description: |
+            Projected 2026 season total in the league's scoring format, from
+            the cached market sources. Null when no source projects the
+            player — never a zero, which would read as "projected to score
+            nothing".
+        aav:
+          type: [number, "null"]
+          description: |
+            Average auction value in league dollars, from live ESPN drafts.
+            Null before the first market refresh or for players the crowd is
+            not bidding on.
         valueScore:
           type: [number, "null"]
           description: |
