@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, describe, test } from "node:test";
 import { parseCsv, stringifyCsv } from "./csv.ts";
-import { writeFileAtomic } from "./atomic.ts";
+import { readFileOrNull, writeFileAtomic } from "./atomic.ts";
 import { CsvTable } from "./table.ts";
 import { Store, resolveDataDir } from "./index.ts";
 
@@ -116,6 +116,20 @@ const rowSchema = {
   decode: (row: Record<string, string>) =>
     row["id"] ? { id: row["id"], value: row["value"] ?? "" } : null,
 };
+
+describe("readFileOrNull", () => {
+  test("returns null for a missing file rather than throwing", async () => {
+    const dir = await scratch();
+    assert.equal(await readFileOrNull(path.join(dir, "absent.csv")), null);
+  });
+
+  test("reads a file that exists", async () => {
+    const dir = await scratch();
+    const file = path.join(dir, "present.csv");
+    await writeFile(file, "id,value\na,1\n", "utf8");
+    assert.equal(await readFileOrNull(file), "id,value\na,1\n");
+  });
+});
 
 describe("CsvTable", () => {
   test("persists across a fresh instance pointed at the same file", async () => {

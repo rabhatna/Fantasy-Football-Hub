@@ -65,13 +65,35 @@ export async function writeFileAtomic(filePath: string, contents: string): Promi
   }
 }
 
+/**
+ * Errors that mean "try again", not "this failed".
+ *
+ * On macOS a file in an iCloud-synced folder (~/Documents and ~/Desktop by
+ * default) can be evicted to the cloud — `stat` reports it as `dataless` with
+ * zero blocks. Reading it triggers an on-demand download, and a read that
+ * blocks too long comes back as ECANCELED. The retry is what turns that into a
+ * short pause instead of an unexplained empty board.
+ */
+const TRANSIENT_READ_ERRORS = new Set(["ECANCELED", "EBUSY", "EAGAIN", "EINTR"]);
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** Read a file, returning null when it does not exist yet. */
-export async function readFileOrNull(filePath: string): Promise<string | null> {
-  try {
-    return await readFile(filePath, "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw error;
+export async function readFileOrNull(filePath: string, attempts = 3): Promise<string | null> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await readFile(filePath, "utf8");
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") return null;
+      if (!code || !TRANSIENT_READ_ERRORS.has(code) || attempt >= attempts) throw error;
+
+      // Back off a little; the first read has already asked the OS to
+      // materialise the file, so the next one usually lands.
+      await delay(attempt * 250);
+    }
   }
 }
 

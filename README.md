@@ -9,48 +9,38 @@ draft board. Runs entirely on your machine.
 - Node.js 22+ (tested on 24)
 - pnpm 10 (`corepack enable pnpm` — the version is pinned in `package.json`)
 
-## Run locally
-
-Two processes. In separate terminals:
+## Run it
 
 ```bash
-pnpm --filter @workspace/api-server run dev
+pnpm install && pnpm start
 ```
+
+Then open http://localhost:8080. That builds everything and serves the
+dashboard and the API from one process on one port. Stop it with Ctrl-C; run
+`pnpm run serve` to start again without rebuilding.
+
+### Developing
 
 ```bash
-pnpm --filter @workspace/fantasy-draft-dashboard run dev
+pnpm dev
 ```
 
-Then open http://127.0.0.1:5173. The dashboard proxies `/api` to the API server
-on port 8080, so both work from one origin in the browser.
+Runs the API and the Vite dev server together for hot reload, on
+http://localhost:5173, with `/api` proxied to the API on 8080.
 
 | Command | What it does |
 |---|---|
-| `pnpm run typecheck` | Typecheck every package |
+| `pnpm start` | Build, then serve the whole app on one port |
+| `pnpm run serve` | Serve an existing build |
+| `pnpm dev` | Both dev servers, with hot reload |
 | `pnpm run build` | Typecheck, then build API bundle + SPA |
 | `pnpm run test` | Run the store and dataset test suites |
+| `pnpm run typecheck` | Typecheck every package |
 | `pnpm --filter @workspace/api-spec run codegen` | Regenerate React Query hooks and Zod schemas from the OpenAPI spec |
 
-Environment variables all have local defaults: `PORT` (8080 API / 5173 web),
-`HOST` (127.0.0.1), `BASE_PATH` (`/`), `API_URL` (the dev proxy target), and
-`DATA_DIR` (`./data`).
-
-## Your data
-
-Draft state persists to CSV files under `DATA_DIR`, so it survives a restart, a
-rebuilt container, and a cleared browser:
-
-```
-data/user/draft_picks.csv    your board
-data/user/player_notes.csv   your notes
-data/user/backups/           snapshot taken before each session's first write
-data/snapshots/<date>/       player data, seeded from datasets/ on first run
-```
-
-These are ordinary CSVs — open them in Excel, edit them, save, then hit
-**Refresh** in the app to reload from disk. Every write goes to a temp file and
-is renamed over the target, so an interrupted write cannot leave a truncated
-file. `data/` is gitignored.
+Environment variables all have local defaults: `PORT` (8080 serving everything,
+5173 for the Vite dev server), `HOST` (127.0.0.1), `DATA_DIR` (`./data` at the
+repo root), `WEB_DIST` (the built dashboard), `API_URL` (the dev proxy target).
 
 ## Layout
 
