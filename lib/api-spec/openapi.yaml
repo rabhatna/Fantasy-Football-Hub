@@ -334,7 +334,7 @@ components:
             weeksPlayed: { type: [number, "null"] }
     Team:
       type: object
-      required: [team, fullName, tier, trend]
+      required: [team, fullName, tier, trend, olHealthStatus]
       properties:
         team: { type: string }
         fullName: { type: string }
@@ -353,6 +353,18 @@ components:
         pointsPerGame: { type: [number, "null"] }
         playsPerGame: { type: [number, "null"] }
         returningStarters: { type: [number, "null"] }
+        projectedStarters: { type: [number, "null"] }
+        olSnaps2025: { type: [number, "null"] }
+        olSnapsReturning: { type: [number, "null"] }
+        olHealthScore:
+          type: [number, "null"]
+          description: >-
+            0-100 health of the projected starting five, derived from returning
+            snaps and returning starters. The dataset carries no lineman injury
+            reporting, so this measures continuity, not game status.
+        olHealthStatus:
+          type: string
+          description: Intact, Degraded, Critical, or Unknown.
         compositeScore: { type: [number, "null"] }
         tier: { type: string }
         trend: { type: string }

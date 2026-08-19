@@ -137,6 +137,11 @@ export const GetTeamsResponseItem = zod.object({
   "pointsPerGame": zod.number().nullish(),
   "playsPerGame": zod.number().nullish(),
   "returningStarters": zod.number().nullish(),
+  "projectedStarters": zod.number().nullish(),
+  "olSnaps2025": zod.number().nullish(),
+  "olSnapsReturning": zod.number().nullish(),
+  "olHealthScore": zod.number().nullish().describe('0-100 health of the projected starting five, derived from returning snaps and returning starters. The dataset carries no lineman injury reporting, so this measures continuity, not game status.'),
+  "olHealthStatus": zod.string().describe('Intact, Degraded, Critical, or Unknown.'),
   "compositeScore": zod.number().nullish(),
   "tier": zod.string(),
   "trend": zod.string()

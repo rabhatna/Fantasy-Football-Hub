@@ -48,6 +48,19 @@ export interface Team {
   /** @nullable */
   returningStarters?: number | null;
   /** @nullable */
+  projectedStarters?: number | null;
+  /** @nullable */
+  olSnaps2025?: number | null;
+  /** @nullable */
+  olSnapsReturning?: number | null;
+  /**
+     * 0-100 health of the projected starting five, derived from returning snaps and returning starters. The dataset carries no lineman injury reporting, so this measures continuity, not game status.
+     * @nullable
+     */
+  olHealthScore?: number | null;
+  /** Intact, Degraded, Critical, or Unknown. */
+  olHealthStatus: string;
+  /** @nullable */
   compositeScore?: number | null;
   tier: string;
   trend: string;
