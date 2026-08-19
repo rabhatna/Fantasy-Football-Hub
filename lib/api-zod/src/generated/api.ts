@@ -36,6 +36,13 @@ export const GetPlayersResponseItem = zod.object({
   "position": zod.string(),
   "adp": zod.number(),
   "adpSource": zod.string().nullish(),
+  "adpConsensus": zod.number().nullable().describe('Mean ADP across every source that knows the player: the live\nmarket sources (FFC mocks, Sleeper, ESPN) plus the dataset\'s own\nADP column. Null until a refresh has fetched market data — the\nplain `adp` is the fallback then.\n'),
+  "adpConsensusStdev": zod.number().nullable().describe('Spread across the sources that went into the consensus. Null with fewer than two sources.'),
+  "adpSources": zod.array(zod.object({
+  "source": zod.string(),
+  "adp": zod.number()
+})).describe('Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.'),
+  "valueScoreConsensus": zod.number().nullable().describe('The dataset\'s value score recomputed against consensus ADP instead\nof the single-source ADP column, on the same SD scale. Computed\nlocally, so it can differ slightly from the pipeline\'s number;\nnull until market data has been fetched.\n'),
   "valueScore": zod.number().nullish().describe('Production-versus-price gap in standard deviations, roughly\nZ(2025 positional finish) - Z(2026 ADP). Positive means the player\nproduced better than his draft cost implies. Spans about -3 to\n+2.5 — this is not a 0-10 rating and must not be rendered as one.\n'),
   "marketVerdict": zod.string().nullish(),
   "ppg": zod.number().nullish(),
@@ -85,6 +92,13 @@ export const GetPlayerResponse = zod.object({
   "position": zod.string(),
   "adp": zod.number(),
   "adpSource": zod.string().nullish(),
+  "adpConsensus": zod.number().nullable().describe('Mean ADP across every source that knows the player: the live\nmarket sources (FFC mocks, Sleeper, ESPN) plus the dataset\'s own\nADP column. Null until a refresh has fetched market data — the\nplain `adp` is the fallback then.\n'),
+  "adpConsensusStdev": zod.number().nullable().describe('Spread across the sources that went into the consensus. Null with fewer than two sources.'),
+  "adpSources": zod.array(zod.object({
+  "source": zod.string(),
+  "adp": zod.number()
+})).describe('Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.'),
+  "valueScoreConsensus": zod.number().nullable().describe('The dataset\'s value score recomputed against consensus ADP instead\nof the single-source ADP column, on the same SD scale. Computed\nlocally, so it can differ slightly from the pipeline\'s number;\nnull until market data has been fetched.\n'),
   "valueScore": zod.number().nullish().describe('Production-versus-price gap in standard deviations, roughly\nZ(2025 positional finish) - Z(2026 ADP). Positive means the player\nproduced better than his draft cost implies. Spans about -3 to\n+2.5 — this is not a 0-10 rating and must not be rendered as one.\n'),
   "marketVerdict": zod.string().nullish(),
   "ppg": zod.number().nullish(),

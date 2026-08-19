@@ -37,16 +37,24 @@ import {
   UpdateSettingsResponse,
 } from "@workspace/api-zod";
 import {
+  consensusAdp,
   injuriesByPlayer,
+  marketByPlayer,
   newsItems,
   readLiveCache,
   readLiveStatus,
+  readMarketCache,
+  readMarketStatus,
   refreshLive,
+  refreshMarket,
   type LiveCache,
+  type LiveStatus,
+  type MarketCache,
   type PlayerInjury,
 } from "@workspace/live";
 import { VALUE_TARGET_SD, isUnavailableStatus } from "@workspace/shared";
 import { logger } from "../lib/logger";
+import { consensusValueScores } from "../lib/value";
 
 // Draft picks and notes persist as CSV under the data directory; the player
 // board is read from a dated snapshot in the same place.
@@ -62,47 +70,90 @@ const dataDir = resolveDataDir(process.env, defaultDataDir);
 let snapshotPromise: Promise<Snapshot> | null = null;
 let loadedAt = new Date().toISOString();
 
-// The live cache is read from disk, never fetched implicitly: a page load must
-// not cause an outbound request. Only POST /data/refresh fetches.
+// The live and market caches are read from disk, never fetched implicitly: a
+// page load must not cause an outbound request. Only POST /data/refresh fetches.
 let livePromise: Promise<LiveCache | null> | null = null;
+let marketPromise: Promise<MarketCache | null> | null = null;
 
 function live(): Promise<LiveCache | null> {
   const pending = (livePromise ??= readLiveCache(dataDir));
   return pending;
 }
 
+function market(): Promise<MarketCache | null> {
+  const pending = (marketPromise ??= readMarketCache(dataDir));
+  return pending;
+}
+
+/** A dataset player with everything merged in at request time. */
+type ApiPlayer = DatasetPlayer & {
+  injuryBodyPart: string | null;
+  adpConsensus: number | null;
+  adpConsensusStdev: number | null;
+  adpSources: { source: string; adp: number }[];
+  valueScoreConsensus: number | null;
+};
+
 /**
- * Merge live availability and the league's scoring format onto the ranked
- * players.
+ * Merge live availability, cached market data and the league's scoring format
+ * onto the ranked players.
  *
  * A player the injury source has no record of keeps a null status. Null means
  * unknown — it is never rendered or treated as "healthy". Points per game is
  * served in the scoring the league settings ask for; the dataset's primary
  * scoring (and the consistency profile) remains full PPR.
+ *
+ * Consensus ADP averages the market sources with the dataset's own ADP, but
+ * only exists once at least one market source has matched — before the first
+ * refresh, `adp` remains the only price and consensus fields are null.
  */
-async function enrichedPlayers(): Promise<DatasetPlayer[]> {
-  const [{ players }, cache, settings] = await Promise.all([
+async function enrichedPlayers(): Promise<ApiPlayer[]> {
+  const [{ players }, cache, marketCache, settings] = await Promise.all([
     snapshot(),
     live(),
+    market(),
     store.leagueSettings.read(),
   ]);
   const injuries = cache ? injuriesByPlayer(cache, players) : new Map<string, PlayerInjury>();
+  const marketData = marketByPlayer(marketCache, players);
 
-  return players.map((player) => {
+  const enriched: ApiPlayer[] = players.map((player) => {
     const injury = injuries.get(player.id);
+    const playerMarket = marketData.get(player.id);
     const ppg =
       settings.scoring === "half_ppr"
         ? player.ppgByScoring.halfPpr
         : settings.scoring === "standard"
           ? player.ppgByScoring.standard
           : player.ppg;
-    if (!injury && ppg === player.ppg) return player;
 
-    const enriched = { ...player, ppg };
-    return injury
-      ? { ...enriched, injuryStatus: injury.status, injuryBodyPart: injury.bodyPart }
-      : enriched;
+    const marketAdps = playerMarket?.adpSources ?? [];
+    const adpSources = [
+      { source: player.adpSource ?? "dataset", adp: player.adp },
+      ...marketAdps.map((entry) => ({ source: entry.source, adp: entry.adp })),
+    ];
+    const consensus =
+      marketAdps.length > 0
+        ? consensusAdp(adpSources.map((entry) => entry.adp))
+        : { mean: null, stdev: null };
+
+    return {
+      ...player,
+      ppg,
+      injuryStatus: injury?.status ?? player.injuryStatus,
+      injuryBodyPart: injury?.bodyPart ?? null,
+      adpConsensus: consensus.mean === null ? null : Number(consensus.mean.toFixed(1)),
+      adpConsensusStdev: consensus.stdev === null ? null : Number(consensus.stdev.toFixed(1)),
+      adpSources,
+      valueScoreConsensus: null,
+    };
   });
+
+  const valueScores = consensusValueScores(enriched);
+  for (const player of enriched) {
+    player.valueScoreConsensus = valueScores.get(player.id) ?? null;
+  }
+  return enriched;
 }
 
 function snapshot(): Promise<Snapshot> {
@@ -342,9 +393,33 @@ router.get("/news", async (_req, res, next) => {
   }
 });
 
+/**
+ * One combined view of the news/injury feeds and the market sources: stale if
+ * either side is, fetchedAt is the older of the two so cached data is never
+ * presented as fresher than its oldest part.
+ */
+function mergeStatuses(liveStatus: LiveStatus, marketStatus: LiveStatus): LiveStatus {
+  const fetchTimes = [liveStatus.fetchedAt, marketStatus.fetchedAt].filter(
+    (value): value is string => value !== null,
+  );
+  const attemptTimes = [liveStatus.attemptedAt, marketStatus.attemptedAt].filter(
+    (value): value is string => value !== null,
+  );
+  return {
+    fetchedAt: fetchTimes.length > 0 ? fetchTimes.sort()[0] : null,
+    attemptedAt: attemptTimes.length > 0 ? attemptTimes.sort().at(-1)! : null,
+    stale: liveStatus.stale || marketStatus.stale,
+    sources: [...liveStatus.sources, ...marketStatus.sources],
+  };
+}
+
 router.get("/live/status", async (_req, res, next) => {
   try {
-    res.json(GetLiveStatusResponse.parse(await readLiveStatus(dataDir)));
+    const [liveStatus, marketStatus] = await Promise.all([
+      readLiveStatus(dataDir),
+      readMarketStatus(dataDir),
+    ]);
+    res.json(GetLiveStatusResponse.parse(mergeStatuses(liveStatus, marketStatus)));
   } catch (error) {
     next(error);
   }
@@ -590,25 +665,33 @@ router.post("/data/refresh", async (_req, res, next) => {
     store.invalidate();
     snapshotPromise = null;
     livePromise = null;
+    marketPromise = null;
 
     const { version, players, teams } = await snapshot();
+    const settings = await store.leagueSettings.read();
 
-    // The only outbound network call in the app, and only from here.
-    const { status } = await refreshLive(dataDir);
+    // The only outbound network calls in the app, and only from here.
+    const [{ status }, { status: marketStatus }] = await Promise.all([
+      refreshLive(dataDir),
+      refreshMarket(dataDir, { teams: settings.teamCount }),
+    ]);
     livePromise = null;
+    marketPromise = null;
+
+    const merged = mergeStatuses(status, marketStatus);
 
     res.json(
       RefreshDataResponse.parse({
         // "partial" when some feed failed: the caller should not treat a
         // degraded refresh as a clean one.
-        status: status.stale ? "partial" : "ok",
-        refreshedAt: status.attemptedAt ?? loadedAt,
-        live: status,
+        status: merged.stale ? "partial" : "ok",
+        refreshedAt: merged.attemptedAt ?? loadedAt,
+        live: merged,
         sources: [
           { name: `dataset snapshot ${version}`, ok: true, detail: `${players.length} players` },
           { name: "team context", ok: true, detail: `${teams.length} teams` },
           { name: "draft board", ok: true, detail: "reloaded from disk" },
-          ...status.sources,
+          ...merged.sources,
         ],
       }),
     );

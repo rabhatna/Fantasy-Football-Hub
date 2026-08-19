@@ -21,6 +21,7 @@ export * from './newsItem';
 export * from './oLImpactAnalysis';
 export * from './oLTeamScore';
 export * from './player';
+export * from './playerAdpSourcesItem';
 export * from './playerConsistency';
 export * from './playerNextGen';
 export * from './playerNote';

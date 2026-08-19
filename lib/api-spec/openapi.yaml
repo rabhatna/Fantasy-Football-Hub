@@ -305,7 +305,7 @@ components:
         separation and catch rate for receivers, rushing yards over expected
         and eight-plus-box rate for backs. Clients must render these as "no
         data", never as 0.
-      required: [id, rank, name, team, position, adp, tier, isRookie, nextGen, consistency]
+      required: [id, rank, name, team, position, adp, adpConsensus, adpConsensusStdev, adpSources, valueScoreConsensus, tier, isRookie, nextGen, consistency]
       properties:
         id:
           type: string
@@ -316,6 +316,32 @@ components:
         position: { type: string }
         adp: { type: number }
         adpSource: { type: [string, "null"] }
+        adpConsensus:
+          type: [number, "null"]
+          description: |
+            Mean ADP across every source that knows the player: the live
+            market sources (FFC mocks, Sleeper, ESPN) plus the dataset's own
+            ADP column. Null until a refresh has fetched market data — the
+            plain `adp` is the fallback then.
+        adpConsensusStdev:
+          type: [number, "null"]
+          description: Spread across the sources that went into the consensus. Null with fewer than two sources.
+        adpSources:
+          type: array
+          description: Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.
+          items:
+            type: object
+            required: [source, adp]
+            properties:
+              source: { type: string }
+              adp: { type: number }
+        valueScoreConsensus:
+          type: [number, "null"]
+          description: |
+            The dataset's value score recomputed against consensus ADP instead
+            of the single-source ADP column, on the same SD scale. Computed
+            locally, so it can differ slightly from the pipeline's number;
+            null until market data has been fetched.
         valueScore:
           type: [number, "null"]
           description: |
