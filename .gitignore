@@ -14,3 +14,6 @@ data/
 
 # OS
 .DS_Store
+# macOS/iCloud duplicate copies ("file 2.ts") of generated or build files
+* [0-9].ts
+.tsbuildinfo [0-9]

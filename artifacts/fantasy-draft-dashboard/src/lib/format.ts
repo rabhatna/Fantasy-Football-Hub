@@ -38,8 +38,9 @@ export function valueScore(value: number | null | undefined): string {
   return `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
 }
 
-/** A player's value score at or above this is a genuine market discount. */
-export const VALUE_TARGET_SD = 0.5;
+import { VALUE_TARGET_SD } from "@workspace/shared";
+
+export { VALUE_TARGET_SD };
 
 export function valueTone(value: number | null | undefined): string {
   if (value === null || value === undefined) return "text-muted-foreground";

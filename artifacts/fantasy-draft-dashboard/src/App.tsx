@@ -23,17 +23,13 @@ import {
   useRefreshData,
 } from "@workspace/api-client-react";
 import type { DraftPick, DraftSummary, LiveStatus, NewsItem, OLImpactAnalysis, RBOLImpact, OLTeamScore, Player, Team } from "@workspace/api-client-react";
+import { isUnavailableStatus } from "@workspace/shared";
 import { useDraftBoard, usePlayerNote } from "@/hooks/use-draft-state";
 import { NO_DATA, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
 
-// Mirrors the API's excludeUnhealthy filter on GET /players: these statuses mean
-// the player is unavailable. A null status means no live source is connected —
-// unknown, which is neither healthy nor unhealthy, so it is never filtered out
-// and never coloured as bad news.
-const UNAVAILABLE_INJURY_STATUSES = ["ir", "pup", "out", "doubtful"];
 // Designations are shown in a narrow column, so the longer ones are shortened.
 // Anything not listed is shown as-is rather than truncated into ambiguity.
 const STATUS_ABBREVIATIONS: Record<string, string> = {
@@ -50,8 +46,7 @@ const STATUS_ABBREVIATIONS: Record<string, string> = {
 };
 const abbreviateStatus = (status: string) =>
   STATUS_ABBREVIATIONS[status.trim().toLowerCase()] ?? status;
-const isHealthy = (status: string | null | undefined) =>
-  !status || !UNAVAILABLE_INJURY_STATUSES.includes(status.trim().toLowerCase());
+const isHealthy = (status: string | null | undefined) => !isUnavailableStatus(status);
 const injuryTone = (status: string | null | undefined) =>
   !status ? "text-muted-foreground" : status.trim().toLowerCase() === "active" ? "text-primary" : isHealthy(status) ? "text-accent-foreground" : "text-destructive";
 

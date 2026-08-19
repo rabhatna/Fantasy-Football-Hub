@@ -37,6 +37,7 @@ import {
   type LiveCache,
   type PlayerInjury,
 } from "@workspace/live";
+import { VALUE_TARGET_SD, isUnavailableStatus } from "@workspace/shared";
 import { logger } from "../lib/logger";
 
 // Draft picks and notes persist as CSV under the data directory; the player
@@ -98,14 +99,6 @@ function snapshot(): Promise<Snapshot> {
   }
   return snapshotPromise;
 }
-
-/** A player's value score at or above this is a genuine market discount. */
-const VALUE_TARGET_SD = 0.5;
-
-// Statuses that mean the player is unavailable; the dashboard mirrors this list.
-// Doubtful belongs here — it was previously omitted, so the Healthy filter let
-// doubtful players through on the server while the client excluded them.
-const UNAVAILABLE_INJURY_STATUSES = ["IR", "PUP", "Out", "Doubtful"];
 
 // ── Draft pick reconciliation ────────────────────────────────────────────────
 
@@ -245,7 +238,7 @@ router.get("/players", async (req, res, next) => {
       // A player with no known status is not filtered out: unknown is not the
       // same as unavailable, and hiding him would be a claim we cannot support.
       if (excludeUnhealthy && player.injuryStatus !== null) {
-        return !UNAVAILABLE_INJURY_STATUSES.includes(player.injuryStatus);
+        return !isUnavailableStatus(player.injuryStatus);
       }
       return true;
     });
