@@ -236,6 +236,26 @@ export type DraftSummaryPositionalNeeds = {
   FLEX: number;
 };
 
+export type DraftSummaryRemainingPicksItem = {
+  round: number;
+  overall: number;
+};
+
+export type DraftSummaryMyRosterItemSource = typeof DraftSummaryMyRosterItemSource[keyof typeof DraftSummaryMyRosterItemSource];
+
+
+export const DraftSummaryMyRosterItemSource = {
+  keeper: 'keeper',
+  pick: 'pick',
+} as const;
+
+export type DraftSummaryMyRosterItem = {
+  playerId: string;
+  playerName: string;
+  position: string;
+  source: DraftSummaryMyRosterItemSource;
+};
+
 export interface DraftSummary {
   playersTracked: number;
   draftedCount: number;
@@ -250,6 +270,15 @@ export interface DraftSummary {
      * drafted beyond their base spots.
      */
   positionalNeeds: DraftSummaryPositionalNeeds;
+  /**
+     * The user's picks still to come, in snake order from their settings
+     * (team count, draft slot, rounds = total roster spots). Rounds
+     * consumed by their round-cost keepers are gone, and each pick made
+     * uses up the earliest remaining slot.
+     */
+  remainingPicks: DraftSummaryRemainingPicksItem[];
+  /** Everyone on the user's team so far — keepers first, then picks. */
+  myRoster: DraftSummaryMyRosterItem[];
   lastRefresh: string;
 }
 
@@ -319,7 +348,12 @@ export interface LeagueSettings {
 
 export interface DraftPickInput {
   playerId: string;
-  pickNumber: number;
+  /**
+     * Optional; when omitted the server assigns the user's next
+     * remaining overall pick (accounting for keeper-consumed rounds),
+     * which is the authoritative number.
+     */
+  pickNumber?: number;
 }
 
 /**
@@ -337,6 +371,70 @@ export interface DraftPick {
   position: string;
   pickNumber: number;
   draftedAt: string;
+}
+
+/**
+ * Whose team keeps the player. "other" only removes him from the pool.
+ */
+export type KeeperInputOwner = typeof KeeperInputOwner[keyof typeof KeeperInputOwner];
+
+
+export const KeeperInputOwner = {
+  me: 'me',
+  other: 'other',
+} as const;
+
+export type KeeperInputCostType = typeof KeeperInputCostType[keyof typeof KeeperInputCostType];
+
+
+export const KeeperInputCostType = {
+  round: 'round',
+  dollars: 'dollars',
+} as const;
+
+export interface KeeperInput {
+  playerId: string;
+  /** Whose team keeps the player. "other" only removes him from the pool. */
+  owner: KeeperInputOwner;
+  costType: KeeperInputCostType;
+  /**
+     * The round the keeper consumes (snake) or the dollars he costs (auction).
+     * @minimum 0
+     */
+  costValue: number;
+}
+
+export type KeeperOwner = typeof KeeperOwner[keyof typeof KeeperOwner];
+
+
+export const KeeperOwner = {
+  me: 'me',
+  other: 'other',
+} as const;
+
+export type KeeperCostType = typeof KeeperCostType[keyof typeof KeeperCostType];
+
+
+export const KeeperCostType = {
+  round: 'round',
+  dollars: 'dollars',
+} as const;
+
+/**
+ * playerName, team and position are denormalised for the same reason as
+ * draft picks — playerId can change across dataset refreshes, and the
+ * CSV should read cleanly in a spreadsheet.
+ */
+export interface Keeper {
+  id: string;
+  playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
+  owner: KeeperOwner;
+  costType: KeeperCostType;
+  costValue: number;
+  createdAt: string;
 }
 
 export interface PlayerNoteInput {

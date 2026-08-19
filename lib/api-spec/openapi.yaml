@@ -174,6 +174,52 @@ paths:
           description: Pick removed
         "404":
           description: No pick found for that player
+  /keepers:
+    get:
+      operationId: getKeepers
+      tags: [draft]
+      summary: List keepers
+      responses:
+        "200":
+          description: Keepers saved for this league
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Keeper"
+    post:
+      operationId: saveKeeper
+      tags: [draft]
+      summary: Save a keeper
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeeperInput"
+      responses:
+        "201":
+          description: Saved keeper
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Keeper"
+  /keepers/{id}:
+    delete:
+      operationId: deleteKeeper
+      tags: [draft]
+      summary: Remove a keeper
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Keeper removed
+        "404":
+          description: No keeper with that id
   /notes:
     get:
       operationId: getNotes
@@ -451,7 +497,7 @@ components:
           description: The named player's current availability, when known.
     DraftSummary:
       type: object
-      required: [playersTracked, draftedCount, averageAdp, valueTargets, positionalNeeds, lastRefresh, snapshotVersion]
+      required: [playersTracked, draftedCount, averageAdp, valueTargets, positionalNeeds, remainingPicks, myRoster, lastRefresh, snapshotVersion]
       properties:
         playersTracked: { type: number }
         draftedCount: { type: number }
@@ -475,6 +521,32 @@ components:
             WR: { type: number }
             TE: { type: number }
             FLEX: { type: number }
+        remainingPicks:
+          type: array
+          description: |
+            The user's picks still to come, in snake order from their settings
+            (team count, draft slot, rounds = total roster spots). Rounds
+            consumed by their round-cost keepers are gone, and each pick made
+            uses up the earliest remaining slot.
+          items:
+            type: object
+            required: [round, overall]
+            properties:
+              round: { type: number }
+              overall: { type: number }
+        myRoster:
+          type: array
+          description: Everyone on the user's team so far — keepers first, then picks.
+          items:
+            type: object
+            required: [playerId, playerName, position, source]
+            properties:
+              playerId: { type: string }
+              playerName: { type: string }
+              position: { type: string }
+              source:
+                type: string
+                enum: [keeper, pick]
         lastRefresh: { type: string }
     LeagueSettings:
       type: object
@@ -517,10 +589,15 @@ components:
             BENCH: { type: number, minimum: 0 }
     DraftPickInput:
       type: object
-      required: [playerId, pickNumber]
+      required: [playerId]
       properties:
         playerId: { type: string }
-        pickNumber: { type: number }
+        pickNumber:
+          type: number
+          description: |
+            Optional; when omitted the server assigns the user's next
+            remaining overall pick (accounting for keeper-consumed rounds),
+            which is the authoritative number.
     DraftPick:
       type: object
       description: |
@@ -538,6 +615,43 @@ components:
         position: { type: string }
         pickNumber: { type: number }
         draftedAt: { type: string }
+    KeeperInput:
+      type: object
+      required: [playerId, owner, costType, costValue]
+      properties:
+        playerId: { type: string }
+        owner:
+          type: string
+          enum: [me, other]
+          description: Whose team keeps the player. "other" only removes him from the pool.
+        costType:
+          type: string
+          enum: [round, dollars]
+        costValue:
+          type: number
+          minimum: 0
+          description: The round the keeper consumes (snake) or the dollars he costs (auction).
+    Keeper:
+      type: object
+      description: |
+        playerName, team and position are denormalised for the same reason as
+        draft picks — playerId can change across dataset refreshes, and the
+        CSV should read cleanly in a spreadsheet.
+      required: [id, playerId, playerName, team, position, owner, costType, costValue, createdAt]
+      properties:
+        id: { type: string }
+        playerId: { type: string }
+        playerName: { type: string }
+        team: { type: string }
+        position: { type: string }
+        owner:
+          type: string
+          enum: [me, other]
+        costType:
+          type: string
+          enum: [round, dollars]
+        costValue: { type: number }
+        createdAt: { type: string }
     PlayerNoteInput:
       type: object
       required: [note]

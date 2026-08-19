@@ -195,6 +195,16 @@ export const GetDraftSummaryResponse = zod.object({
   "TE": zod.number(),
   "FLEX": zod.number()
 }).describe('Starting spots still to fill at each position, derived from the\nleague settings roster net of drafted players. FLEX counts RB\/WR\/TE\ndrafted beyond their base spots.\n'),
+  "remainingPicks": zod.array(zod.object({
+  "round": zod.number(),
+  "overall": zod.number()
+})).describe('The user\'s picks still to come, in snake order from their settings\n(team count, draft slot, rounds = total roster spots). Rounds\nconsumed by their round-cost keepers are gone, and each pick made\nuses up the earliest remaining slot.\n'),
+  "myRoster": zod.array(zod.object({
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "position": zod.string(),
+  "source": zod.enum(['keeper', 'pick'])
+})).describe('Everyone on the user\'s team so far — keepers first, then picks.'),
   "lastRefresh": zod.string()
 })
 
@@ -219,7 +229,7 @@ export const GetDraftPicksResponse = zod.array(GetDraftPicksResponseItem)
  */
 export const SaveDraftPickBody = zod.object({
   "playerId": zod.string(),
-  "pickNumber": zod.number()
+  "pickNumber": zod.number().optional().describe('Optional; when omitted the server assigns the user\'s next\nremaining overall pick (accounting for keeper-consumed rounds),\nwhich is the authoritative number.\n')
 })
 
 export const SaveDraftPickResponse = zod.object({
@@ -242,6 +252,60 @@ export const DeleteDraftPickParams = zod.object({
 })
 
 export const DeleteDraftPickResponse = zod.void()
+
+
+/**
+ * @summary List keepers
+ */
+export const GetKeepersResponseItem = zod.object({
+  "id": zod.string(),
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "owner": zod.enum(['me', 'other']),
+  "costType": zod.enum(['round', 'dollars']),
+  "costValue": zod.number(),
+  "createdAt": zod.string()
+}).describe('playerName, team and position are denormalised for the same reason as\ndraft picks — playerId can change across dataset refreshes, and the\nCSV should read cleanly in a spreadsheet.\n')
+export const GetKeepersResponse = zod.array(GetKeepersResponseItem)
+
+
+/**
+ * @summary Save a keeper
+ */
+export const saveKeeperBodyCostValueMin = 0;
+
+
+
+export const SaveKeeperBody = zod.object({
+  "playerId": zod.string(),
+  "owner": zod.enum(['me', 'other']).describe('Whose team keeps the player. \"other\" only removes him from the pool.'),
+  "costType": zod.enum(['round', 'dollars']),
+  "costValue": zod.number().min(saveKeeperBodyCostValueMin).describe('The round the keeper consumes (snake) or the dollars he costs (auction).')
+})
+
+export const SaveKeeperResponse = zod.object({
+  "id": zod.string(),
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "owner": zod.enum(['me', 'other']),
+  "costType": zod.enum(['round', 'dollars']),
+  "costValue": zod.number(),
+  "createdAt": zod.string()
+}).describe('playerName, team and position are denormalised for the same reason as\ndraft picks — playerId can change across dataset refreshes, and the\nCSV should read cleanly in a spreadsheet.\n')
+
+
+/**
+ * @summary Remove a keeper
+ */
+export const DeleteKeeperParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteKeeperResponse = zod.void()
 
 
 /**

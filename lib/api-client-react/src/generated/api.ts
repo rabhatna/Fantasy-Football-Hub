@@ -25,6 +25,8 @@ import type {
   DraftSummary,
   GetPlayersParams,
   HealthStatus,
+  Keeper,
+  KeeperInput,
   LeagueSettings,
   LiveStatus,
   NewsItem,
@@ -751,6 +753,225 @@ export const useDeleteDraftPick = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteDraftPickMutationOptions(options));
+    }
+
+export const getGetKeepersUrl = () => {
+
+
+
+
+  return `/api/keepers`
+}
+
+/**
+ * @summary List keepers
+ */
+export const getKeepers = async ( options?: Parameters<typeof customFetch>[1]): Promise<Keeper[]> => {
+
+  return customFetch<Keeper[]>(getGetKeepersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetKeepersQueryKey = () => {
+    return [
+    `/api/keepers`
+    ] as const;
+    }
+
+
+export const getGetKeepersQueryOptions = <TData = Awaited<ReturnType<typeof getKeepers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getKeepers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetKeepersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getKeepers>>> = ({ signal }) => getKeepers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getKeepers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetKeepersQueryResult = NonNullable<Awaited<ReturnType<typeof getKeepers>>>
+export type GetKeepersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List keepers
+ */
+
+export function useGetKeepers<TData = Awaited<ReturnType<typeof getKeepers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getKeepers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetKeepersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveKeeperUrl = () => {
+
+
+
+
+  return `/api/keepers`
+}
+
+/**
+ * @summary Save a keeper
+ */
+export const saveKeeper = async (keeperInput: KeeperInput, options?: Parameters<typeof customFetch>[1]): Promise<Keeper> => {
+
+  return customFetch<Keeper>(getSaveKeeperUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(keeperInput)
+  }
+);}
+
+
+
+
+
+export const getSaveKeeperMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveKeeper>>, TError,{data: BodyType<KeeperInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveKeeper>>, TError,{data: BodyType<KeeperInput>}, TContext> => {
+
+const mutationKey = ['saveKeeper'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveKeeper>>, {data: BodyType<KeeperInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveKeeper(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveKeeperMutationResult = NonNullable<Awaited<ReturnType<typeof saveKeeper>>>
+    export type SaveKeeperMutationBody = BodyType<KeeperInput>
+    export type SaveKeeperMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save a keeper
+ */
+export const useSaveKeeper = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveKeeper>>, TError,{data: BodyType<KeeperInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveKeeper>>,
+        TError,
+        {data: BodyType<KeeperInput>},
+        TContext
+      > => {
+      return useMutation(getSaveKeeperMutationOptions(options));
+    }
+
+export const getDeleteKeeperUrl = (id: string,) => {
+
+
+
+
+  return `/api/keepers/${id}`
+}
+
+/**
+ * @summary Remove a keeper
+ */
+export const deleteKeeper = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteKeeperUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteKeeperMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteKeeper>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteKeeper>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteKeeper'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteKeeper>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteKeeper(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteKeeperMutationResult = NonNullable<Awaited<ReturnType<typeof deleteKeeper>>>
+
+    export type DeleteKeeperMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove a keeper
+ */
+export const useDeleteKeeper = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteKeeper>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteKeeper>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteKeeperMutationOptions(options));
     }
 
 export const getGetNotesUrl = () => {

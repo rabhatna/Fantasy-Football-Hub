@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { Activity, ArrowDown, ArrowUp, BarChart3, Bell, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Command, ExternalLink, Filter, Flame, LayoutGrid, LineChart, ListFilter, Loader2, Menu, Moon, Newspaper, PanelRight, RefreshCw, Search, ShieldAlert, SlidersHorizontal, Sparkles, Sun, Target, TrendingDown, TrendingUp, Users, X, Zap } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, BarChart3, Bell, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Command, ExternalLink, Filter, Flame, LayoutGrid, LineChart, ListFilter, Loader2, Lock, Menu, Moon, Newspaper, PanelRight, RefreshCw, Search, ShieldAlert, SlidersHorizontal, Sparkles, Sun, Target, TrendingDown, TrendingUp, Users, X, Zap } from "lucide-react";
 import { Link, Route, Switch, useLocation, useParams, Router as WouterRouter } from "wouter";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Toaster } from "@/components/ui/toaster";
@@ -13,6 +13,7 @@ import {
   getGetTeamsQueryKey,
   getGetPlayerQueryKey,
   useGetDraftSummary,
+  useGetKeepers,
   useGetNews,
   useGetOLImpact,
   useGetPlayer,
@@ -28,6 +29,7 @@ import { AdpSources } from "@/components/adp-sources";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { useDraftBoard, usePlayerNote } from "@/hooks/use-draft-state";
 import { NO_DATA, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
+import KeepersPage from "@/pages/keepers";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -136,6 +138,7 @@ function Shell({ children }: { children: ReactNode }) {
 
   const links = [
     { href: "/", label: "Draft room", icon: Command, detail: "Rankings + board" },
+    { href: "/keepers", label: "Keepers", icon: Users, detail: "Pre-draft roster" },
     { href: "/teams", label: "Team context", icon: LayoutGrid, detail: "Line play matrix" },
     { href: "/ol-impact", label: "OL Impact", icon: Activity, detail: "RB vs line analysis" },
     { href: "/news", label: "Signal feed", icon: Newspaper, detail: "Injury + market" },
@@ -193,12 +196,12 @@ function Metric({ label, value, detail, accent = false }: { label: string; value
   return <div className={`rounded-2xl border p-4 ${accent ? "border-primary/30 bg-primary/[0.06]" : "border-border bg-card"}`}><Kicker>{label}</Kicker><div className="mt-2 flex items-end justify-between gap-2"><span className="mono text-[23px] font-medium tracking-tight">{value}</span><span className={`text-right text-[10px] ${accent ? "text-primary" : "text-muted-foreground"}`}>{detail}</span></div></div>;
 }
 
-function PlayerRow({ player, drafted, onDraft, onInspect }: { player: Player; drafted: boolean; onDraft: (player: Player) => void; onInspect: (player: Player) => void }) {
+function PlayerRow({ player, drafted, kept, onDraft, onInspect }: { player: Player; drafted: boolean; kept?: boolean; onDraft: (player: Player) => void; onInspect: (player: Player) => void }) {
   const adp = bestAdp(player);
   const delta = adp - player.rank;
   const value = bestValue(player);
   const tone = injuryTone(player.injuryStatus);
-  return <div className={`data-row group grid grid-cols-[30px_minmax(170px,1.5fr)_58px_76px_56px_72px_68px_82px] items-center gap-3 border-b border-border/70 px-4 py-3 last:border-b-0 ${drafted ? "opacity-45" : ""}`} data-testid={`row-player-${player.id}`}>
+  return <div className={`data-row group grid grid-cols-[30px_minmax(170px,1.5fr)_58px_76px_56px_72px_68px_82px] items-center gap-3 border-b border-border/70 px-4 py-3 last:border-b-0 ${drafted || kept ? "opacity-45" : ""}`} data-testid={`row-player-${player.id}`}>
     <span className="mono text-[11px] text-muted-foreground">{String(player.rank).padStart(2, "0")}</span>
     <button type="button" onClick={() => onInspect(player)} data-testid={`button-inspect-player-${player.id}`} className="flex min-w-0 items-center gap-2 text-left">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-[10px] font-bold">{initials(player.name)}</span>
@@ -209,7 +212,7 @@ function PlayerRow({ player, drafted, onDraft, onInspect }: { player: Player; dr
     <span className="mono text-right text-[11px] text-muted-foreground">{player.projectedPoints === null ? NO_DATA : Math.round(player.projectedPoints)}</span>
     <span className={`mono text-right text-[11px] font-medium ${delta > 0 ? "text-primary" : "text-destructive"}`}>{delta > 0 ? "+" : ""}{delta.toFixed(1)}</span>
     <span className="text-right"><span className={`mono text-[12px] font-medium ${valueTone(value)}`}>{fmtValueScore(value)}</span><ScoreBar value={valueScoreBar(value)} color="accent" /></span>
-    <span className="text-right"><button type="button" onClick={() => onDraft(player)} disabled={drafted} data-testid={`button-draft-player-${player.id}`} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition ${drafted ? "cursor-default bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:-translate-y-0.5 hover:shadow-md"}`}>{drafted ? <Check size={12} /> : <Target size={12} />}{drafted ? "Drafted" : "Draft"}</button></span>
+    <span className="text-right"><button type="button" onClick={() => onDraft(player)} disabled={drafted || kept} data-testid={`button-draft-player-${player.id}`} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition ${drafted || kept ? "cursor-default bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:-translate-y-0.5 hover:shadow-md"}`}>{kept ? <Lock size={12} /> : drafted ? <Check size={12} /> : <Target size={12} />}{kept ? "Kept" : drafted ? "Drafted" : "Draft"}</button></span>
     {player.injuryStatus && player.injuryStatus !== "Active" && player.injuryBodyPart && <span className={`col-span-full -mt-1 pl-[42px] text-[10px] ${tone} sm:hidden`}>{player.injuryStatus} · {player.injuryBodyPart}</span>}
   </div>;
 }
@@ -242,15 +245,15 @@ function LiveIndicator({ live }: { live?: LiveStatus }) {
   return <span title={failed.length ? `Failing: ${failed.map((source) => `${source.name} (${source.detail})`).join(", ")}` : `${live.sources.length} sources OK`} className={`mono rounded-lg px-2.5 py-2 text-[10px] font-medium shadow-sm ${live.stale ? "bg-accent/15 text-accent-foreground" : "bg-card"}`} data-testid="status-live">{live.stale ? `cached · ${formatTime(live.fetchedAt)}` : formatTime(live.fetchedAt)}</span>;
 }
 
-function MarketArbitrage({ players, draftedIds, onInspect }: { players: Player[]; draftedIds: string[]; onInspect: (player: Player) => void }) {
-  const targets = [...players].filter((player) => !draftedIds.includes(player.id)).sort((a, b) => (bestAdp(b) - b.rank) - (bestAdp(a) - a.rank)).slice(0, 4);
+function MarketArbitrage({ players, draftedIds, keeperIds, onInspect }: { players: Player[]; draftedIds: string[]; keeperIds: ReadonlySet<string>; onInspect: (player: Player) => void }) {
+  const targets = [...players].filter((player) => !draftedIds.includes(player.id) && !keeperIds.has(player.id)).sort((a, b) => (bestAdp(b) - b.rank) - (bestAdp(a) - a.rank)).slice(0, 4);
   return <Surface><div className="border-b border-border px-4 py-4"><div className="flex items-center justify-between"><div><Kicker>Market dislocation</Kicker><h2 className="mt-1 text-sm font-bold">Arbitrage board</h2></div><TrendingUp size={16} className="text-primary" /></div><p className="mt-1 text-[10px] text-muted-foreground">ADP lagging the room model.</p></div><div className="p-2">{targets.length === 0 ? <EmptyState label="Draft a few names to reveal the next price errors." /> : targets.map((player) => <button type="button" key={player.id} onClick={() => onInspect(player)} data-testid={`button-arbitrage-${player.id}`} className="group flex w-full items-center gap-3 rounded-xl px-2.5 py-3 text-left hover:bg-muted"><span className="mono w-7 text-[10px] text-muted-foreground">#{player.rank}</span><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-[9px] font-bold text-primary">{initials(player.name)}</span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] font-bold group-hover:text-primary">{player.name}</span><span className="mono text-[9px] text-muted-foreground">{player.position} / ADP {bestAdp(player).toFixed(1)}</span></span><span className="mono text-[11px] font-medium text-primary">+{(bestAdp(player) - player.rank).toFixed(1)}</span></button>)}</div></Surface>;
 }
 
 function DraftBoard({ draftedPlayers, summary, onUndraft, pendingId }: { draftedPlayers: { pick: DraftPick; player?: Player }[]; summary?: DraftSummary; onUndraft: (playerId: string) => void; pendingId: string | null }) {
   const drafted = draftedPlayers.slice(0, 6);
   const draftedIds = draftedPlayers.map((entry) => entry.pick.playerId);
-  return <Surface><div className="flex items-center justify-between border-b border-border px-4 py-4"><div><Kicker>Room state</Kicker><h2 className="mt-1 text-sm font-bold">Your draft board</h2></div><span className="mono rounded-md bg-accent/15 px-2 py-1 text-[10px] text-accent-foreground">{draftedIds.length.toString().padStart(2, "0")} on board</span></div><div className="p-3">{drafted.length === 0 ? <div className="rounded-xl border border-dashed border-border p-5 text-center"><div className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl bg-secondary"><PanelRight size={15} className="text-muted-foreground" /></div><p className="mt-3 text-[11px] font-semibold">Your board is clear</p><p className="mt-1 text-[10px] leading-4 text-muted-foreground">Draft a player to start measuring roster shape.</p></div> : <div className="space-y-2">{drafted.map(({ pick, player }, index) => <div key={pick.playerId} className="group flex items-center gap-2 rounded-xl bg-muted/60 px-2.5 py-2"><span className="mono w-4 text-[9px] text-muted-foreground">{index + 1}</span><PositionBadge position={pick.position || player?.position || "?"} /><span className="truncate text-[11px] font-semibold">{pick.playerName || player?.name || pick.playerId}</span><span className="mono ml-auto text-[10px] text-muted-foreground">{player ? fmtValueScore(bestValue(player)) : NO_DATA}</span><button type="button" onClick={() => onUndraft(pick.playerId)} disabled={pendingId === pick.playerId} data-testid={`button-undraft-${pick.playerId}`} title={`Undo ${pick.playerName || pick.playerId}`} aria-label={`Undo pick: ${pick.playerName || pick.playerId}`} className="ml-1 shrink-0 rounded-md p-1 text-muted-foreground opacity-50 transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-30">{pendingId === pick.playerId ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}</button></div>)}</div>}<div className="mt-3 grid grid-cols-5 gap-1.5">{(["QB", "RB", "WR", "TE", "FLEX"] as const).map((position) => <div key={position} className="rounded-lg bg-secondary/70 px-1.5 py-2 text-center"><span className="mono block text-[9px] text-muted-foreground">{position === "FLEX" ? "FLX" : position}</span><span className="mono mt-1 block text-[12px] font-medium">{summary?.positionalNeeds[position] ?? "—"}</span></div>)}</div></div></Surface>;
+  return <Surface><div className="flex items-center justify-between border-b border-border px-4 py-4"><div><Kicker>Room state</Kicker><h2 className="mt-1 text-sm font-bold">Your draft board</h2></div><span className="mono rounded-md bg-accent/15 px-2 py-1 text-[10px] text-accent-foreground">{draftedIds.length.toString().padStart(2, "0")} on board</span></div><div className="p-3">{drafted.length === 0 ? <div className="rounded-xl border border-dashed border-border p-5 text-center"><div className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl bg-secondary"><PanelRight size={15} className="text-muted-foreground" /></div><p className="mt-3 text-[11px] font-semibold">Your board is clear</p><p className="mt-1 text-[10px] leading-4 text-muted-foreground">Draft a player to start measuring roster shape.</p></div> : <div className="space-y-2">{drafted.map(({ pick, player }, index) => <div key={pick.playerId} className="group flex items-center gap-2 rounded-xl bg-muted/60 px-2.5 py-2"><span className="mono w-4 text-[9px] text-muted-foreground">{index + 1}</span><PositionBadge position={pick.position || player?.position || "?"} /><span className="truncate text-[11px] font-semibold">{pick.playerName || player?.name || pick.playerId}</span><span className="mono ml-auto text-[10px] text-muted-foreground">{player ? fmtValueScore(bestValue(player)) : NO_DATA}</span><button type="button" onClick={() => onUndraft(pick.playerId)} disabled={pendingId === pick.playerId} data-testid={`button-undraft-${pick.playerId}`} title={`Undo ${pick.playerName || pick.playerId}`} aria-label={`Undo pick: ${pick.playerName || pick.playerId}`} className="ml-1 shrink-0 rounded-md p-1 text-muted-foreground opacity-50 transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-30">{pendingId === pick.playerId ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}</button></div>)}</div>}<div className="mt-3 grid grid-cols-5 gap-1.5">{(["QB", "RB", "WR", "TE", "FLEX"] as const).map((position) => <div key={position} className="rounded-lg bg-secondary/70 px-1.5 py-2 text-center"><span className="mono block text-[9px] text-muted-foreground">{position === "FLEX" ? "FLX" : position}</span><span className="mono mt-1 block text-[12px] font-medium">{summary?.positionalNeeds[position] ?? "—"}</span></div>)}</div>{summary && summary.remainingPicks.length > 0 && <div className="mt-3"><span className="mono block text-[9px] uppercase tracking-[0.13em] text-muted-foreground">Your next picks</span><div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="strip-remaining-picks">{summary.remainingPicks.slice(0, 6).map((slot) => <span key={slot.overall} className="mono rounded-md bg-secondary/70 px-2 py-1 text-[10px]" title={`Round ${slot.round}, overall pick ${slot.overall}`}>R{slot.round}·{slot.overall}</span>)}{summary.remainingPicks.length > 6 && <span className="mono px-1 py-1 text-[10px] text-muted-foreground">+{summary.remainingPicks.length - 6} more</span>}</div></div>}</div></Surface>;
 }
 
 function HomePage() {
@@ -258,8 +261,10 @@ function HomePage() {
   const { data: summary } = useGetDraftSummary();
   const { data: newsData } = useGetNews();
   const { data: live } = useGetLiveStatus();
+  const { data: keepersData } = useGetKeepers();
   const [, setLocation] = useLocation();
   const players = playersData ?? [];
+  const keeperIds = useMemo(() => new Set((keepersData ?? []).map((keeper) => keeper.playerId)), [keepersData]);
   const board = useDraftBoard(players);
   const { draftedIds, draftPlayer, pendingId } = board;
   const [position, setPosition] = useState("ALL");
@@ -278,11 +283,11 @@ function HomePage() {
             <div className="flex items-center gap-2 overflow-x-auto"><div className="flex rounded-xl border border-border bg-muted/55 p-0.5">{["ALL", "QB", "RB", "WR", "TE"].map((item) => <button type="button" key={item} onClick={() => setPosition(item)} data-testid={`button-filter-${item.toLowerCase()}`} className={`rounded-lg px-2.5 py-1.5 mono text-[10px] transition ${position === item ? "bg-card font-medium text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{item}</button>)}</div><button type="button" onClick={() => setShowHealthyOnly((value) => !value)} data-testid="button-filter-healthy" className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-2 text-[10px] font-semibold ${showHealthyOnly ? "border-primary/35 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}><ShieldAlert size={12} /> Healthy</button></div>
           </div>
           <div className="grid grid-cols-[30px_minmax(170px,1.5fr)_58px_76px_56px_72px_68px_82px] gap-3 border-b border-border bg-muted/45 px-4 py-2.5 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground"><span>#</span><span>Player</span><span>Pos</span><button type="button" onClick={() => setSort("adp")} className="text-right hover:text-primary" data-testid="button-sort-adp">ADP</button><span className="text-right" title="Projected 2026 points in your scoring">Proj</span><button type="button" onClick={() => setSort("rank")} className="text-right hover:text-primary" data-testid="button-sort-rank">Market Δ</button><button type="button" onClick={() => setSort("value")} className="text-right hover:text-primary" data-testid="button-sort-value">Value</button><span className="text-right">Action</span></div>
-          {isLoading ? <LoadingRows /> : isError ? <ErrorState label="The player feed did not answer. Your local board is safe." onRetry={() => void refetch()} /> : filteredPlayers.length === 0 ? <EmptyState label="Try another position, search term, or remove the health filter." /> : <div className="max-h-[610px] overflow-y-auto scrollbar-thin">{filteredPlayers.map((player) => <PlayerRow key={player.id} player={player} drafted={draftedIds.includes(player.id)} onDraft={draftPlayer} onInspect={(selected) => setLocation(`/players/${selected.id}`)} />)}</div>}
+          {isLoading ? <LoadingRows /> : isError ? <ErrorState label="The player feed did not answer. Your local board is safe." onRetry={() => void refetch()} /> : filteredPlayers.length === 0 ? <EmptyState label="Try another position, search term, or remove the health filter." /> : <div className="max-h-[610px] overflow-y-auto scrollbar-thin">{filteredPlayers.map((player) => <PlayerRow key={player.id} player={player} drafted={draftedIds.includes(player.id)} kept={keeperIds.has(player.id)} onDraft={draftPlayer} onInspect={(selected) => setLocation(`/players/${selected.id}`)} />)}</div>}
           <div className="flex items-center justify-between border-t border-border px-4 py-3"><span className="mono text-[9px] text-muted-foreground">Showing {filteredPlayers.length} / {summary?.playersTracked ?? players.length} · model v26.04</span><span className="flex items-center gap-1 text-[10px] text-muted-foreground"><SlidersHorizontal size={12} /> sort by column</span></div>
         </Surface>
       </div>
-      <div className="space-y-6"><div className="enter enter-3"><MarketArbitrage players={players} draftedIds={draftedIds} onInspect={(player) => setLocation(`/players/${player.id}`)} /></div><div className="enter enter-3"><DraftBoard draftedPlayers={board.draftedPlayers} summary={summary} onUndraft={board.undraftPlayer} pendingId={pendingId} /></div><div className="enter enter-3"><NewsRail news={news} players={players} live={live} /></div></div>
+      <div className="space-y-6"><div className="enter enter-3"><MarketArbitrage players={players} draftedIds={draftedIds} keeperIds={keeperIds} onInspect={(player) => setLocation(`/players/${player.id}`)} /></div><div className="enter enter-3"><DraftBoard draftedPlayers={board.draftedPlayers} summary={summary} onUndraft={board.undraftPlayer} pendingId={pendingId} /></div><div className="enter enter-3"><NewsRail news={news} players={players} live={live} /></div></div>
     </div>
     {board.isUnavailable && <div className="fixed bottom-5 right-5 z-30 rounded-xl border border-destructive/30 bg-card px-4 py-3 text-xs shadow-lg" data-testid="status-board-unavailable">Could not read your saved board. It is still on disk — reconnect before drafting.</div>}
     {board.saveFailed && !board.isUnavailable && <div className="fixed bottom-5 right-5 z-30 rounded-xl border border-destructive/30 bg-card px-4 py-3 text-xs shadow-lg" data-testid="status-draft-error">That change was not written to disk. Retry before relying on the board.</div>}
@@ -702,7 +707,7 @@ function ActivityIcon() {
 
 function Router() {
   const [location, setLocation] = useLocation();
-  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/teams" component={TeamsPage} /><Route path="/ol-impact" component={OLImpactPage} /><Route path="/news" component={NewsPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
+  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/keepers" component={KeepersPage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/teams" component={TeamsPage} /><Route path="/ol-impact" component={OLImpactPage} /><Route path="/news" component={NewsPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
 }
 
 function App() {

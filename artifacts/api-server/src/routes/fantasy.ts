@@ -4,6 +4,8 @@ import {
   createStore,
   resolveDataDir,
   type DraftPickRecord,
+  type KeeperRecord,
+  type LeagueSettingsRecord,
   type RosterSettings,
 } from "@workspace/store";
 import {
@@ -15,7 +17,9 @@ import {
 } from "@workspace/dataset";
 import {
   DeleteDraftPickParams,
+  DeleteKeeperParams,
   GetDraftPicksResponse,
+  GetKeepersResponse,
   GetDraftSummaryResponse,
   GetLiveStatusResponse,
   GetNewsResponse,
@@ -30,6 +34,8 @@ import {
   RefreshDataResponse,
   SaveDraftPickBody,
   SaveDraftPickResponse,
+  SaveKeeperBody,
+  SaveKeeperResponse,
   SavePlayerNoteBody,
   SavePlayerNoteParams,
   SavePlayerNoteResponse,
@@ -54,6 +60,7 @@ import {
 } from "@workspace/live";
 import { VALUE_TARGET_SD, isUnavailableStatus } from "@workspace/shared";
 import { logger } from "../lib/logger";
+import { remainingPicks } from "../lib/draft-math";
 import { consensusValueScores } from "../lib/value";
 
 // Draft picks and notes persist as CSV under the data directory; the player
@@ -198,7 +205,10 @@ function snapshot(): Promise<Snapshot> {
  * pick also stores the player's name (written for exactly this reason), so a
  * board built against the old ids can be recovered by name.
  */
-function findPlayerForPick(pick: DraftPickRecord, players: DatasetPlayer[]): DatasetPlayer | undefined {
+function findPlayerForPick(
+  pick: { playerId: string; playerName: string },
+  players: DatasetPlayer[],
+): DatasetPlayer | undefined {
   const byId = players.find((player) => player.id === pick.playerId);
   if (byId) return byId;
 
@@ -244,6 +254,40 @@ async function reconcilePicks(players: DatasetPlayer[]): Promise<DraftPickRecord
   });
 }
 
+/** Keepers heal the same way picks do: by name, when their id stops resolving. */
+async function reconcileKeepers(players: DatasetPlayer[]): Promise<KeeperRecord[]> {
+  const keepers = await store.keepers.all();
+  const needsHealing = keepers.filter(
+    (keeper) => !players.some((player) => player.id === keeper.playerId),
+  );
+  if (needsHealing.length === 0) return keepers;
+
+  const healed = new Map<string, DatasetPlayer>();
+  for (const keeper of needsHealing) {
+    const match = findPlayerForPick(keeper, players);
+    if (match) healed.set(keeper.playerId, match);
+  }
+  if (healed.size === 0) return keepers;
+
+  logger.info({ count: healed.size }, "Re-linked saved keepers to current dataset ids");
+
+  return store.keepers.update((records) => {
+    const next = records.map((record) => {
+      const match = healed.get(record.playerId);
+      if (!match) return record;
+      return {
+        ...record,
+        id: `keeper-${match.id}`,
+        playerId: match.id,
+        playerName: match.name,
+        team: match.team,
+        position: match.position,
+      };
+    });
+    return { next, result: next };
+  });
+}
+
 // ── Positional needs ─────────────────────────────────────────────────────────
 
 /**
@@ -253,7 +297,7 @@ async function reconcilePicks(players: DatasetPlayer[]): Promise<DraftPickRecord
  * WR in a 2-WR league fills the flex, not a phantom WR3 slot. K and DST are
  * not tracked on the board, so they carry no need here.
  */
-function positionalNeeds(roster: RosterSettings, drafted: DatasetPlayer[]) {
+function positionalNeeds(roster: RosterSettings, drafted: readonly { position: string }[]) {
   const counts = { QB: 0, RB: 0, WR: 0, TE: 0 };
   for (const player of drafted) {
     if (player.position in counts) counts[player.position as keyof typeof counts] += 1;
@@ -271,6 +315,28 @@ function positionalNeeds(roster: RosterSettings, drafted: DatasetPlayer[]) {
     TE: Math.max(0, roster.TE - counts.TE),
     FLEX: Math.max(0, roster.FLEX - flexUsed),
   };
+}
+
+/**
+ * The user's picks still to come. Total rounds = every roster spot; the
+ * rounds their round-cost keepers consume are gone before pick one.
+ */
+function myRemainingPicks(
+  settings: LeagueSettingsRecord,
+  myKeepers: readonly KeeperRecord[],
+  picksMade: number,
+) {
+  const roster = settings.roster;
+  const rounds = Object.values(roster).reduce((total, spots) => total + spots, 0);
+  return remainingPicks({
+    teamCount: settings.teamCount,
+    draftSlot: settings.draftSlot,
+    rounds,
+    keeperRounds: myKeepers
+      .filter((keeper) => keeper.costType === "round")
+      .map((keeper) => keeper.costValue),
+    picksMade,
+  });
 }
 
 // ── Offensive line impact ────────────────────────────────────────────────────
@@ -443,16 +509,34 @@ router.get("/live/status", async (_req, res, next) => {
 router.get("/draft/summary", async (_req, res, next) => {
   try {
     const { players, version } = await snapshot();
-    const [picks, settings] = await Promise.all([
+    const [picks, keepers, settings] = await Promise.all([
       reconcilePicks(players),
+      reconcileKeepers(players),
       store.leagueSettings.read(),
     ]);
 
     const draftedPlayers = players.filter((player) =>
       picks.some((pick) => pick.playerId === player.id),
     );
+    const myKeepers = keepers.filter((keeper) => keeper.owner === "me");
 
-    const needs = positionalNeeds(settings.roster, draftedPlayers);
+    // Keepers are already on the roster, so they fill needs just like picks.
+    const needs = positionalNeeds(settings.roster, [...draftedPlayers, ...myKeepers]);
+
+    const myRoster = [
+      ...myKeepers.map((keeper) => ({
+        playerId: keeper.playerId,
+        playerName: keeper.playerName,
+        position: keeper.position,
+        source: "keeper" as const,
+      })),
+      ...picks.map((pick) => ({
+        playerId: pick.playerId,
+        playerName: pick.playerName,
+        position: pick.position,
+        source: "pick" as const,
+      })),
+    ];
 
     // Averaged over picks that resolve to a player in this snapshot; a pick
     // carried over from an older dataset has no ADP to average.
@@ -470,6 +554,8 @@ router.get("/draft/summary", async (_req, res, next) => {
         valueTargets: players.filter((player) => (player.valueScore ?? -Infinity) >= VALUE_TARGET_SD)
           .length,
         positionalNeeds: needs,
+        remainingPicks: myRemainingPicks(settings, myKeepers, picks.length),
+        myRoster,
         lastRefresh: loadedAt,
         snapshotVersion: version,
       }),
@@ -511,6 +597,21 @@ router.post("/draft/picks", async (req, res, next) => {
       return;
     }
 
+    // When the client does not name a pick number, assign the user's next
+    // remaining overall (keeper-consumed rounds are already gone) — the
+    // client cannot know that number, so the server's is authoritative.
+    let pickNumber = body.data.pickNumber;
+    if (pickNumber === undefined) {
+      const [keepers, settings] = await Promise.all([
+        store.keepers.all(),
+        store.leagueSettings.read(),
+      ]);
+      const myKeepers = keepers.filter((keeper) => keeper.owner === "me");
+      const next = myRemainingPicks(settings, myKeepers, existing.length)[0];
+      pickNumber =
+        next?.overall ?? Math.max(0, ...existing.map((record) => record.pickNumber)) + 1;
+    }
+
     // Name, team and position ride along with the id so a board stays readable
     // in a spreadsheet and can be re-linked if the dataset is replaced.
     const pick = {
@@ -519,7 +620,7 @@ router.post("/draft/picks", async (req, res, next) => {
       playerName: player.name,
       team: player.team,
       position: player.position,
-      pickNumber: body.data.pickNumber,
+      pickNumber,
       draftedAt: new Date().toISOString(),
     };
 
@@ -544,6 +645,76 @@ router.delete("/draft/picks/:playerId", async (req, res, next) => {
 
     if (removed === 0) {
       res.status(404).json({ error: "No pick found for that player" });
+      return;
+    }
+
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/keepers", async (_req, res, next) => {
+  try {
+    const { players } = await snapshot();
+    res.json(GetKeepersResponse.parse(await reconcileKeepers(players)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/keepers", async (req, res, next) => {
+  try {
+    const body = SaveKeeperBody.safeParse(req.body);
+    const { players } = await snapshot();
+    const player = body.success
+      ? players.find((candidate) => candidate.id === body.data.playerId)
+      : undefined;
+
+    if (!body.success || !player) {
+      res.status(400).json({ error: "Invalid keeper" });
+      return;
+    }
+
+    const existing = await store.keepers.all();
+    const alreadyKept = existing.find((keeper) => keeper.playerId === player.id);
+    // Same double-submit treatment as draft picks: keeping a kept player
+    // returns the keeper that already exists.
+    if (alreadyKept) {
+      res.status(200).json(SaveKeeperResponse.parse(alreadyKept));
+      return;
+    }
+
+    const keeper = {
+      id: `keeper-${player.id}`,
+      playerId: player.id,
+      playerName: player.name,
+      team: player.team,
+      position: player.position,
+      owner: body.data.owner,
+      costType: body.data.costType,
+      costValue: body.data.costValue,
+      createdAt: new Date().toISOString(),
+    };
+
+    await store.keepers.append(keeper);
+    res.status(201).json(SaveKeeperResponse.parse(keeper));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/keepers/:id", async (req, res, next) => {
+  try {
+    const params = DeleteKeeperParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid keeper id" });
+      return;
+    }
+
+    const removed = await store.keepers.remove((keeper) => keeper.id === params.data.id);
+    if (removed === 0) {
+      res.status(404).json({ error: "No keeper with that id" });
       return;
     }
 

@@ -66,8 +66,10 @@ export function useDraftBoard(players: Player[]) {
     (player: Player) => {
       if (draftedIds.includes(player.id) || pendingId) return;
       setPendingId(player.id);
+      // No pickNumber: the server assigns the next remaining overall, which
+      // accounts for keeper-consumed rounds the client cannot see.
       savePick.mutate(
-        { data: { playerId: player.id, pickNumber: draftedIds.length + 1 } },
+        { data: { playerId: player.id } },
         {
           onSuccess: refreshBoard,
           onSettled: () => setPendingId(null),
