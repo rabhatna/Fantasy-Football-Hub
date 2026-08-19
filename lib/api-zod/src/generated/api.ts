@@ -36,6 +36,15 @@ export const GetPlayersResponseItem = zod.object({
   "position": zod.string(),
   "adp": zod.number(),
   "adpSource": zod.string().nullish(),
+  "adpConsensus": zod.number().nullable().describe('Mean ADP across every source that knows the player: the live\nmarket sources (FFC mocks, Sleeper, ESPN) plus the dataset\'s own\nADP column. Null until a refresh has fetched market data — the\nplain `adp` is the fallback then.\n'),
+  "adpConsensusStdev": zod.number().nullable().describe('Spread across the sources that went into the consensus. Null with fewer than two sources.'),
+  "adpSources": zod.array(zod.object({
+  "source": zod.string(),
+  "adp": zod.number()
+})).describe('Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.'),
+  "valueScoreConsensus": zod.number().nullable().describe('The dataset\'s value score recomputed against consensus ADP instead\nof the single-source ADP column, on the same SD scale. Computed\nlocally, so it can differ slightly from the pipeline\'s number;\nnull until market data has been fetched.\n'),
+  "projectedPoints": zod.number().nullable().describe('Projected 2026 season total in the league\'s scoring format, from\nthe cached market sources. Null when no source projects the\nplayer — never a zero, which would read as \"projected to score\nnothing\".\n'),
+  "aav": zod.number().nullable().describe('Average auction value in league dollars, from live ESPN drafts.\nNull before the first market refresh or for players the crowd is\nnot bidding on.\n'),
   "valueScore": zod.number().nullish().describe('Production-versus-price gap in standard deviations, roughly\nZ(2025 positional finish) - Z(2026 ADP). Positive means the player\nproduced better than his draft cost implies. Spans about -3 to\n+2.5 — this is not a 0-10 rating and must not be rendered as one.\n'),
   "marketVerdict": zod.string().nullish(),
   "ppg": zod.number().nullish(),
@@ -85,6 +94,15 @@ export const GetPlayerResponse = zod.object({
   "position": zod.string(),
   "adp": zod.number(),
   "adpSource": zod.string().nullish(),
+  "adpConsensus": zod.number().nullable().describe('Mean ADP across every source that knows the player: the live\nmarket sources (FFC mocks, Sleeper, ESPN) plus the dataset\'s own\nADP column. Null until a refresh has fetched market data — the\nplain `adp` is the fallback then.\n'),
+  "adpConsensusStdev": zod.number().nullable().describe('Spread across the sources that went into the consensus. Null with fewer than two sources.'),
+  "adpSources": zod.array(zod.object({
+  "source": zod.string(),
+  "adp": zod.number()
+})).describe('Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.'),
+  "valueScoreConsensus": zod.number().nullable().describe('The dataset\'s value score recomputed against consensus ADP instead\nof the single-source ADP column, on the same SD scale. Computed\nlocally, so it can differ slightly from the pipeline\'s number;\nnull until market data has been fetched.\n'),
+  "projectedPoints": zod.number().nullable().describe('Projected 2026 season total in the league\'s scoring format, from\nthe cached market sources. Null when no source projects the\nplayer — never a zero, which would read as \"projected to score\nnothing\".\n'),
+  "aav": zod.number().nullable().describe('Average auction value in league dollars, from live ESPN drafts.\nNull before the first market refresh or for players the crowd is\nnot bidding on.\n'),
   "valueScore": zod.number().nullish().describe('Production-versus-price gap in standard deviations, roughly\nZ(2025 positional finish) - Z(2026 ADP). Positive means the player\nproduced better than his draft cost implies. Spans about -3 to\n+2.5 — this is not a 0-10 rating and must not be rendered as one.\n'),
   "marketVerdict": zod.string().nullish(),
   "ppg": zod.number().nullish(),
@@ -179,10 +197,49 @@ export const GetDraftSummaryResponse = zod.object({
   "QB": zod.number(),
   "RB": zod.number(),
   "WR": zod.number(),
-  "TE": zod.number()
-}),
+  "TE": zod.number(),
+  "FLEX": zod.number()
+}).describe('Starting spots still to fill at each position, derived from the\nleague settings roster net of drafted players. FLEX counts RB\/WR\/TE\ndrafted beyond their base spots.\n'),
+  "remainingPicks": zod.array(zod.object({
+  "round": zod.number(),
+  "overall": zod.number()
+})).describe('The user\'s picks still to come, in snake order from their settings\n(team count, draft slot, rounds = total roster spots). Rounds\nconsumed by their round-cost keepers are gone, and each pick made\nuses up the earliest remaining slot.\n'),
+  "myRoster": zod.array(zod.object({
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "position": zod.string(),
+  "source": zod.enum(['keeper', 'pick'])
+})).describe('Everyone on the user\'s team so far — keepers first, then picks.'),
   "lastRefresh": zod.string()
 })
+
+
+/**
+ * Ranked suggestions for the user's next pick, derived server-side from
+ * the full draft state: consensus ADP vs their actual remaining snake
+ * picks, roster needs net of keepers, market value, tier scarcity,
+ * projections, injuries and bye overlaps. Each suggestion carries its
+ * reasons. Empty when the roster is full.
+ * @summary Suggested next picks
+ */
+export const GetRecommendationsResponseItem = zod.object({
+  "playerId": zod.string(),
+  "name": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "score": zod.number(),
+  "reasons": zod.array(zod.string()),
+  "components": zod.object({
+  "availability": zod.number(),
+  "need": zod.number(),
+  "value": zod.number(),
+  "scarcity": zod.number(),
+  "projection": zod.number(),
+  "injury": zod.number(),
+  "bye": zod.number()
+})
+}).describe('One suggested pick. `score` is a weighted blend of the components —\nuseful for ordering, not a rating to display on its own. `reasons`\nare the argument, in plain language.\n')
+export const GetRecommendationsResponse = zod.array(GetRecommendationsResponseItem)
 
 
 /**
@@ -205,7 +262,7 @@ export const GetDraftPicksResponse = zod.array(GetDraftPicksResponseItem)
  */
 export const SaveDraftPickBody = zod.object({
   "playerId": zod.string(),
-  "pickNumber": zod.number()
+  "pickNumber": zod.number().optional().describe('Optional; when omitted the server assigns the user\'s next\nremaining overall pick (accounting for keeper-consumed rounds),\nwhich is the authoritative number.\n')
 })
 
 export const SaveDraftPickResponse = zod.object({
@@ -228,6 +285,60 @@ export const DeleteDraftPickParams = zod.object({
 })
 
 export const DeleteDraftPickResponse = zod.void()
+
+
+/**
+ * @summary List keepers
+ */
+export const GetKeepersResponseItem = zod.object({
+  "id": zod.string(),
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "owner": zod.enum(['me', 'other']),
+  "costType": zod.enum(['round', 'dollars']),
+  "costValue": zod.number(),
+  "createdAt": zod.string()
+}).describe('playerName, team and position are denormalised for the same reason as\ndraft picks — playerId can change across dataset refreshes, and the\nCSV should read cleanly in a spreadsheet.\n')
+export const GetKeepersResponse = zod.array(GetKeepersResponseItem)
+
+
+/**
+ * @summary Save a keeper
+ */
+export const saveKeeperBodyCostValueMin = 0;
+
+
+
+export const SaveKeeperBody = zod.object({
+  "playerId": zod.string(),
+  "owner": zod.enum(['me', 'other']).describe('Whose team keeps the player. \"other\" only removes him from the pool.'),
+  "costType": zod.enum(['round', 'dollars']),
+  "costValue": zod.number().min(saveKeeperBodyCostValueMin).describe('The round the keeper consumes (snake) or the dollars he costs (auction).')
+})
+
+export const SaveKeeperResponse = zod.object({
+  "id": zod.string(),
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "owner": zod.enum(['me', 'other']),
+  "costType": zod.enum(['round', 'dollars']),
+  "costValue": zod.number(),
+  "createdAt": zod.string()
+}).describe('playerName, team and position are denormalised for the same reason as\ndraft picks — playerId can change across dataset refreshes, and the\nCSV should read cleanly in a spreadsheet.\n')
+
+
+/**
+ * @summary Remove a keeper
+ */
+export const DeleteKeeperParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteKeeperResponse = zod.void()
 
 
 /**
@@ -259,6 +370,142 @@ export const SavePlayerNoteResponse = zod.object({
   "note": zod.string(),
   "updatedAt": zod.string()
 })
+
+
+/**
+ * Returns the saved league configuration, or the defaults when none has been saved yet.
+ * @summary Get league settings
+ */
+export const getSettingsResponseTeamCountMin = 4;
+export const getSettingsResponseTeamCountMax = 20;
+
+export const getSettingsResponseDraftSlotMax = 20;
+
+
+export const getSettingsResponseRosterQBMin = 0;
+
+export const getSettingsResponseRosterRBMin = 0;
+
+export const getSettingsResponseRosterWRMin = 0;
+
+export const getSettingsResponseRosterTEMin = 0;
+
+export const getSettingsResponseRosterFLEXMin = 0;
+
+export const getSettingsResponseRosterKMin = 0;
+
+export const getSettingsResponseRosterDSTMin = 0;
+
+export const getSettingsResponseRosterBENCHMin = 0;
+
+
+
+export const GetSettingsResponse = zod.object({
+  "teamCount": zod.number().min(getSettingsResponseTeamCountMin).max(getSettingsResponseTeamCountMax),
+  "scoring": zod.enum(['ppr', 'half_ppr', 'standard']),
+  "draftType": zod.enum(['snake', 'auction']),
+  "draftSlot": zod.number().min(1).max(getSettingsResponseDraftSlotMax).describe('The user\'s position in the draft order, 1..teamCount.'),
+  "auctionBudget": zod.number().min(1),
+  "roster": zod.object({
+  "QB": zod.number().min(getSettingsResponseRosterQBMin),
+  "RB": zod.number().min(getSettingsResponseRosterRBMin),
+  "WR": zod.number().min(getSettingsResponseRosterWRMin),
+  "TE": zod.number().min(getSettingsResponseRosterTEMin),
+  "FLEX": zod.number().min(getSettingsResponseRosterFLEXMin),
+  "K": zod.number().min(getSettingsResponseRosterKMin),
+  "DST": zod.number().min(getSettingsResponseRosterDSTMin),
+  "BENCH": zod.number().min(getSettingsResponseRosterBENCHMin)
+}).describe('Starting spots per position, plus bench depth.')
+}).describe('The league this draft board is for. One document, replaced whole; the\nserver clamps and defaults rather than failing on partial garbage, but\nrejects settings that contradict themselves.\n')
+
+
+/**
+ * Replaces the whole settings document. Positional needs and scoring-dependent numbers change immediately.
+ * @summary Replace league settings
+ */
+export const updateSettingsBodyTeamCountMin = 4;
+export const updateSettingsBodyTeamCountMax = 20;
+
+export const updateSettingsBodyDraftSlotMax = 20;
+
+
+export const updateSettingsBodyRosterQBMin = 0;
+
+export const updateSettingsBodyRosterRBMin = 0;
+
+export const updateSettingsBodyRosterWRMin = 0;
+
+export const updateSettingsBodyRosterTEMin = 0;
+
+export const updateSettingsBodyRosterFLEXMin = 0;
+
+export const updateSettingsBodyRosterKMin = 0;
+
+export const updateSettingsBodyRosterDSTMin = 0;
+
+export const updateSettingsBodyRosterBENCHMin = 0;
+
+
+
+export const UpdateSettingsBody = zod.object({
+  "teamCount": zod.number().min(updateSettingsBodyTeamCountMin).max(updateSettingsBodyTeamCountMax),
+  "scoring": zod.enum(['ppr', 'half_ppr', 'standard']),
+  "draftType": zod.enum(['snake', 'auction']),
+  "draftSlot": zod.number().min(1).max(updateSettingsBodyDraftSlotMax).describe('The user\'s position in the draft order, 1..teamCount.'),
+  "auctionBudget": zod.number().min(1),
+  "roster": zod.object({
+  "QB": zod.number().min(updateSettingsBodyRosterQBMin),
+  "RB": zod.number().min(updateSettingsBodyRosterRBMin),
+  "WR": zod.number().min(updateSettingsBodyRosterWRMin),
+  "TE": zod.number().min(updateSettingsBodyRosterTEMin),
+  "FLEX": zod.number().min(updateSettingsBodyRosterFLEXMin),
+  "K": zod.number().min(updateSettingsBodyRosterKMin),
+  "DST": zod.number().min(updateSettingsBodyRosterDSTMin),
+  "BENCH": zod.number().min(updateSettingsBodyRosterBENCHMin)
+}).describe('Starting spots per position, plus bench depth.')
+}).describe('The league this draft board is for. One document, replaced whole; the\nserver clamps and defaults rather than failing on partial garbage, but\nrejects settings that contradict themselves.\n')
+
+export const updateSettingsResponseTeamCountMin = 4;
+export const updateSettingsResponseTeamCountMax = 20;
+
+export const updateSettingsResponseDraftSlotMax = 20;
+
+
+export const updateSettingsResponseRosterQBMin = 0;
+
+export const updateSettingsResponseRosterRBMin = 0;
+
+export const updateSettingsResponseRosterWRMin = 0;
+
+export const updateSettingsResponseRosterTEMin = 0;
+
+export const updateSettingsResponseRosterFLEXMin = 0;
+
+export const updateSettingsResponseRosterKMin = 0;
+
+export const updateSettingsResponseRosterDSTMin = 0;
+
+export const updateSettingsResponseRosterBENCHMin = 0;
+
+
+
+export const UpdateSettingsResponse = zod.object({
+  "teamCount": zod.number().min(updateSettingsResponseTeamCountMin).max(updateSettingsResponseTeamCountMax),
+  "scoring": zod.enum(['ppr', 'half_ppr', 'standard']),
+  "draftType": zod.enum(['snake', 'auction']),
+  "draftSlot": zod.number().min(1).max(updateSettingsResponseDraftSlotMax).describe('The user\'s position in the draft order, 1..teamCount.'),
+  "auctionBudget": zod.number().min(1),
+  "roster": zod.object({
+  "QB": zod.number().min(updateSettingsResponseRosterQBMin),
+  "RB": zod.number().min(updateSettingsResponseRosterRBMin),
+  "WR": zod.number().min(updateSettingsResponseRosterWRMin),
+  "TE": zod.number().min(updateSettingsResponseRosterTEMin),
+  "FLEX": zod.number().min(updateSettingsResponseRosterFLEXMin),
+  "K": zod.number().min(updateSettingsResponseRosterKMin),
+  "DST": zod.number().min(updateSettingsResponseRosterDSTMin),
+  "BENCH": zod.number().min(updateSettingsResponseRosterBENCHMin)
+}).describe('Starting spots per position, plus bench depth.')
+}).describe('The league this draft board is for. One document, replaced whole; the\nserver clamps and defaults rather than failing on partial garbage, but\nrejects settings that contradict themselves.\n')
 
 
 /**

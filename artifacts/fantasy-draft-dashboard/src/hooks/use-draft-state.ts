@@ -4,6 +4,7 @@ import {
   getGetDraftPicksQueryKey,
   getGetDraftSummaryQueryKey,
   getGetNotesQueryKey,
+  getGetRecommendationsQueryKey,
   savePlayerNote,
   useDeleteDraftPick,
   useGetDraftPicks,
@@ -58,6 +59,10 @@ export function useDraftBoard(players: Player[]) {
     void queryClient.invalidateQueries({
       queryKey: getGetDraftSummaryQueryKey(),
     });
+    // Suggestions depend on the board: every pick changes needs and timing.
+    void queryClient.invalidateQueries({
+      queryKey: getGetRecommendationsQueryKey(),
+    });
   }, [queryClient]);
 
   useLegacyMigration(picks, isLoading, savePick, refreshBoard, queryClient);
@@ -66,8 +71,10 @@ export function useDraftBoard(players: Player[]) {
     (player: Player) => {
       if (draftedIds.includes(player.id) || pendingId) return;
       setPendingId(player.id);
+      // No pickNumber: the server assigns the next remaining overall, which
+      // accounts for keeper-consumed rounds the client cannot see.
       savePick.mutate(
-        { data: { playerId: player.id, pickNumber: draftedIds.length + 1 } },
+        { data: { playerId: player.id } },
         {
           onSuccess: refreshBoard,
           onSettled: () => setPendingId(null),

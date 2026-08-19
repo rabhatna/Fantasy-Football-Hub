@@ -20,6 +20,25 @@ export {
   type HeadlineRecord,
   type InjuryRecord,
 } from "./sources.ts";
+export {
+  consensusAdp,
+  marketByPlayer,
+  readMarketCache,
+  readMarketStatus,
+  refreshMarket,
+  type AdpSourceValue,
+  type MarketCache,
+  type MarketRefreshOptions,
+  type PlayerMarket,
+} from "./market.ts";
+export {
+  fetchEspnMarket,
+  fetchFfcAdp,
+  fetchSleeperMarket,
+  type AdpRecord,
+  type AuctionRecord,
+  type ProjectionRecord,
+} from "./market-sources.ts";
 
 /** Outcome of one source in a refresh. */
 export interface SourceResult {

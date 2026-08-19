@@ -9,6 +9,11 @@ export interface HealthStatus {
   status: string;
 }
 
+export type PlayerAdpSourcesItem = {
+  source: string;
+  adp: number;
+};
+
 export type PlayerNextGen = {
   /** @nullable */
   separation: number | null;
@@ -54,6 +59,44 @@ export interface Player {
   adp: number;
   /** @nullable */
   adpSource?: string | null;
+  /**
+     * Mean ADP across every source that knows the player: the live
+     * market sources (FFC mocks, Sleeper, ESPN) plus the dataset's own
+     * ADP column. Null until a refresh has fetched market data — the
+     * plain `adp` is the fallback then.
+     * @nullable
+     */
+  adpConsensus: number | null;
+  /**
+     * Spread across the sources that went into the consensus. Null with fewer than two sources.
+     * @nullable
+     */
+  adpConsensusStdev: number | null;
+  /** Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data. */
+  adpSources: PlayerAdpSourcesItem[];
+  /**
+     * The dataset's value score recomputed against consensus ADP instead
+     * of the single-source ADP column, on the same SD scale. Computed
+     * locally, so it can differ slightly from the pipeline's number;
+     * null until market data has been fetched.
+     * @nullable
+     */
+  valueScoreConsensus: number | null;
+  /**
+     * Projected 2026 season total in the league's scoring format, from
+     * the cached market sources. Null when no source projects the
+     * player — never a zero, which would read as "projected to score
+     * nothing".
+     * @nullable
+     */
+  projectedPoints: number | null;
+  /**
+     * Average auction value in league dollars, from live ESPN drafts.
+     * Null before the first market refresh or for players the crowd is
+     * not bidding on.
+     * @nullable
+     */
+  aav: number | null;
   /**
      * Production-versus-price gap in standard deviations, roughly
      * Z(2025 positional finish) - Z(2026 ADP). Positive means the player
@@ -193,11 +236,37 @@ export interface NewsItem {
   status?: string | null;
 }
 
+/**
+ * Starting spots still to fill at each position, derived from the
+ * league settings roster net of drafted players. FLEX counts RB/WR/TE
+ * drafted beyond their base spots.
+ */
 export type DraftSummaryPositionalNeeds = {
   QB: number;
   RB: number;
   WR: number;
   TE: number;
+  FLEX: number;
+};
+
+export type DraftSummaryRemainingPicksItem = {
+  round: number;
+  overall: number;
+};
+
+export type DraftSummaryMyRosterItemSource = typeof DraftSummaryMyRosterItemSource[keyof typeof DraftSummaryMyRosterItemSource];
+
+
+export const DraftSummaryMyRosterItemSource = {
+  keeper: 'keeper',
+  pick: 'pick',
+} as const;
+
+export type DraftSummaryMyRosterItem = {
+  playerId: string;
+  playerName: string;
+  position: string;
+  source: DraftSummaryMyRosterItemSource;
 };
 
 export interface DraftSummary {
@@ -208,13 +277,96 @@ export interface DraftSummary {
   valueTargets: number;
   /** Scrape date of the dataset currently loaded, e.g. 2026-08-14. */
   snapshotVersion: string;
+  /**
+     * Starting spots still to fill at each position, derived from the
+     * league settings roster net of drafted players. FLEX counts RB/WR/TE
+     * drafted beyond their base spots.
+     */
   positionalNeeds: DraftSummaryPositionalNeeds;
+  /**
+     * The user's picks still to come, in snake order from their settings
+     * (team count, draft slot, rounds = total roster spots). Rounds
+     * consumed by their round-cost keepers are gone, and each pick made
+     * uses up the earliest remaining slot.
+     */
+  remainingPicks: DraftSummaryRemainingPicksItem[];
+  /** Everyone on the user's team so far — keepers first, then picks. */
+  myRoster: DraftSummaryMyRosterItem[];
   lastRefresh: string;
+}
+
+export type LeagueSettingsScoring = typeof LeagueSettingsScoring[keyof typeof LeagueSettingsScoring];
+
+
+export const LeagueSettingsScoring = {
+  ppr: 'ppr',
+  half_ppr: 'half_ppr',
+  standard: 'standard',
+} as const;
+
+export type LeagueSettingsDraftType = typeof LeagueSettingsDraftType[keyof typeof LeagueSettingsDraftType];
+
+
+export const LeagueSettingsDraftType = {
+  snake: 'snake',
+  auction: 'auction',
+} as const;
+
+/**
+ * Starting spots per position, plus bench depth.
+ */
+export type LeagueSettingsRoster = {
+  /** @minimum 0 */
+  QB: number;
+  /** @minimum 0 */
+  RB: number;
+  /** @minimum 0 */
+  WR: number;
+  /** @minimum 0 */
+  TE: number;
+  /** @minimum 0 */
+  FLEX: number;
+  /** @minimum 0 */
+  K: number;
+  /** @minimum 0 */
+  DST: number;
+  /** @minimum 0 */
+  BENCH: number;
+};
+
+/**
+ * The league this draft board is for. One document, replaced whole; the
+ * server clamps and defaults rather than failing on partial garbage, but
+ * rejects settings that contradict themselves.
+ */
+export interface LeagueSettings {
+  /**
+     * @minimum 4
+     * @maximum 20
+     */
+  teamCount: number;
+  scoring: LeagueSettingsScoring;
+  draftType: LeagueSettingsDraftType;
+  /**
+     * The user's position in the draft order, 1..teamCount.
+     * @minimum 1
+     * @maximum 20
+     */
+  draftSlot: number;
+  /** @minimum 1 */
+  auctionBudget: number;
+  /** Starting spots per position, plus bench depth. */
+  roster: LeagueSettingsRoster;
 }
 
 export interface DraftPickInput {
   playerId: string;
-  pickNumber: number;
+  /**
+     * Optional; when omitted the server assigns the user's next
+     * remaining overall pick (accounting for keeper-consumed rounds),
+     * which is the authoritative number.
+     */
+  pickNumber?: number;
 }
 
 /**
@@ -232,6 +384,95 @@ export interface DraftPick {
   position: string;
   pickNumber: number;
   draftedAt: string;
+}
+
+export type RecommendationComponents = {
+  availability: number;
+  need: number;
+  value: number;
+  scarcity: number;
+  projection: number;
+  injury: number;
+  bye: number;
+};
+
+/**
+ * One suggested pick. `score` is a weighted blend of the components —
+ * useful for ordering, not a rating to display on its own. `reasons`
+ * are the argument, in plain language.
+ */
+export interface Recommendation {
+  playerId: string;
+  name: string;
+  team: string;
+  position: string;
+  score: number;
+  reasons: string[];
+  components: RecommendationComponents;
+}
+
+/**
+ * Whose team keeps the player. "other" only removes him from the pool.
+ */
+export type KeeperInputOwner = typeof KeeperInputOwner[keyof typeof KeeperInputOwner];
+
+
+export const KeeperInputOwner = {
+  me: 'me',
+  other: 'other',
+} as const;
+
+export type KeeperInputCostType = typeof KeeperInputCostType[keyof typeof KeeperInputCostType];
+
+
+export const KeeperInputCostType = {
+  round: 'round',
+  dollars: 'dollars',
+} as const;
+
+export interface KeeperInput {
+  playerId: string;
+  /** Whose team keeps the player. "other" only removes him from the pool. */
+  owner: KeeperInputOwner;
+  costType: KeeperInputCostType;
+  /**
+     * The round the keeper consumes (snake) or the dollars he costs (auction).
+     * @minimum 0
+     */
+  costValue: number;
+}
+
+export type KeeperOwner = typeof KeeperOwner[keyof typeof KeeperOwner];
+
+
+export const KeeperOwner = {
+  me: 'me',
+  other: 'other',
+} as const;
+
+export type KeeperCostType = typeof KeeperCostType[keyof typeof KeeperCostType];
+
+
+export const KeeperCostType = {
+  round: 'round',
+  dollars: 'dollars',
+} as const;
+
+/**
+ * playerName, team and position are denormalised for the same reason as
+ * draft picks — playerId can change across dataset refreshes, and the
+ * CSV should read cleanly in a spreadsheet.
+ */
+export interface Keeper {
+  id: string;
+  playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
+  owner: KeeperOwner;
+  costType: KeeperCostType;
+  costValue: number;
+  createdAt: string;
 }
 
 export interface PlayerNoteInput {

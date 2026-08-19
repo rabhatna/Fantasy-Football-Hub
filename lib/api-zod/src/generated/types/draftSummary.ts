@@ -5,7 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { DraftSummaryMyRosterItem } from './draftSummaryMyRosterItem';
 import type { DraftSummaryPositionalNeeds } from './draftSummaryPositionalNeeds';
+import type { DraftSummaryRemainingPicksItem } from './draftSummaryRemainingPicksItem';
 
 export interface DraftSummary {
   playersTracked: number;
@@ -15,6 +17,20 @@ export interface DraftSummary {
   valueTargets: number;
   /** Scrape date of the dataset currently loaded, e.g. 2026-08-14. */
   snapshotVersion: string;
+  /**
+     * Starting spots still to fill at each position, derived from the
+     * league settings roster net of drafted players. FLEX counts RB/WR/TE
+     * drafted beyond their base spots.
+     */
   positionalNeeds: DraftSummaryPositionalNeeds;
+  /**
+     * The user's picks still to come, in snake order from their settings
+     * (team count, draft slot, rounds = total roster spots). Rounds
+     * consumed by their round-cost keepers are gone, and each pick made
+     * uses up the earliest remaining slot.
+     */
+  remainingPicks: DraftSummaryRemainingPicksItem[];
+  /** Everyone on the user's team so far — keepers first, then picks. */
+  myRoster: DraftSummaryMyRosterItem[];
   lastRefresh: string;
 }

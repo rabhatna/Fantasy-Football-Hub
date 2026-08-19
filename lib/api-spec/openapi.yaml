@@ -127,6 +127,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DraftSummary"
+  /draft/recommendations:
+    get:
+      operationId: getRecommendations
+      tags: [draft]
+      summary: Suggested next picks
+      description: |
+        Ranked suggestions for the user's next pick, derived server-side from
+        the full draft state: consensus ADP vs their actual remaining snake
+        picks, roster needs net of keepers, market value, tier scarcity,
+        projections, injuries and bye overlaps. Each suggestion carries its
+        reasons. Empty when the roster is full.
+      responses:
+        "200":
+          description: Ranked suggestions, best first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Recommendation"
   /draft/picks:
     get:
       operationId: getDraftPicks
@@ -174,6 +194,52 @@ paths:
           description: Pick removed
         "404":
           description: No pick found for that player
+  /keepers:
+    get:
+      operationId: getKeepers
+      tags: [draft]
+      summary: List keepers
+      responses:
+        "200":
+          description: Keepers saved for this league
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Keeper"
+    post:
+      operationId: saveKeeper
+      tags: [draft]
+      summary: Save a keeper
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeeperInput"
+      responses:
+        "201":
+          description: Saved keeper
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Keeper"
+  /keepers/{id}:
+    delete:
+      operationId: deleteKeeper
+      tags: [draft]
+      summary: Remove a keeper
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Keeper removed
+        "404":
+          description: No keeper with that id
   /notes:
     get:
       operationId: getNotes
@@ -211,6 +277,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PlayerNote"
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [draft]
+      summary: Get league settings
+      description: Returns the saved league configuration, or the defaults when none has been saved yet.
+      responses:
+        "200":
+          description: Current league settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeagueSettings"
+    put:
+      operationId: updateSettings
+      tags: [draft]
+      summary: Replace league settings
+      description: Replaces the whole settings document. Positional needs and scoring-dependent numbers change immediately.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeagueSettings"
+      responses:
+        "200":
+          description: Saved league settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeagueSettings"
+        "400":
+          description: Invalid settings (for example a draft slot beyond the team count)
   /ol-impact:
     get:
       operationId: getOLImpact
@@ -272,7 +371,7 @@ components:
         separation and catch rate for receivers, rushing yards over expected
         and eight-plus-box rate for backs. Clients must render these as "no
         data", never as 0.
-      required: [id, rank, name, team, position, adp, tier, isRookie, nextGen, consistency]
+      required: [id, rank, name, team, position, adp, adpConsensus, adpConsensusStdev, adpSources, valueScoreConsensus, projectedPoints, aav, tier, isRookie, nextGen, consistency]
       properties:
         id:
           type: string
@@ -283,6 +382,45 @@ components:
         position: { type: string }
         adp: { type: number }
         adpSource: { type: [string, "null"] }
+        adpConsensus:
+          type: [number, "null"]
+          description: |
+            Mean ADP across every source that knows the player: the live
+            market sources (FFC mocks, Sleeper, ESPN) plus the dataset's own
+            ADP column. Null until a refresh has fetched market data — the
+            plain `adp` is the fallback then.
+        adpConsensusStdev:
+          type: [number, "null"]
+          description: Spread across the sources that went into the consensus. Null with fewer than two sources.
+        adpSources:
+          type: array
+          description: Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.
+          items:
+            type: object
+            required: [source, adp]
+            properties:
+              source: { type: string }
+              adp: { type: number }
+        valueScoreConsensus:
+          type: [number, "null"]
+          description: |
+            The dataset's value score recomputed against consensus ADP instead
+            of the single-source ADP column, on the same SD scale. Computed
+            locally, so it can differ slightly from the pipeline's number;
+            null until market data has been fetched.
+        projectedPoints:
+          type: [number, "null"]
+          description: |
+            Projected 2026 season total in the league's scoring format, from
+            the cached market sources. Null when no source projects the
+            player — never a zero, which would read as "projected to score
+            nothing".
+        aav:
+          type: [number, "null"]
+          description: |
+            Average auction value in league dollars, from live ESPN drafts.
+            Null before the first market refresh or for players the crowd is
+            not bidding on.
         valueScore:
           type: [number, "null"]
           description: |
@@ -391,7 +529,7 @@ components:
           description: The named player's current availability, when known.
     DraftSummary:
       type: object
-      required: [playersTracked, draftedCount, averageAdp, valueTargets, positionalNeeds, lastRefresh, snapshotVersion]
+      required: [playersTracked, draftedCount, averageAdp, valueTargets, positionalNeeds, remainingPicks, myRoster, lastRefresh, snapshotVersion]
       properties:
         playersTracked: { type: number }
         draftedCount: { type: number }
@@ -404,19 +542,94 @@ components:
           description: Scrape date of the dataset currently loaded, e.g. 2026-08-14.
         positionalNeeds:
           type: object
-          required: [QB, RB, WR, TE]
+          description: |
+            Starting spots still to fill at each position, derived from the
+            league settings roster net of drafted players. FLEX counts RB/WR/TE
+            drafted beyond their base spots.
+          required: [QB, RB, WR, TE, FLEX]
           properties:
             QB: { type: number }
             RB: { type: number }
             WR: { type: number }
             TE: { type: number }
+            FLEX: { type: number }
+        remainingPicks:
+          type: array
+          description: |
+            The user's picks still to come, in snake order from their settings
+            (team count, draft slot, rounds = total roster spots). Rounds
+            consumed by their round-cost keepers are gone, and each pick made
+            uses up the earliest remaining slot.
+          items:
+            type: object
+            required: [round, overall]
+            properties:
+              round: { type: number }
+              overall: { type: number }
+        myRoster:
+          type: array
+          description: Everyone on the user's team so far — keepers first, then picks.
+          items:
+            type: object
+            required: [playerId, playerName, position, source]
+            properties:
+              playerId: { type: string }
+              playerName: { type: string }
+              position: { type: string }
+              source:
+                type: string
+                enum: [keeper, pick]
         lastRefresh: { type: string }
+    LeagueSettings:
+      type: object
+      description: |
+        The league this draft board is for. One document, replaced whole; the
+        server clamps and defaults rather than failing on partial garbage, but
+        rejects settings that contradict themselves.
+      required: [teamCount, scoring, draftType, draftSlot, auctionBudget, roster]
+      properties:
+        teamCount:
+          type: number
+          minimum: 4
+          maximum: 20
+        scoring:
+          type: string
+          enum: [ppr, half_ppr, standard]
+        draftType:
+          type: string
+          enum: [snake, auction]
+        draftSlot:
+          type: number
+          minimum: 1
+          maximum: 20
+          description: The user's position in the draft order, 1..teamCount.
+        auctionBudget:
+          type: number
+          minimum: 1
+        roster:
+          type: object
+          description: Starting spots per position, plus bench depth.
+          required: [QB, RB, WR, TE, FLEX, K, DST, BENCH]
+          properties:
+            QB: { type: number, minimum: 0 }
+            RB: { type: number, minimum: 0 }
+            WR: { type: number, minimum: 0 }
+            TE: { type: number, minimum: 0 }
+            FLEX: { type: number, minimum: 0 }
+            K: { type: number, minimum: 0 }
+            DST: { type: number, minimum: 0 }
+            BENCH: { type: number, minimum: 0 }
     DraftPickInput:
       type: object
-      required: [playerId, pickNumber]
+      required: [playerId]
       properties:
         playerId: { type: string }
-        pickNumber: { type: number }
+        pickNumber:
+          type: number
+          description: |
+            Optional; when omitted the server assigns the user's next
+            remaining overall pick (accounting for keeper-consumed rounds),
+            which is the authoritative number.
     DraftPick:
       type: object
       description: |
@@ -434,6 +647,70 @@ components:
         position: { type: string }
         pickNumber: { type: number }
         draftedAt: { type: string }
+    Recommendation:
+      type: object
+      description: |
+        One suggested pick. `score` is a weighted blend of the components —
+        useful for ordering, not a rating to display on its own. `reasons`
+        are the argument, in plain language.
+      required: [playerId, name, team, position, score, reasons, components]
+      properties:
+        playerId: { type: string }
+        name: { type: string }
+        team: { type: string }
+        position: { type: string }
+        score: { type: number }
+        reasons:
+          type: array
+          items: { type: string }
+        components:
+          type: object
+          required: [availability, need, value, scarcity, projection, injury, bye]
+          properties:
+            availability: { type: number }
+            need: { type: number }
+            value: { type: number }
+            scarcity: { type: number }
+            projection: { type: number }
+            injury: { type: number }
+            bye: { type: number }
+    KeeperInput:
+      type: object
+      required: [playerId, owner, costType, costValue]
+      properties:
+        playerId: { type: string }
+        owner:
+          type: string
+          enum: [me, other]
+          description: Whose team keeps the player. "other" only removes him from the pool.
+        costType:
+          type: string
+          enum: [round, dollars]
+        costValue:
+          type: number
+          minimum: 0
+          description: The round the keeper consumes (snake) or the dollars he costs (auction).
+    Keeper:
+      type: object
+      description: |
+        playerName, team and position are denormalised for the same reason as
+        draft picks — playerId can change across dataset refreshes, and the
+        CSV should read cleanly in a spreadsheet.
+      required: [id, playerId, playerName, team, position, owner, costType, costValue, createdAt]
+      properties:
+        id: { type: string }
+        playerId: { type: string }
+        playerName: { type: string }
+        team: { type: string }
+        position: { type: string }
+        owner:
+          type: string
+          enum: [me, other]
+        costType:
+          type: string
+          enum: [round, dollars]
+        costValue: { type: number }
+        createdAt: { type: string }
     PlayerNoteInput:
       type: object
       required: [note]

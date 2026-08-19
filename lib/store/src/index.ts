@@ -1,9 +1,19 @@
 import path from "node:path";
 import { CsvTable, type TableSchema } from "./table.ts";
+import { LeagueSettingsStore } from "./settings.ts";
 
 export { CsvTable, type TableSchema } from "./table.ts";
 export { parseCsv, stringifyCsv, type CsvRow } from "./csv.ts";
 export { writeFileAtomic, readFileOrNull } from "./atomic.ts";
+export {
+  DEFAULT_LEAGUE_SETTINGS,
+  LeagueSettingsStore,
+  sanitizeLeagueSettings,
+  type DraftType,
+  type LeagueSettingsRecord,
+  type RosterSettings,
+  type ScoringFormat,
+} from "./settings.ts";
 
 /**
  * A drafted player.
@@ -21,6 +31,26 @@ export interface DraftPickRecord {
   position: string;
   pickNumber: number;
   draftedAt: string;
+}
+
+/**
+ * A keeper: a player already spoken for before the draft starts.
+ *
+ * `owner` is deliberately just "me" or "other" — the app tracks one user's
+ * board, so another team's keeper only matters as a name off the pool, not as
+ * part of a full league model. The cost is a round (snake leagues, where the
+ * keeper consumes that round's pick) or dollars (auction budgets).
+ */
+export interface KeeperRecord {
+  id: string;
+  playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
+  owner: "me" | "other";
+  costType: "round" | "dollars";
+  costValue: number;
+  createdAt: string;
 }
 
 /** A free-text note attached to a player. */
@@ -65,6 +95,49 @@ const draftPickSchema: TableSchema<DraftPickRecord> = {
   },
 };
 
+const keeperSchema: TableSchema<KeeperRecord> = {
+  columns: [
+    "id",
+    "player_id",
+    "player_name",
+    "team",
+    "position",
+    "owner",
+    "cost_type",
+    "cost_value",
+    "created_at",
+  ],
+  encode: (record) => ({
+    id: record.id,
+    player_id: record.playerId,
+    player_name: record.playerName,
+    team: record.team,
+    position: record.position,
+    owner: record.owner,
+    cost_type: record.costType,
+    cost_value: String(record.costValue),
+    created_at: record.createdAt,
+  }),
+  decode: (row) => {
+    const playerId = requireField(row, "player_id");
+    if (!playerId) return null;
+
+    const costValue = Number(row["cost_value"]);
+
+    return {
+      id: requireField(row, "id") ?? `keeper-${playerId}`,
+      playerId,
+      playerName: row["player_name"] ?? "",
+      team: row["team"] ?? "",
+      position: row["position"] ?? "",
+      owner: row["owner"] === "other" ? "other" : "me",
+      costType: row["cost_type"] === "dollars" ? "dollars" : "round",
+      costValue: Number.isFinite(costValue) ? costValue : 0,
+      createdAt: row["created_at"] ?? "",
+    };
+  },
+};
+
 const playerNoteSchema: TableSchema<PlayerNoteRecord> = {
   columns: ["player_id", "player_name", "note", "updated_at"],
   encode: (record) => ({
@@ -97,11 +170,15 @@ export class Store {
   readonly dataDir: string;
   readonly draftPicks: CsvTable<DraftPickRecord>;
   readonly playerNotes: CsvTable<PlayerNoteRecord>;
+  readonly keepers: CsvTable<KeeperRecord>;
+  readonly leagueSettings: LeagueSettingsStore;
 
   constructor(dataDir: string) {
     this.dataDir = dataDir;
     const userDir = path.join(dataDir, "user");
     const backupDir = path.join(userDir, "backups");
+
+    this.leagueSettings = new LeagueSettingsStore(path.join(userDir, "league-settings.json"));
 
     this.draftPicks = new CsvTable(
       path.join(userDir, "draft_picks.csv"),
@@ -113,12 +190,15 @@ export class Store {
       playerNoteSchema,
       backupDir,
     );
+    this.keepers = new CsvTable(path.join(userDir, "keepers.csv"), keeperSchema, backupDir);
   }
 
-  /** Force both tables to re-read from disk (after an external edit). */
+  /** Force everything to re-read from disk (after an external edit). */
   invalidate(): void {
     this.draftPicks.invalidate();
     this.playerNotes.invalidate();
+    this.keepers.invalidate();
+    this.leagueSettings.invalidate();
   }
 }
 

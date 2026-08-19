@@ -83,6 +83,9 @@ importers:
       '@workspace/live':
         specifier: workspace:*
         version: link:../../lib/live
+      '@workspace/shared':
+        specifier: workspace:*
+        version: link:../../lib/shared
       '@workspace/store':
         specifier: workspace:*
         version: link:../../lib/store
@@ -237,6 +240,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/shared':
+        specifier: workspace:*
+        version: link:../../lib/shared
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -343,6 +349,12 @@ importers:
       '@workspace/store':
         specifier: workspace:*
         version: link:../store
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.5
+
+  lib/shared:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

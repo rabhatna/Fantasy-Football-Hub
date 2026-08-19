@@ -6,9 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Starting spots still to fill at each position, derived from the
+ * league settings roster net of drafted players. FLEX counts RB/WR/TE
+ * drafted beyond their base spots.
+ */
 export type DraftSummaryPositionalNeeds = {
   QB: number;
   RB: number;
   WR: number;
   TE: number;
+  FLEX: number;
 };

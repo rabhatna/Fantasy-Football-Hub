@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { PlayerAdpSourcesItem } from './playerAdpSourcesItem';
 import type { PlayerConsistency } from './playerConsistency';
 import type { PlayerNextGen } from './playerNextGen';
 
@@ -27,6 +28,44 @@ export interface Player {
   adp: number;
   /** @nullable */
   adpSource?: string | null;
+  /**
+     * Mean ADP across every source that knows the player: the live
+     * market sources (FFC mocks, Sleeper, ESPN) plus the dataset's own
+     * ADP column. Null until a refresh has fetched market data — the
+     * plain `adp` is the fallback then.
+     * @nullable
+     */
+  adpConsensus: number | null;
+  /**
+     * Spread across the sources that went into the consensus. Null with fewer than two sources.
+     * @nullable
+     */
+  adpConsensusStdev: number | null;
+  /** Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data. */
+  adpSources: PlayerAdpSourcesItem[];
+  /**
+     * The dataset's value score recomputed against consensus ADP instead
+     * of the single-source ADP column, on the same SD scale. Computed
+     * locally, so it can differ slightly from the pipeline's number;
+     * null until market data has been fetched.
+     * @nullable
+     */
+  valueScoreConsensus: number | null;
+  /**
+     * Projected 2026 season total in the league's scoring format, from
+     * the cached market sources. Null when no source projects the
+     * player — never a zero, which would read as "projected to score
+     * nothing".
+     * @nullable
+     */
+  projectedPoints: number | null;
+  /**
+     * Average auction value in league dollars, from live ESPN drafts.
+     * Null before the first market refresh or for players the crowd is
+     * not bidding on.
+     * @nullable
+     */
+  aav: number | null;
   /**
      * Production-versus-price gap in standard deviations, roughly
      * Z(2025 positional finish) - Z(2026 ADP). Positive means the player

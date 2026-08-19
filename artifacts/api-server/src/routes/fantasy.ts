@@ -1,6 +1,13 @@
 import path from "node:path";
 import { Router, type IRouter } from "express";
-import { createStore, resolveDataDir, type DraftPickRecord } from "@workspace/store";
+import {
+  createStore,
+  resolveDataDir,
+  type DraftPickRecord,
+  type KeeperRecord,
+  type LeagueSettingsRecord,
+  type RosterSettings,
+} from "@workspace/store";
 import {
   loadSnapshot,
   normalizeName,
@@ -10,7 +17,9 @@ import {
 } from "@workspace/dataset";
 import {
   DeleteDraftPickParams,
+  DeleteKeeperParams,
   GetDraftPicksResponse,
+  GetKeepersResponse,
   GetDraftSummaryResponse,
   GetLiveStatusResponse,
   GetNewsResponse,
@@ -20,24 +29,41 @@ import {
   GetPlayerResponse,
   GetPlayersQueryParams,
   GetPlayersResponse,
+  GetRecommendationsResponse,
+  GetSettingsResponse,
   GetTeamsResponse,
   RefreshDataResponse,
   SaveDraftPickBody,
   SaveDraftPickResponse,
+  SaveKeeperBody,
+  SaveKeeperResponse,
   SavePlayerNoteBody,
   SavePlayerNoteParams,
   SavePlayerNoteResponse,
+  UpdateSettingsBody,
+  UpdateSettingsResponse,
 } from "@workspace/api-zod";
 import {
+  consensusAdp,
   injuriesByPlayer,
+  marketByPlayer,
   newsItems,
   readLiveCache,
   readLiveStatus,
+  readMarketCache,
+  readMarketStatus,
   refreshLive,
+  refreshMarket,
   type LiveCache,
+  type LiveStatus,
+  type MarketCache,
   type PlayerInjury,
 } from "@workspace/live";
+import { VALUE_TARGET_SD, isUnavailableStatus } from "@workspace/shared";
 import { logger } from "../lib/logger";
+import { remainingPicks } from "../lib/draft-math";
+import { positionalNeeds, recommend } from "../lib/recommend";
+import { consensusValueScores } from "../lib/value";
 
 // Draft picks and notes persist as CSV under the data directory; the player
 // board is read from a dated snapshot in the same place.
@@ -53,33 +79,105 @@ const dataDir = resolveDataDir(process.env, defaultDataDir);
 let snapshotPromise: Promise<Snapshot> | null = null;
 let loadedAt = new Date().toISOString();
 
-// The live cache is read from disk, never fetched implicitly: a page load must
-// not cause an outbound request. Only POST /data/refresh fetches.
+// The live and market caches are read from disk, never fetched implicitly: a
+// page load must not cause an outbound request. Only POST /data/refresh fetches.
 let livePromise: Promise<LiveCache | null> | null = null;
+let marketPromise: Promise<MarketCache | null> | null = null;
 
 function live(): Promise<LiveCache | null> {
   const pending = (livePromise ??= readLiveCache(dataDir));
   return pending;
 }
 
+function market(): Promise<MarketCache | null> {
+  const pending = (marketPromise ??= readMarketCache(dataDir));
+  return pending;
+}
+
+/** A dataset player with everything merged in at request time. */
+type ApiPlayer = DatasetPlayer & {
+  injuryBodyPart: string | null;
+  adpConsensus: number | null;
+  adpConsensusStdev: number | null;
+  adpSources: { source: string; adp: number }[];
+  valueScoreConsensus: number | null;
+  projectedPoints: number | null;
+  aav: number | null;
+};
+
 /**
- * Merge live availability onto the ranked players.
+ * Merge live availability, cached market data and the league's scoring format
+ * onto the ranked players.
  *
  * A player the injury source has no record of keeps a null status. Null means
- * unknown — it is never rendered or treated as "healthy".
+ * unknown — it is never rendered or treated as "healthy". Points per game is
+ * served in the scoring the league settings ask for; the dataset's primary
+ * scoring (and the consistency profile) remains full PPR.
+ *
+ * Consensus ADP averages the market sources with the dataset's own ADP, but
+ * only exists once at least one market source has matched — before the first
+ * refresh, `adp` remains the only price and consensus fields are null.
  */
-async function playersWithInjuries(): Promise<DatasetPlayer[]> {
-  const [{ players }, cache] = await Promise.all([snapshot(), live()]);
-  if (!cache) return players;
+async function enrichedPlayers(): Promise<ApiPlayer[]> {
+  const [{ players }, cache, marketCache, settings] = await Promise.all([
+    snapshot(),
+    live(),
+    market(),
+    store.leagueSettings.read(),
+  ]);
+  const injuries = cache ? injuriesByPlayer(cache, players) : new Map<string, PlayerInjury>();
+  const marketData = marketByPlayer(marketCache, players);
 
-  const injuries = injuriesByPlayer(cache, players);
-  if (injuries.size === 0) return players;
+  const enriched: ApiPlayer[] = players.map((player) => {
+    const injury = injuries.get(player.id);
+    const playerMarket = marketData.get(player.id);
+    const ppg =
+      settings.scoring === "half_ppr"
+        ? player.ppgByScoring.halfPpr
+        : settings.scoring === "standard"
+          ? player.ppgByScoring.standard
+          : player.ppg;
 
-  return players.map((player) => {
-    const injury: PlayerInjury | undefined = injuries.get(player.id);
-    if (!injury) return player;
-    return { ...player, injuryStatus: injury.status, injuryBodyPart: injury.bodyPart };
+    const marketAdps = playerMarket?.adpSources ?? [];
+    const adpSources = [
+      { source: player.adpSource ?? "dataset", adp: player.adp },
+      ...marketAdps.map((entry) => ({ source: entry.source, adp: entry.adp })),
+    ];
+    const consensus =
+      marketAdps.length > 0
+        ? consensusAdp(adpSources.map((entry) => entry.adp))
+        : { mean: null, stdev: null };
+
+    // Projections arrive in all three scoring formats; serve the league's.
+    const projection = playerMarket?.projection ?? null;
+    const projectedPoints =
+      projection === null
+        ? null
+        : settings.scoring === "half_ppr"
+          ? projection.halfPpr
+          : settings.scoring === "standard"
+            ? projection.standard
+            : projection.ppr;
+
+    return {
+      ...player,
+      ppg,
+      injuryStatus: injury?.status ?? player.injuryStatus,
+      injuryBodyPart: injury?.bodyPart ?? null,
+      adpConsensus: consensus.mean === null ? null : Number(consensus.mean.toFixed(1)),
+      adpConsensusStdev: consensus.stdev === null ? null : Number(consensus.stdev.toFixed(1)),
+      adpSources,
+      valueScoreConsensus: null,
+      projectedPoints: projectedPoints === null ? null : Number(projectedPoints.toFixed(1)),
+      aav: playerMarket?.aav ?? null,
+    };
   });
+
+  const valueScores = consensusValueScores(enriched);
+  for (const player of enriched) {
+    player.valueScoreConsensus = valueScores.get(player.id) ?? null;
+  }
+  return enriched;
 }
 
 function snapshot(): Promise<Snapshot> {
@@ -99,14 +197,6 @@ function snapshot(): Promise<Snapshot> {
   return snapshotPromise;
 }
 
-/** A player's value score at or above this is a genuine market discount. */
-const VALUE_TARGET_SD = 0.5;
-
-// Statuses that mean the player is unavailable; the dashboard mirrors this list.
-// Doubtful belongs here — it was previously omitted, so the Healthy filter let
-// doubtful players through on the server while the client excluded them.
-const UNAVAILABLE_INJURY_STATUSES = ["IR", "PUP", "Out", "Doubtful"];
-
 // ── Draft pick reconciliation ────────────────────────────────────────────────
 
 /**
@@ -117,7 +207,10 @@ const UNAVAILABLE_INJURY_STATUSES = ["IR", "PUP", "Out", "Doubtful"];
  * pick also stores the player's name (written for exactly this reason), so a
  * board built against the old ids can be recovered by name.
  */
-function findPlayerForPick(pick: DraftPickRecord, players: DatasetPlayer[]): DatasetPlayer | undefined {
+function findPlayerForPick(
+  pick: { playerId: string; playerName: string },
+  players: DatasetPlayer[],
+): DatasetPlayer | undefined {
   const byId = players.find((player) => player.id === pick.playerId);
   if (byId) return byId;
 
@@ -160,6 +253,62 @@ async function reconcilePicks(players: DatasetPlayer[]): Promise<DraftPickRecord
       };
     });
     return { next, result: next };
+  });
+}
+
+/** Keepers heal the same way picks do: by name, when their id stops resolving. */
+async function reconcileKeepers(players: DatasetPlayer[]): Promise<KeeperRecord[]> {
+  const keepers = await store.keepers.all();
+  const needsHealing = keepers.filter(
+    (keeper) => !players.some((player) => player.id === keeper.playerId),
+  );
+  if (needsHealing.length === 0) return keepers;
+
+  const healed = new Map<string, DatasetPlayer>();
+  for (const keeper of needsHealing) {
+    const match = findPlayerForPick(keeper, players);
+    if (match) healed.set(keeper.playerId, match);
+  }
+  if (healed.size === 0) return keepers;
+
+  logger.info({ count: healed.size }, "Re-linked saved keepers to current dataset ids");
+
+  return store.keepers.update((records) => {
+    const next = records.map((record) => {
+      const match = healed.get(record.playerId);
+      if (!match) return record;
+      return {
+        ...record,
+        id: `keeper-${match.id}`,
+        playerId: match.id,
+        playerName: match.name,
+        team: match.team,
+        position: match.position,
+      };
+    });
+    return { next, result: next };
+  });
+}
+
+/**
+ * The user's picks still to come. Total rounds = every roster spot; the
+ * rounds their round-cost keepers consume are gone before pick one.
+ */
+function myRemainingPicks(
+  settings: LeagueSettingsRecord,
+  myKeepers: readonly KeeperRecord[],
+  picksMade: number,
+) {
+  const roster = settings.roster;
+  const rounds = Object.values(roster).reduce((total, spots) => total + spots, 0);
+  return remainingPicks({
+    teamCount: settings.teamCount,
+    draftSlot: settings.draftSlot,
+    rounds,
+    keeperRounds: myKeepers
+      .filter((keeper) => keeper.costType === "round")
+      .map((keeper) => keeper.costValue),
+    picksMade,
   });
 }
 
@@ -225,7 +374,7 @@ router.get("/players", async (req, res, next) => {
     }
 
     const { position, search, maxAdp, minShare, excludeUnhealthy } = parsed.data;
-    const players = await playersWithInjuries();
+    const players = await enrichedPlayers();
     const normalizedSearch = search?.trim().toLowerCase();
 
     const filtered = players.filter((player) => {
@@ -245,7 +394,7 @@ router.get("/players", async (req, res, next) => {
       // A player with no known status is not filtered out: unknown is not the
       // same as unavailable, and hiding him would be a claim we cannot support.
       if (excludeUnhealthy && player.injuryStatus !== null) {
-        return !UNAVAILABLE_INJURY_STATUSES.includes(player.injuryStatus);
+        return !isUnavailableStatus(player.injuryStatus);
       }
       return true;
     });
@@ -264,7 +413,7 @@ router.get("/players/:id", async (req, res, next) => {
       return;
     }
 
-    const players = await playersWithInjuries();
+    const players = await enrichedPlayers();
     const player = players.find((item) => item.id === params.data.id);
     if (!player) {
       res.status(404).json({ error: "Player not found" });
@@ -298,9 +447,33 @@ router.get("/news", async (_req, res, next) => {
   }
 });
 
+/**
+ * One combined view of the news/injury feeds and the market sources: stale if
+ * either side is, fetchedAt is the older of the two so cached data is never
+ * presented as fresher than its oldest part.
+ */
+function mergeStatuses(liveStatus: LiveStatus, marketStatus: LiveStatus): LiveStatus {
+  const fetchTimes = [liveStatus.fetchedAt, marketStatus.fetchedAt].filter(
+    (value): value is string => value !== null,
+  );
+  const attemptTimes = [liveStatus.attemptedAt, marketStatus.attemptedAt].filter(
+    (value): value is string => value !== null,
+  );
+  return {
+    fetchedAt: fetchTimes.length > 0 ? fetchTimes.sort()[0] : null,
+    attemptedAt: attemptTimes.length > 0 ? attemptTimes.sort().at(-1)! : null,
+    stale: liveStatus.stale || marketStatus.stale,
+    sources: [...liveStatus.sources, ...marketStatus.sources],
+  };
+}
+
 router.get("/live/status", async (_req, res, next) => {
   try {
-    res.json(GetLiveStatusResponse.parse(await readLiveStatus(dataDir)));
+    const [liveStatus, marketStatus] = await Promise.all([
+      readLiveStatus(dataDir),
+      readMarketStatus(dataDir),
+    ]);
+    res.json(GetLiveStatusResponse.parse(mergeStatuses(liveStatus, marketStatus)));
   } catch (error) {
     next(error);
   }
@@ -309,18 +482,34 @@ router.get("/live/status", async (_req, res, next) => {
 router.get("/draft/summary", async (_req, res, next) => {
   try {
     const { players, version } = await snapshot();
-    const picks = await reconcilePicks(players);
+    const [picks, keepers, settings] = await Promise.all([
+      reconcilePicks(players),
+      reconcileKeepers(players),
+      store.leagueSettings.read(),
+    ]);
 
     const draftedPlayers = players.filter((player) =>
       picks.some((pick) => pick.playerId === player.id),
     );
+    const myKeepers = keepers.filter((keeper) => keeper.owner === "me");
 
-    const needs = { QB: 1, RB: 2, WR: 3, TE: 1 };
-    for (const player of draftedPlayers) {
-      if (player.position in needs && needs[player.position as keyof typeof needs] > 0) {
-        needs[player.position as keyof typeof needs] -= 1;
-      }
-    }
+    // Keepers are already on the roster, so they fill needs just like picks.
+    const needs = positionalNeeds(settings.roster, [...draftedPlayers, ...myKeepers]);
+
+    const myRoster = [
+      ...myKeepers.map((keeper) => ({
+        playerId: keeper.playerId,
+        playerName: keeper.playerName,
+        position: keeper.position,
+        source: "keeper" as const,
+      })),
+      ...picks.map((pick) => ({
+        playerId: pick.playerId,
+        playerName: pick.playerName,
+        position: pick.position,
+        source: "pick" as const,
+      })),
+    ];
 
     // Averaged over picks that resolve to a player in this snapshot; a pick
     // carried over from an older dataset has no ADP to average.
@@ -338,10 +527,50 @@ router.get("/draft/summary", async (_req, res, next) => {
         valueTargets: players.filter((player) => (player.valueScore ?? -Infinity) >= VALUE_TARGET_SD)
           .length,
         positionalNeeds: needs,
+        remainingPicks: myRemainingPicks(settings, myKeepers, picks.length),
+        myRoster,
         lastRefresh: loadedAt,
         snapshotVersion: version,
       }),
     );
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/draft/recommendations", async (_req, res, next) => {
+  try {
+    const players = await enrichedPlayers();
+    const [picks, keepers, settings] = await Promise.all([
+      reconcilePicks(players),
+      reconcileKeepers(players),
+      store.leagueSettings.read(),
+    ]);
+    const myKeepers = keepers.filter((keeper) => keeper.owner === "me");
+
+    // My roster's positions and byes, for needs and bye-overlap checks.
+    const byId = new Map(players.map((player) => [player.id, player]));
+    const myRoster = [...myKeepers, ...picks].map((entry) => ({
+      position: entry.position,
+      byeWeek: byId.get(entry.playerId)?.byeWeek ?? null,
+    }));
+
+    const unavailableIds = new Set([
+      ...picks.map((pick) => pick.playerId),
+      ...keepers.map((keeper) => keeper.playerId),
+    ]);
+
+    const suggestions = recommend({
+      players,
+      unavailableIds,
+      myRoster,
+      roster: settings.roster,
+      myNextPicks: myRemainingPicks(settings, myKeepers, picks.length).map(
+        (slot) => slot.overall,
+      ),
+    });
+
+    res.json(GetRecommendationsResponse.parse(suggestions));
   } catch (error) {
     next(error);
   }
@@ -379,6 +608,21 @@ router.post("/draft/picks", async (req, res, next) => {
       return;
     }
 
+    // When the client does not name a pick number, assign the user's next
+    // remaining overall (keeper-consumed rounds are already gone) — the
+    // client cannot know that number, so the server's is authoritative.
+    let pickNumber = body.data.pickNumber;
+    if (pickNumber === undefined) {
+      const [keepers, settings] = await Promise.all([
+        store.keepers.all(),
+        store.leagueSettings.read(),
+      ]);
+      const myKeepers = keepers.filter((keeper) => keeper.owner === "me");
+      const next = myRemainingPicks(settings, myKeepers, existing.length)[0];
+      pickNumber =
+        next?.overall ?? Math.max(0, ...existing.map((record) => record.pickNumber)) + 1;
+    }
+
     // Name, team and position ride along with the id so a board stays readable
     // in a spreadsheet and can be re-linked if the dataset is replaced.
     const pick = {
@@ -387,7 +631,7 @@ router.post("/draft/picks", async (req, res, next) => {
       playerName: player.name,
       team: player.team,
       position: player.position,
-      pickNumber: body.data.pickNumber,
+      pickNumber,
       draftedAt: new Date().toISOString(),
     };
 
@@ -412,6 +656,76 @@ router.delete("/draft/picks/:playerId", async (req, res, next) => {
 
     if (removed === 0) {
       res.status(404).json({ error: "No pick found for that player" });
+      return;
+    }
+
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/keepers", async (_req, res, next) => {
+  try {
+    const { players } = await snapshot();
+    res.json(GetKeepersResponse.parse(await reconcileKeepers(players)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/keepers", async (req, res, next) => {
+  try {
+    const body = SaveKeeperBody.safeParse(req.body);
+    const { players } = await snapshot();
+    const player = body.success
+      ? players.find((candidate) => candidate.id === body.data.playerId)
+      : undefined;
+
+    if (!body.success || !player) {
+      res.status(400).json({ error: "Invalid keeper" });
+      return;
+    }
+
+    const existing = await store.keepers.all();
+    const alreadyKept = existing.find((keeper) => keeper.playerId === player.id);
+    // Same double-submit treatment as draft picks: keeping a kept player
+    // returns the keeper that already exists.
+    if (alreadyKept) {
+      res.status(200).json(SaveKeeperResponse.parse(alreadyKept));
+      return;
+    }
+
+    const keeper = {
+      id: `keeper-${player.id}`,
+      playerId: player.id,
+      playerName: player.name,
+      team: player.team,
+      position: player.position,
+      owner: body.data.owner,
+      costType: body.data.costType,
+      costValue: body.data.costValue,
+      createdAt: new Date().toISOString(),
+    };
+
+    await store.keepers.append(keeper);
+    res.status(201).json(SaveKeeperResponse.parse(keeper));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/keepers/:id", async (req, res, next) => {
+  try {
+    const params = DeleteKeeperParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid keeper id" });
+      return;
+    }
+
+    const removed = await store.keepers.remove((keeper) => keeper.id === params.data.id);
+    if (removed === 0) {
+      res.status(404).json({ error: "No keeper with that id" });
       return;
     }
 
@@ -461,6 +775,35 @@ router.put("/notes/:playerId", async (req, res, next) => {
     }
 
     res.json(SavePlayerNoteResponse.parse(note));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/settings", async (_req, res, next) => {
+  try {
+    res.json(GetSettingsResponse.parse(await store.leagueSettings.read()));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/settings", async (req, res, next) => {
+  try {
+    const body = UpdateSettingsBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "Invalid league settings" });
+      return;
+    }
+    // Cross-field rule the schema cannot express: the user must actually have
+    // a slot in the draft order they configured.
+    if (body.data.draftSlot > body.data.teamCount) {
+      res.status(400).json({ error: "Draft slot is beyond the last team" });
+      return;
+    }
+
+    const saved = await store.leagueSettings.write(body.data);
+    res.json(UpdateSettingsResponse.parse(saved));
   } catch (error) {
     next(error);
   }
@@ -519,25 +862,33 @@ router.post("/data/refresh", async (_req, res, next) => {
     store.invalidate();
     snapshotPromise = null;
     livePromise = null;
+    marketPromise = null;
 
     const { version, players, teams } = await snapshot();
+    const settings = await store.leagueSettings.read();
 
-    // The only outbound network call in the app, and only from here.
-    const { status } = await refreshLive(dataDir);
+    // The only outbound network calls in the app, and only from here.
+    const [{ status }, { status: marketStatus }] = await Promise.all([
+      refreshLive(dataDir),
+      refreshMarket(dataDir, { teams: settings.teamCount }),
+    ]);
     livePromise = null;
+    marketPromise = null;
+
+    const merged = mergeStatuses(status, marketStatus);
 
     res.json(
       RefreshDataResponse.parse({
         // "partial" when some feed failed: the caller should not treat a
         // degraded refresh as a clean one.
-        status: status.stale ? "partial" : "ok",
-        refreshedAt: status.attemptedAt ?? loadedAt,
-        live: status,
+        status: merged.stale ? "partial" : "ok",
+        refreshedAt: merged.attemptedAt ?? loadedAt,
+        live: merged,
         sources: [
           { name: `dataset snapshot ${version}`, ok: true, detail: `${players.length} players` },
           { name: "team context", ok: true, detail: `${teams.length} teams` },
           { name: "draft board", ok: true, detail: "reloaded from disk" },
-          ...status.sources,
+          ...merged.sources,
         ],
       }),
     );

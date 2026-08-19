@@ -8,5 +8,10 @@
 
 export interface DraftPickInput {
   playerId: string;
-  pickNumber: number;
+  /**
+     * Optional; when omitted the server assigns the user's next
+     * remaining overall pick (accounting for keeper-consumed rounds),
+     * which is the authoritative number.
+     */
+  pickNumber?: number;
 }
