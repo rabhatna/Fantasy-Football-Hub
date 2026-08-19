@@ -127,6 +127,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DraftSummary"
+  /draft/recommendations:
+    get:
+      operationId: getRecommendations
+      tags: [draft]
+      summary: Suggested next picks
+      description: |
+        Ranked suggestions for the user's next pick, derived server-side from
+        the full draft state: consensus ADP vs their actual remaining snake
+        picks, roster needs net of keepers, market value, tier scarcity,
+        projections, injuries and bye overlaps. Each suggestion carries its
+        reasons. Empty when the roster is full.
+      responses:
+        "200":
+          description: Ranked suggestions, best first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Recommendation"
   /draft/picks:
     get:
       operationId: getDraftPicks
@@ -615,6 +635,33 @@ components:
         position: { type: string }
         pickNumber: { type: number }
         draftedAt: { type: string }
+    Recommendation:
+      type: object
+      description: |
+        One suggested pick. `score` is a weighted blend of the components —
+        useful for ordering, not a rating to display on its own. `reasons`
+        are the argument, in plain language.
+      required: [playerId, name, team, position, score, reasons, components]
+      properties:
+        playerId: { type: string }
+        name: { type: string }
+        team: { type: string }
+        position: { type: string }
+        score: { type: number }
+        reasons:
+          type: array
+          items: { type: string }
+        components:
+          type: object
+          required: [availability, need, value, scarcity, projection, injury, bye]
+          properties:
+            availability: { type: number }
+            need: { type: number }
+            value: { type: number }
+            scarcity: { type: number }
+            projection: { type: number }
+            injury: { type: number }
+            bye: { type: number }
     KeeperInput:
       type: object
       required: [playerId, owner, costType, costValue]

@@ -65,8 +65,20 @@ TanStack Query · Zod · Orval codegen · esbuild
   into `data/snapshots/` on first boot and served from there. It carries 2025
   production, 2026 ADP/market data, and Next Gen/consistency metrics — but **no
   2026 projections**; nothing shown is a forecast.
-- Injury designations and news are live: the Refresh button fetches Sleeper
-  injury data and four NFL RSS feeds (`lib/live`), cached under `data/cache/`.
-  Page loads never make outbound requests — only an explicit refresh does.
-- Your draft board and notes persist as CSV under `data/user/`, with one backup
-  per session in `data/user/backups/`.
+- Injury designations, news, and market data are live: the Refresh button
+  fetches Sleeper injury data, four NFL RSS feeds, and three market sources —
+  FFC mock-draft ADP, Sleeper's 2026 point projections (with its ADP), and
+  ESPN's crowd auction values (with its ADP) — all cached under `data/cache/`
+  (`lib/live`). Page loads never make outbound requests — only an explicit
+  refresh does. ADP data courtesy of FantasyFootballCalculator.com.
+- Player prices are a consensus: ADP is averaged across every source that
+  knows the player (the dataset's column included), and the value score is
+  recomputed against that consensus.
+- The league is configurable (teams, scoring format, snake/auction, draft
+  slot, roster spots) via the settings dialog; positional needs, per-game
+  scoring, and snake pick math all derive from it.
+- Keepers are first-class: yours fill roster needs and consume the round they
+  cost, other teams' leave the pool, and the Suggested Picks rail argues each
+  recommendation from need, price, tier scarcity, timing, injuries and byes.
+- Your draft board, notes, keepers, and league settings persist under
+  `data/user/`, with one backup per session in `data/user/backups/`.

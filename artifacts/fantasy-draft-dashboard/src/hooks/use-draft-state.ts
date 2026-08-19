@@ -4,6 +4,7 @@ import {
   getGetDraftPicksQueryKey,
   getGetDraftSummaryQueryKey,
   getGetNotesQueryKey,
+  getGetRecommendationsQueryKey,
   savePlayerNote,
   useDeleteDraftPick,
   useGetDraftPicks,
@@ -57,6 +58,10 @@ export function useDraftBoard(players: Player[]) {
     });
     void queryClient.invalidateQueries({
       queryKey: getGetDraftSummaryQueryKey(),
+    });
+    // Suggestions depend on the board: every pick changes needs and timing.
+    void queryClient.invalidateQueries({
+      queryKey: getGetRecommendationsQueryKey(),
     });
   }, [queryClient]);
 

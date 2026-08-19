@@ -29,6 +29,7 @@ import {
   GetPlayerResponse,
   GetPlayersQueryParams,
   GetPlayersResponse,
+  GetRecommendationsResponse,
   GetSettingsResponse,
   GetTeamsResponse,
   RefreshDataResponse,
@@ -61,6 +62,7 @@ import {
 import { VALUE_TARGET_SD, isUnavailableStatus } from "@workspace/shared";
 import { logger } from "../lib/logger";
 import { remainingPicks } from "../lib/draft-math";
+import { positionalNeeds, recommend } from "../lib/recommend";
 import { consensusValueScores } from "../lib/value";
 
 // Draft picks and notes persist as CSV under the data directory; the player
@@ -286,35 +288,6 @@ async function reconcileKeepers(players: DatasetPlayer[]): Promise<KeeperRecord[
     });
     return { next, result: next };
   });
-}
-
-// ── Positional needs ─────────────────────────────────────────────────────────
-
-/**
- * Starting spots still to fill, from the league's roster settings.
- *
- * FLEX is consumed only by RB/WR/TE drafted beyond their base spots: a third
- * WR in a 2-WR league fills the flex, not a phantom WR3 slot. K and DST are
- * not tracked on the board, so they carry no need here.
- */
-function positionalNeeds(roster: RosterSettings, drafted: readonly { position: string }[]) {
-  const counts = { QB: 0, RB: 0, WR: 0, TE: 0 };
-  for (const player of drafted) {
-    if (player.position in counts) counts[player.position as keyof typeof counts] += 1;
-  }
-
-  const flexUsed = (["RB", "WR", "TE"] as const).reduce(
-    (used, position) => used + Math.max(0, counts[position] - roster[position]),
-    0,
-  );
-
-  return {
-    QB: Math.max(0, roster.QB - counts.QB),
-    RB: Math.max(0, roster.RB - counts.RB),
-    WR: Math.max(0, roster.WR - counts.WR),
-    TE: Math.max(0, roster.TE - counts.TE),
-    FLEX: Math.max(0, roster.FLEX - flexUsed),
-  };
 }
 
 /**
@@ -560,6 +533,44 @@ router.get("/draft/summary", async (_req, res, next) => {
         snapshotVersion: version,
       }),
     );
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/draft/recommendations", async (_req, res, next) => {
+  try {
+    const players = await enrichedPlayers();
+    const [picks, keepers, settings] = await Promise.all([
+      reconcilePicks(players),
+      reconcileKeepers(players),
+      store.leagueSettings.read(),
+    ]);
+    const myKeepers = keepers.filter((keeper) => keeper.owner === "me");
+
+    // My roster's positions and byes, for needs and bye-overlap checks.
+    const byId = new Map(players.map((player) => [player.id, player]));
+    const myRoster = [...myKeepers, ...picks].map((entry) => ({
+      position: entry.position,
+      byeWeek: byId.get(entry.playerId)?.byeWeek ?? null,
+    }));
+
+    const unavailableIds = new Set([
+      ...picks.map((pick) => pick.playerId),
+      ...keepers.map((keeper) => keeper.playerId),
+    ]);
+
+    const suggestions = recommend({
+      players,
+      unavailableIds,
+      myRoster,
+      roster: settings.roster,
+      myNextPicks: myRemainingPicks(settings, myKeepers, picks.length).map(
+        (slot) => slot.overall,
+      ),
+    });
+
+    res.json(GetRecommendationsResponse.parse(suggestions));
   } catch (error) {
     next(error);
   }

@@ -4,6 +4,7 @@ import { Loader2, Lock, Search, X } from "lucide-react";
 import {
   getGetDraftSummaryQueryKey,
   getGetKeepersQueryKey,
+  getGetRecommendationsQueryKey,
   useDeleteKeeper,
   useGetKeepers,
   useGetPlayers,
@@ -92,6 +93,7 @@ export default function KeepersPage() {
   const refreshKeepers = () => {
     void client.invalidateQueries({ queryKey: getGetKeepersQueryKey() });
     void client.invalidateQueries({ queryKey: getGetDraftSummaryQueryKey() });
+    void client.invalidateQueries({ queryKey: getGetRecommendationsQueryKey() });
   };
 
   const addKeeper = () => {

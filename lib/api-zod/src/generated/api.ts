@@ -210,6 +210,34 @@ export const GetDraftSummaryResponse = zod.object({
 
 
 /**
+ * Ranked suggestions for the user's next pick, derived server-side from
+ * the full draft state: consensus ADP vs their actual remaining snake
+ * picks, roster needs net of keepers, market value, tier scarcity,
+ * projections, injuries and bye overlaps. Each suggestion carries its
+ * reasons. Empty when the roster is full.
+ * @summary Suggested next picks
+ */
+export const GetRecommendationsResponseItem = zod.object({
+  "playerId": zod.string(),
+  "name": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "score": zod.number(),
+  "reasons": zod.array(zod.string()),
+  "components": zod.object({
+  "availability": zod.number(),
+  "need": zod.number(),
+  "value": zod.number(),
+  "scarcity": zod.number(),
+  "projection": zod.number(),
+  "injury": zod.number(),
+  "bye": zod.number()
+})
+}).describe('One suggested pick. `score` is a weighted blend of the components —\nuseful for ordering, not a rating to display on its own. `reasons`\nare the argument, in plain language.\n')
+export const GetRecommendationsResponse = zod.array(GetRecommendationsResponseItem)
+
+
+/**
  * @summary List drafted players
  */
 export const GetDraftPicksResponseItem = zod.object({

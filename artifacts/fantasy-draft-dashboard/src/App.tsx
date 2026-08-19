@@ -27,6 +27,7 @@ import type { DraftPick, DraftSummary, LiveStatus, NewsItem, OLImpactAnalysis, R
 import { isUnavailableStatus } from "@workspace/shared";
 import { AdpSources } from "@/components/adp-sources";
 import { SettingsDialog } from "@/components/settings-dialog";
+import { SuggestedPicks } from "@/components/suggested-picks";
 import { useDraftBoard, usePlayerNote } from "@/hooks/use-draft-state";
 import { NO_DATA, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
 import KeepersPage from "@/pages/keepers";
@@ -245,11 +246,6 @@ function LiveIndicator({ live }: { live?: LiveStatus }) {
   return <span title={failed.length ? `Failing: ${failed.map((source) => `${source.name} (${source.detail})`).join(", ")}` : `${live.sources.length} sources OK`} className={`mono rounded-lg px-2.5 py-2 text-[10px] font-medium shadow-sm ${live.stale ? "bg-accent/15 text-accent-foreground" : "bg-card"}`} data-testid="status-live">{live.stale ? `cached · ${formatTime(live.fetchedAt)}` : formatTime(live.fetchedAt)}</span>;
 }
 
-function MarketArbitrage({ players, draftedIds, keeperIds, onInspect }: { players: Player[]; draftedIds: string[]; keeperIds: ReadonlySet<string>; onInspect: (player: Player) => void }) {
-  const targets = [...players].filter((player) => !draftedIds.includes(player.id) && !keeperIds.has(player.id)).sort((a, b) => (bestAdp(b) - b.rank) - (bestAdp(a) - a.rank)).slice(0, 4);
-  return <Surface><div className="border-b border-border px-4 py-4"><div className="flex items-center justify-between"><div><Kicker>Market dislocation</Kicker><h2 className="mt-1 text-sm font-bold">Arbitrage board</h2></div><TrendingUp size={16} className="text-primary" /></div><p className="mt-1 text-[10px] text-muted-foreground">ADP lagging the room model.</p></div><div className="p-2">{targets.length === 0 ? <EmptyState label="Draft a few names to reveal the next price errors." /> : targets.map((player) => <button type="button" key={player.id} onClick={() => onInspect(player)} data-testid={`button-arbitrage-${player.id}`} className="group flex w-full items-center gap-3 rounded-xl px-2.5 py-3 text-left hover:bg-muted"><span className="mono w-7 text-[10px] text-muted-foreground">#{player.rank}</span><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-[9px] font-bold text-primary">{initials(player.name)}</span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] font-bold group-hover:text-primary">{player.name}</span><span className="mono text-[9px] text-muted-foreground">{player.position} / ADP {bestAdp(player).toFixed(1)}</span></span><span className="mono text-[11px] font-medium text-primary">+{(bestAdp(player) - player.rank).toFixed(1)}</span></button>)}</div></Surface>;
-}
-
 function DraftBoard({ draftedPlayers, summary, onUndraft, pendingId }: { draftedPlayers: { pick: DraftPick; player?: Player }[]; summary?: DraftSummary; onUndraft: (playerId: string) => void; pendingId: string | null }) {
   const drafted = draftedPlayers.slice(0, 6);
   const draftedIds = draftedPlayers.map((entry) => entry.pick.playerId);
@@ -287,7 +283,7 @@ function HomePage() {
           <div className="flex items-center justify-between border-t border-border px-4 py-3"><span className="mono text-[9px] text-muted-foreground">Showing {filteredPlayers.length} / {summary?.playersTracked ?? players.length} · model v26.04</span><span className="flex items-center gap-1 text-[10px] text-muted-foreground"><SlidersHorizontal size={12} /> sort by column</span></div>
         </Surface>
       </div>
-      <div className="space-y-6"><div className="enter enter-3"><MarketArbitrage players={players} draftedIds={draftedIds} keeperIds={keeperIds} onInspect={(player) => setLocation(`/players/${player.id}`)} /></div><div className="enter enter-3"><DraftBoard draftedPlayers={board.draftedPlayers} summary={summary} onUndraft={board.undraftPlayer} pendingId={pendingId} /></div><div className="enter enter-3"><NewsRail news={news} players={players} live={live} /></div></div>
+      <div className="space-y-6"><div className="enter enter-3"><SuggestedPicks onInspect={(playerId) => setLocation(`/players/${playerId}`)} /></div><div className="enter enter-3"><DraftBoard draftedPlayers={board.draftedPlayers} summary={summary} onUndraft={board.undraftPlayer} pendingId={pendingId} /></div><div className="enter enter-3"><NewsRail news={news} players={players} live={live} /></div></div>
     </div>
     {board.isUnavailable && <div className="fixed bottom-5 right-5 z-30 rounded-xl border border-destructive/30 bg-card px-4 py-3 text-xs shadow-lg" data-testid="status-board-unavailable">Could not read your saved board. It is still on disk — reconnect before drafting.</div>}
     {board.saveFailed && !board.isUnavailable && <div className="fixed bottom-5 right-5 z-30 rounded-xl border border-destructive/30 bg-card px-4 py-3 text-xs shadow-lg" data-testid="status-draft-error">That change was not written to disk. Retry before relying on the board.</div>}

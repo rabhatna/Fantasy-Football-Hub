@@ -34,6 +34,7 @@ import type {
   Player,
   PlayerNote,
   PlayerNoteInput,
+  Recommendation,
   RefreshStatus,
   Team
 } from './api.schemas';
@@ -523,6 +524,88 @@ export function useGetDraftSummary<TData = Awaited<ReturnType<typeof getDraftSum
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetDraftSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetRecommendationsUrl = () => {
+
+
+
+
+  return `/api/draft/recommendations`
+}
+
+/**
+ * Ranked suggestions for the user's next pick, derived server-side from
+ * the full draft state: consensus ADP vs their actual remaining snake
+ * picks, roster needs net of keepers, market value, tier scarcity,
+ * projections, injuries and bye overlaps. Each suggestion carries its
+ * reasons. Empty when the roster is full.
+ * @summary Suggested next picks
+ */
+export const getRecommendations = async ( options?: Parameters<typeof customFetch>[1]): Promise<Recommendation[]> => {
+
+  return customFetch<Recommendation[]>(getGetRecommendationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRecommendationsQueryKey = () => {
+    return [
+    `/api/draft/recommendations`
+    ] as const;
+    }
+
+
+export const getGetRecommendationsQueryOptions = <TData = Awaited<ReturnType<typeof getRecommendations>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecommendations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRecommendationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRecommendations>>> = ({ signal }) => getRecommendations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRecommendations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRecommendationsQueryResult = NonNullable<Awaited<ReturnType<typeof getRecommendations>>>
+export type GetRecommendationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Suggested next picks
+ */
+
+export function useGetRecommendations<TData = Awaited<ReturnType<typeof getRecommendations>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRecommendations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRecommendationsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

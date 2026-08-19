@@ -36,6 +36,8 @@ export * from './playerNextGen';
 export * from './playerNote';
 export * from './playerNoteInput';
 export * from './rBOLImpact';
+export * from './recommendation';
+export * from './recommendationComponents';
 export * from './refreshStatus';
 export * from './sourceResult';
 export * from './team';

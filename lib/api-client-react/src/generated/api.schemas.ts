@@ -373,6 +373,31 @@ export interface DraftPick {
   draftedAt: string;
 }
 
+export type RecommendationComponents = {
+  availability: number;
+  need: number;
+  value: number;
+  scarcity: number;
+  projection: number;
+  injury: number;
+  bye: number;
+};
+
+/**
+ * One suggested pick. `score` is a weighted blend of the components —
+ * useful for ordering, not a rating to display on its own. `reasons`
+ * are the argument, in plain language.
+ */
+export interface Recommendation {
+  playerId: string;
+  name: string;
+  team: string;
+  position: string;
+  score: number;
+  reasons: string[];
+  components: RecommendationComponents;
+}
+
 /**
  * Whose team keeps the player. "other" only removes him from the pool.
  */
