@@ -387,6 +387,11 @@ export interface LeagueSettings {
   draftSlot: number;
   /** @minimum 1 */
   auctionBudget: number;
+  /**
+     * Rounds the user has no pick in (traded away); removed from the remaining-picks math.
+     * @items.minimum 1
+     */
+  missingRounds: number[];
   /** Starting spots per position, plus bench depth. */
   roster: LeagueSettingsRoster;
 }
@@ -416,6 +421,60 @@ export interface DraftPick {
   position: string;
   pickNumber: number;
   draftedAt: string;
+}
+
+export interface KeeperImportInput {
+  /** The sheet's contents as CSV text. */
+  csv: string;
+  /** When true, existing keepers are cleared before the import. Default false (merge). */
+  replace?: boolean;
+}
+
+export type KeeperImportResultSkippedItem = {
+  line: number;
+  reason: string;
+};
+
+export type KeeperOwner = typeof KeeperOwner[keyof typeof KeeperOwner];
+
+
+export const KeeperOwner = {
+  me: 'me',
+  other: 'other',
+} as const;
+
+export type KeeperCostType = typeof KeeperCostType[keyof typeof KeeperCostType];
+
+
+export const KeeperCostType = {
+  round: 'round',
+  dollars: 'dollars',
+} as const;
+
+/**
+ * playerName, team and position are denormalised for the same reason as
+ * draft picks — playerId can change across dataset refreshes, and the
+ * CSV should read cleanly in a spreadsheet.
+ */
+export interface Keeper {
+  id: string;
+  playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
+  owner: KeeperOwner;
+  /** The league team keeping him; empty when it is the user's own keeper. */
+  ownerName: string;
+  costType: KeeperCostType;
+  costValue: number;
+  createdAt: string;
+}
+
+export interface KeeperImportResult {
+  imported: number;
+  /** Rows that could not be imported, with the 1-based CSV line and why. */
+  skipped: KeeperImportResultSkippedItem[];
+  keepers: Keeper[];
 }
 
 export type RecommendationComponents = {
@@ -466,45 +525,14 @@ export interface KeeperInput {
   playerId: string;
   /** Whose team keeps the player. "other" only removes him from the pool. */
   owner: KeeperInputOwner;
+  /** The league team's name, for grouping keepers by team. Ignored when owner is "me". */
+  ownerName?: string;
   costType: KeeperInputCostType;
   /**
      * The round the keeper consumes (snake) or the dollars he costs (auction).
      * @minimum 0
      */
   costValue: number;
-}
-
-export type KeeperOwner = typeof KeeperOwner[keyof typeof KeeperOwner];
-
-
-export const KeeperOwner = {
-  me: 'me',
-  other: 'other',
-} as const;
-
-export type KeeperCostType = typeof KeeperCostType[keyof typeof KeeperCostType];
-
-
-export const KeeperCostType = {
-  round: 'round',
-  dollars: 'dollars',
-} as const;
-
-/**
- * playerName, team and position are denormalised for the same reason as
- * draft picks — playerId can change across dataset refreshes, and the
- * CSV should read cleanly in a spreadsheet.
- */
-export interface Keeper {
-  id: string;
-  playerId: string;
-  playerName: string;
-  team: string;
-  position: string;
-  owner: KeeperOwner;
-  costType: KeeperCostType;
-  costValue: number;
-  createdAt: string;
 }
 
 export interface PlayerNoteInput {

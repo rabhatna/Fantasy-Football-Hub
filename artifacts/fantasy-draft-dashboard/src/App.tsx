@@ -31,7 +31,7 @@ import { SuggestedPicks } from "@/components/suggested-picks";
 import { TeamLineFive } from "@/components/team-line";
 import { useDraftBoard, usePlayerNote } from "@/hooks/use-draft-state";
 import { NO_DATA, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
-import KeepersPage from "@/pages/keepers";
+import LeaguePage from "@/pages/league";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -140,7 +140,7 @@ function Shell({ children }: { children: ReactNode }) {
 
   const links = [
     { href: "/", label: "Draft room", icon: Command, detail: "Rankings + board" },
-    { href: "/keepers", label: "Keepers", icon: Users, detail: "Pre-draft roster" },
+    { href: "/league", label: "League", icon: Users, detail: "Rules, picks + keepers" },
     { href: "/ol-center", label: "O-Line center", icon: Activity, detail: "Team lines + skill impact" },
     { href: "/news", label: "Signal feed", icon: Newspaper, detail: "Injury + market" },
   ];
@@ -876,7 +876,7 @@ function ActivityIcon() {
 
 function Router() {
   const [location, setLocation] = useLocation();
-  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/keepers" component={KeepersPage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
+  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/league" component={LeaguePage} /><Route path="/keepers" component={LeaguePage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
 }
 
 function App() {

@@ -12,6 +12,8 @@ export interface KeeperInput {
   playerId: string;
   /** Whose team keeps the player. "other" only removes him from the pool. */
   owner: KeeperInputOwner;
+  /** The league team's name, for grouping keepers by team. Ignored when owner is "me". */
+  ownerName?: string;
   costType: KeeperInputCostType;
   /**
      * The round the keeper consumes (snake) or the dollars he costs (auction).

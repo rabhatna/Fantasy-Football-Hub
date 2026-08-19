@@ -26,6 +26,8 @@ import type {
   GetPlayersParams,
   HealthStatus,
   Keeper,
+  KeeperImportInput,
+  KeeperImportResult,
   KeeperInput,
   LeagueSettings,
   LiveStatus,
@@ -1066,6 +1068,82 @@ export const useSaveKeeper = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getSaveKeeperMutationOptions(options));
+    }
+
+export const getImportKeepersUrl = () => {
+
+
+
+
+  return `/api/keepers/import`
+}
+
+/**
+ * Bulk-loads keepers from CSV text with a `player,team,owner,round,dollars`
+ * header. `owner` is "me" for the user's own keepers or the league team's
+ * name; `team` disambiguates duplicate player names and may be blank;
+ * exactly one of `round`/`dollars` should carry the cost. Rows that do
+ * not match a ranked player are reported back, not silently dropped.
+ * @summary Import keepers from a CSV sheet
+ */
+export const importKeepers = async (keeperImportInput: KeeperImportInput, options?: Parameters<typeof customFetch>[1]): Promise<KeeperImportResult> => {
+
+  return customFetch<KeeperImportResult>(getImportKeepersUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(keeperImportInput)
+  }
+);}
+
+
+
+
+
+export const getImportKeepersMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importKeepers>>, TError,{data: BodyType<KeeperImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importKeepers>>, TError,{data: BodyType<KeeperImportInput>}, TContext> => {
+
+const mutationKey = ['importKeepers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importKeepers>>, {data: BodyType<KeeperImportInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importKeepers(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportKeepersMutationResult = NonNullable<Awaited<ReturnType<typeof importKeepers>>>
+    export type ImportKeepersMutationBody = BodyType<KeeperImportInput>
+    export type ImportKeepersMutationError = ErrorType<void>
+
+    /**
+ * @summary Import keepers from a CSV sheet
+ */
+export const useImportKeepers = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importKeepers>>, TError,{data: BodyType<KeeperImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importKeepers>>,
+        TError,
+        {data: BodyType<KeeperImportInput>},
+        TContext
+      > => {
+      return useMutation(getImportKeepersMutationOptions(options));
     }
 
 export const getDeleteKeeperUrl = (id: string,) => {

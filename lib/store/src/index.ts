@@ -48,6 +48,8 @@ export interface KeeperRecord {
   team: string;
   position: string;
   owner: "me" | "other";
+  /** The league team keeping him — a display label; "" when it is the user's. */
+  ownerName: string;
   costType: "round" | "dollars";
   costValue: number;
   createdAt: string;
@@ -103,6 +105,7 @@ const keeperSchema: TableSchema<KeeperRecord> = {
     "team",
     "position",
     "owner",
+    "owner_name",
     "cost_type",
     "cost_value",
     "created_at",
@@ -114,6 +117,7 @@ const keeperSchema: TableSchema<KeeperRecord> = {
     team: record.team,
     position: record.position,
     owner: record.owner,
+    owner_name: record.ownerName,
     cost_type: record.costType,
     cost_value: String(record.costValue),
     created_at: record.createdAt,
@@ -131,6 +135,7 @@ const keeperSchema: TableSchema<KeeperRecord> = {
       team: row["team"] ?? "",
       position: row["position"] ?? "",
       owner: row["owner"] === "other" ? "other" : "me",
+      ownerName: row["owner_name"] ?? "",
       costType: row["cost_type"] === "dollars" ? "dollars" : "round",
       costValue: Number.isFinite(costValue) ? costValue : 0,
       createdAt: row["created_at"] ?? "",

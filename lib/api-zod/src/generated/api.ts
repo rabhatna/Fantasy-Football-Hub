@@ -324,6 +324,7 @@ export const GetKeepersResponseItem = zod.object({
   "team": zod.string(),
   "position": zod.string(),
   "owner": zod.enum(['me', 'other']),
+  "ownerName": zod.string().describe('The league team keeping him; empty when it is the user\'s own keeper.'),
   "costType": zod.enum(['round', 'dollars']),
   "costValue": zod.number(),
   "createdAt": zod.string()
@@ -341,6 +342,7 @@ export const saveKeeperBodyCostValueMin = 0;
 export const SaveKeeperBody = zod.object({
   "playerId": zod.string(),
   "owner": zod.enum(['me', 'other']).describe('Whose team keeps the player. \"other\" only removes him from the pool.'),
+  "ownerName": zod.string().optional().describe('The league team\'s name, for grouping keepers by team. Ignored when owner is \"me\".'),
   "costType": zod.enum(['round', 'dollars']),
   "costValue": zod.number().min(saveKeeperBodyCostValueMin).describe('The round the keeper consumes (snake) or the dollars he costs (auction).')
 })
@@ -352,10 +354,45 @@ export const SaveKeeperResponse = zod.object({
   "team": zod.string(),
   "position": zod.string(),
   "owner": zod.enum(['me', 'other']),
+  "ownerName": zod.string().describe('The league team keeping him; empty when it is the user\'s own keeper.'),
   "costType": zod.enum(['round', 'dollars']),
   "costValue": zod.number(),
   "createdAt": zod.string()
 }).describe('playerName, team and position are denormalised for the same reason as\ndraft picks — playerId can change across dataset refreshes, and the\nCSV should read cleanly in a spreadsheet.\n')
+
+
+/**
+ * Bulk-loads keepers from CSV text with a `player,team,owner,round,dollars`
+ * header. `owner` is "me" for the user's own keepers or the league team's
+ * name; `team` disambiguates duplicate player names and may be blank;
+ * exactly one of `round`/`dollars` should carry the cost. Rows that do
+ * not match a ranked player are reported back, not silently dropped.
+ * @summary Import keepers from a CSV sheet
+ */
+export const ImportKeepersBody = zod.object({
+  "csv": zod.string().describe('The sheet\'s contents as CSV text.'),
+  "replace": zod.boolean().optional().describe('When true, existing keepers are cleared before the import. Default false (merge).')
+})
+
+export const ImportKeepersResponse = zod.object({
+  "imported": zod.number(),
+  "skipped": zod.array(zod.object({
+  "line": zod.number(),
+  "reason": zod.string()
+})).describe('Rows that could not be imported, with the 1-based CSV line and why.'),
+  "keepers": zod.array(zod.object({
+  "id": zod.string(),
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "owner": zod.enum(['me', 'other']),
+  "ownerName": zod.string().describe('The league team keeping him; empty when it is the user\'s own keeper.'),
+  "costType": zod.enum(['round', 'dollars']),
+  "costValue": zod.number(),
+  "createdAt": zod.string()
+}).describe('playerName, team and position are denormalised for the same reason as\ndraft picks — playerId can change across dataset refreshes, and the\nCSV should read cleanly in a spreadsheet.\n'))
+})
 
 
 /**
@@ -409,6 +446,7 @@ export const getSettingsResponseTeamCountMax = 20;
 export const getSettingsResponseDraftSlotMax = 20;
 
 
+
 export const getSettingsResponseRosterQBMin = 0;
 
 export const getSettingsResponseRosterRBMin = 0;
@@ -433,6 +471,7 @@ export const GetSettingsResponse = zod.object({
   "draftType": zod.enum(['snake', 'auction']),
   "draftSlot": zod.number().min(1).max(getSettingsResponseDraftSlotMax).describe('The user\'s position in the draft order, 1..teamCount.'),
   "auctionBudget": zod.number().min(1),
+  "missingRounds": zod.array(zod.number().min(1)).describe('Rounds the user has no pick in (traded away); removed from the remaining-picks math.'),
   "roster": zod.object({
   "QB": zod.number().min(getSettingsResponseRosterQBMin),
   "RB": zod.number().min(getSettingsResponseRosterRBMin),
@@ -454,6 +493,7 @@ export const updateSettingsBodyTeamCountMin = 4;
 export const updateSettingsBodyTeamCountMax = 20;
 
 export const updateSettingsBodyDraftSlotMax = 20;
+
 
 
 export const updateSettingsBodyRosterQBMin = 0;
@@ -480,6 +520,7 @@ export const UpdateSettingsBody = zod.object({
   "draftType": zod.enum(['snake', 'auction']),
   "draftSlot": zod.number().min(1).max(updateSettingsBodyDraftSlotMax).describe('The user\'s position in the draft order, 1..teamCount.'),
   "auctionBudget": zod.number().min(1),
+  "missingRounds": zod.array(zod.number().min(1)).describe('Rounds the user has no pick in (traded away); removed from the remaining-picks math.'),
   "roster": zod.object({
   "QB": zod.number().min(updateSettingsBodyRosterQBMin),
   "RB": zod.number().min(updateSettingsBodyRosterRBMin),
@@ -496,6 +537,7 @@ export const updateSettingsResponseTeamCountMin = 4;
 export const updateSettingsResponseTeamCountMax = 20;
 
 export const updateSettingsResponseDraftSlotMax = 20;
+
 
 
 export const updateSettingsResponseRosterQBMin = 0;
@@ -522,6 +564,7 @@ export const UpdateSettingsResponse = zod.object({
   "draftType": zod.enum(['snake', 'auction']),
   "draftSlot": zod.number().min(1).max(updateSettingsResponseDraftSlotMax).describe('The user\'s position in the draft order, 1..teamCount.'),
   "auctionBudget": zod.number().min(1),
+  "missingRounds": zod.array(zod.number().min(1)).describe('Rounds the user has no pick in (traded away); removed from the remaining-picks math.'),
   "roster": zod.object({
   "QB": zod.number().min(updateSettingsResponseRosterQBMin),
   "RB": zod.number().min(updateSettingsResponseRosterRBMin),

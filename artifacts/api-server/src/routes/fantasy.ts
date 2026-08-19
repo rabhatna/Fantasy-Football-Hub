@@ -2,6 +2,7 @@ import path from "node:path";
 import { Router, type IRouter } from "express";
 import {
   createStore,
+  parseCsv,
   resolveDataDir,
   type DraftPickRecord,
   type KeeperRecord,
@@ -34,6 +35,8 @@ import {
   GetTeamLineParams,
   GetTeamLineResponse,
   GetTeamsResponse,
+  ImportKeepersBody,
+  ImportKeepersResponse,
   RefreshDataResponse,
   SaveDraftPickBody,
   SaveDraftPickResponse,
@@ -316,6 +319,7 @@ function myRemainingPicks(
     keeperRounds: myKeepers
       .filter((keeper) => keeper.costType === "round")
       .map((keeper) => keeper.costValue),
+    missingRounds: settings.missingRounds,
     picksMade,
   });
 }
@@ -760,6 +764,7 @@ router.post("/keepers", async (req, res, next) => {
       team: player.team,
       position: player.position,
       owner: body.data.owner,
+      ownerName: body.data.owner === "me" ? "" : (body.data.ownerName?.trim() ?? ""),
       costType: body.data.costType,
       costValue: body.data.costValue,
       createdAt: new Date().toISOString(),
@@ -767,6 +772,114 @@ router.post("/keepers", async (req, res, next) => {
 
     await store.keepers.append(keeper);
     res.status(201).json(SaveKeeperResponse.parse(keeper));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/keepers/import", async (req, res, next) => {
+  try {
+    const body = ImportKeepersBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "Invalid import request" });
+      return;
+    }
+
+    let rows: Record<string, string>[];
+    try {
+      rows = parseCsv(body.data.csv);
+    } catch {
+      res.status(400).json({ error: "The sheet could not be parsed as CSV" });
+      return;
+    }
+    if (rows.length === 0 || !("player" in rows[0]) || !("owner" in rows[0])) {
+      res.status(400).json({
+        error: "The sheet needs a header row with at least player and owner columns",
+      });
+      return;
+    }
+
+    const { players } = await snapshot();
+    const byName = new Map<string, DatasetPlayer[]>();
+    for (const player of players) {
+      const key = normalizeName(player.name);
+      const bucket = byName.get(key);
+      if (bucket) bucket.push(player);
+      else byName.set(key, [player]);
+    }
+
+    const existing = body.data.replace ? [] : await store.keepers.all();
+    const keptIds = new Set(existing.map((keeper) => keeper.playerId));
+    const additions: KeeperRecord[] = [];
+    const skipped: { line: number; reason: string }[] = [];
+    const now = new Date().toISOString();
+
+    rows.forEach((row, index) => {
+      const line = index + 2; // 1-based, after the header row
+      const name = row["player"]?.trim();
+      if (!name) {
+        skipped.push({ line, reason: "no player name" });
+        return;
+      }
+
+      const candidates = byName.get(normalizeName(name)) ?? [];
+      const sheetTeam = row["team"]?.trim().toUpperCase();
+      const player =
+        candidates.length === 1
+          ? candidates[0]
+          : candidates.find((candidate) => candidate.team === sheetTeam);
+      if (!player) {
+        skipped.push({
+          line,
+          reason:
+            candidates.length > 1
+              ? `"${name}" matches several ranked players — add his team to the team column`
+              : `"${name}" is not in the ranked 250`,
+        });
+        return;
+      }
+      if (keptIds.has(player.id)) {
+        skipped.push({ line, reason: `${player.name} is already kept` });
+        return;
+      }
+
+      const ownerRaw = row["owner"]?.trim() ?? "";
+      const isMine = ["me", "mine", "myself", "my team"].includes(ownerRaw.toLowerCase());
+      const dollars = row["dollars"]?.trim();
+      const round = row["round"]?.trim();
+      const costType = dollars ? ("dollars" as const) : ("round" as const);
+      const costValue = Number(dollars || round);
+      if (!Number.isFinite(costValue) || costValue < (costType === "round" ? 1 : 0)) {
+        skipped.push({ line, reason: `${player.name} has no usable round or dollars value` });
+        return;
+      }
+
+      keptIds.add(player.id);
+      additions.push({
+        id: `keeper-${player.id}`,
+        playerId: player.id,
+        playerName: player.name,
+        team: player.team,
+        position: player.position,
+        owner: isMine ? "me" : "other",
+        ownerName: isMine ? "" : ownerRaw,
+        costType,
+        costValue,
+        createdAt: now,
+      });
+    });
+
+    const keepers = await store.keepers.update((records) => {
+      const base = body.data.replace ? [] : records;
+      const next = [...base, ...additions];
+      return { next, result: next };
+    });
+
+    logger.info(
+      { imported: additions.length, skipped: skipped.length, replace: body.data.replace ?? false },
+      "Imported keepers from sheet",
+    );
+    res.json(ImportKeepersResponse.parse({ imported: additions.length, skipped, keepers }));
   } catch (error) {
     next(error);
   }

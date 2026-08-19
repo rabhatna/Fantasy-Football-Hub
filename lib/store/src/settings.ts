@@ -22,6 +22,11 @@ export interface LeagueSettingsRecord {
   /** The user's draft position, 1..teamCount. */
   draftSlot: number;
   auctionBudget: number;
+  /**
+   * Rounds the user does not own a pick in (traded away). These disappear
+   * from the remaining-picks math the same way keeper-consumed rounds do.
+   */
+  missingRounds: number[];
   roster: RosterSettings;
 }
 
@@ -31,6 +36,7 @@ export const DEFAULT_LEAGUE_SETTINGS: LeagueSettingsRecord = {
   draftType: "snake",
   draftSlot: 6,
   auctionBudget: 200,
+  missingRounds: [],
   roster: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1, BENCH: 6 },
 };
 
@@ -80,12 +86,24 @@ export function sanitizeLeagueSettings(raw: unknown): LeagueSettingsRecord {
     BENCH: spotCount(rosterRaw["BENCH"], defaults.roster.BENCH),
   };
 
+  const missingRounds = Array.isArray(record["missingRounds"])
+    ? [
+        ...new Set(
+          record["missingRounds"].filter(
+            (value): value is number =>
+              typeof value === "number" && Number.isInteger(value) && value > 0,
+          ),
+        ),
+      ].sort((a, b) => a - b)
+    : [];
+
   return {
     teamCount,
     scoring,
     draftType,
     draftSlot: Math.min(positiveInt(record["draftSlot"], defaults.draftSlot), teamCount),
     auctionBudget: positiveInt(record["auctionBudget"], defaults.auctionBudget),
+    missingRounds,
     roster,
   };
 }

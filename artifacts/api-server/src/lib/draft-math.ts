@@ -11,6 +11,8 @@ export interface RemainingPicksInput {
   rounds: number;
   /** Rounds consumed by the user's round-cost keepers. */
   keeperRounds: readonly number[];
+  /** Rounds where the user traded the pick away and never had one. */
+  missingRounds?: readonly number[];
   /** Picks the user has already made; each consumes the earliest remaining slot. */
   picksMade: number;
 }
@@ -28,8 +30,8 @@ export function snakeOverall(round: number, teamCount: number, draftSlot: number
 
 /** The user's picks still to come, in draft order. */
 export function remainingPicks(input: RemainingPicksInput): DraftPickSlot[] {
-  const { teamCount, draftSlot, rounds, keeperRounds, picksMade } = input;
-  const consumed = new Set(keeperRounds);
+  const { teamCount, draftSlot, rounds, keeperRounds, missingRounds = [], picksMade } = input;
+  const consumed = new Set([...keeperRounds, ...missingRounds]);
 
   const slots: DraftPickSlot[] = [];
   for (let round = 1; round <= rounds; round++) {

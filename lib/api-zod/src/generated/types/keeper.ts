@@ -20,6 +20,8 @@ export interface Keeper {
   team: string;
   position: string;
   owner: KeeperOwner;
+  /** The league team keeping him; empty when it is the user's own keeper. */
+  ownerName: string;
   costType: KeeperCostType;
   costValue: number;
   createdAt: string;

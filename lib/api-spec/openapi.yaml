@@ -249,6 +249,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Keeper"
+  /keepers/import:
+    post:
+      operationId: importKeepers
+      tags: [draft]
+      summary: Import keepers from a CSV sheet
+      description: |
+        Bulk-loads keepers from CSV text with a `player,team,owner,round,dollars`
+        header. `owner` is "me" for the user's own keepers or the league team's
+        name; `team` disambiguates duplicate player names and may be blank;
+        exactly one of `round`/`dollars` should carry the cost. Rows that do
+        not match a ranked player are reported back, not silently dropped.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeeperImportInput"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeeperImportResult"
+        "400":
+          description: Unparseable CSV
   /keepers/{id}:
     delete:
       operationId: deleteKeeper
@@ -643,7 +669,7 @@ components:
         The league this draft board is for. One document, replaced whole; the
         server clamps and defaults rather than failing on partial garbage, but
         rejects settings that contradict themselves.
-      required: [teamCount, scoring, draftType, draftSlot, auctionBudget, roster]
+      required: [teamCount, scoring, draftType, draftSlot, auctionBudget, missingRounds, roster]
       properties:
         teamCount:
           type: number
@@ -663,6 +689,12 @@ components:
         auctionBudget:
           type: number
           minimum: 1
+        missingRounds:
+          type: array
+          description: Rounds the user has no pick in (traded away); removed from the remaining-picks math.
+          items:
+            type: number
+            minimum: 1
         roster:
           type: object
           description: Starting spots per position, plus bench depth.
@@ -704,6 +736,34 @@ components:
         position: { type: string }
         pickNumber: { type: number }
         draftedAt: { type: string }
+    KeeperImportInput:
+      type: object
+      required: [csv]
+      properties:
+        csv:
+          type: string
+          description: The sheet's contents as CSV text.
+        replace:
+          type: boolean
+          description: When true, existing keepers are cleared before the import. Default false (merge).
+    KeeperImportResult:
+      type: object
+      required: [imported, skipped, keepers]
+      properties:
+        imported: { type: number }
+        skipped:
+          type: array
+          description: Rows that could not be imported, with the 1-based CSV line and why.
+          items:
+            type: object
+            required: [line, reason]
+            properties:
+              line: { type: number }
+              reason: { type: string }
+        keepers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Keeper"
     Recommendation:
       type: object
       description: |
@@ -740,6 +800,9 @@ components:
           type: string
           enum: [me, other]
           description: Whose team keeps the player. "other" only removes him from the pool.
+        ownerName:
+          type: string
+          description: The league team's name, for grouping keepers by team. Ignored when owner is "me".
         costType:
           type: string
           enum: [round, dollars]
@@ -753,7 +816,7 @@ components:
         playerName, team and position are denormalised for the same reason as
         draft picks — playerId can change across dataset refreshes, and the
         CSV should read cleanly in a spreadsheet.
-      required: [id, playerId, playerName, team, position, owner, costType, costValue, createdAt]
+      required: [id, playerId, playerName, team, position, owner, ownerName, costType, costValue, createdAt]
       properties:
         id: { type: string }
         playerId: { type: string }
@@ -763,6 +826,9 @@ components:
         owner:
           type: string
           enum: [me, other]
+        ownerName:
+          type: string
+          description: The league team keeping him; empty when it is the user's own keeper.
         costType:
           type: string
           enum: [round, dollars]
