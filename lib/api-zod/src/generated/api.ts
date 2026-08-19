@@ -43,6 +43,7 @@ export const GetPlayersResponseItem = zod.object({
   "adp": zod.number()
 })).describe('Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.'),
   "valueScoreConsensus": zod.number().nullable().describe('The dataset\'s value score recomputed against consensus ADP instead\nof the single-source ADP column, on the same SD scale. Computed\nlocally, so it can differ slightly from the pipeline\'s number;\nnull until market data has been fetched.\n'),
+  "depthRank": zod.number().nullable().describe('The player\'s rank on his team\'s ESPN depth chart at his position\n(1 = starter; for receivers it is the overall WR pecking order).\nNull until depth charts have been fetched or when the chart does\nnot list him.\n'),
   "projectedPoints": zod.number().nullable().describe('Projected 2026 season total in the league\'s scoring format, from\nthe cached market sources. Null when no source projects the\nplayer — never a zero, which would read as \"projected to score\nnothing\".\n'),
   "aav": zod.number().nullable().describe('Average auction value in league dollars, from live ESPN drafts.\nNull before the first market refresh or for players the crowd is\nnot bidding on.\n'),
   "valueScore": zod.number().nullish().describe('Production-versus-price gap in standard deviations, roughly\nZ(2025 positional finish) - Z(2026 ADP). Positive means the player\nproduced better than his draft cost implies. Spans about -3 to\n+2.5 — this is not a 0-10 rating and must not be rendered as one.\n'),
@@ -101,6 +102,7 @@ export const GetPlayerResponse = zod.object({
   "adp": zod.number()
 })).describe('Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.'),
   "valueScoreConsensus": zod.number().nullable().describe('The dataset\'s value score recomputed against consensus ADP instead\nof the single-source ADP column, on the same SD scale. Computed\nlocally, so it can differ slightly from the pipeline\'s number;\nnull until market data has been fetched.\n'),
+  "depthRank": zod.number().nullable().describe('The player\'s rank on his team\'s ESPN depth chart at his position\n(1 = starter; for receivers it is the overall WR pecking order).\nNull until depth charts have been fetched or when the chart does\nnot list him.\n'),
   "projectedPoints": zod.number().nullable().describe('Projected 2026 season total in the league\'s scoring format, from\nthe cached market sources. Null when no source projects the\nplayer — never a zero, which would read as \"projected to score\nnothing\".\n'),
   "aav": zod.number().nullable().describe('Average auction value in league dollars, from live ESPN drafts.\nNull before the first market refresh or for players the crowd is\nnot bidding on.\n'),
   "valueScore": zod.number().nullish().describe('Production-versus-price gap in standard deviations, roughly\nZ(2025 positional finish) - Z(2026 ADP). Positive means the player\nproduced better than his draft cost implies. Spans about -3 to\n+2.5 — this is not a 0-10 rating and must not be rendered as one.\n'),
@@ -165,6 +167,31 @@ export const GetTeamsResponseItem = zod.object({
   "trend": zod.string()
 })
 export const GetTeamsResponse = zod.array(GetTeamsResponseItem)
+
+
+/**
+ * The starting five (and swing men) from the team's ESPN depth chart,
+ * read left to right, each with any injury designation and the most
+ * recent cached headline naming him. Empty until depth charts have been
+ * fetched.
+ * @summary A team's offensive line, with availability
+ */
+export const GetTeamLineParams = zod.object({
+  "team": zod.coerce.string()
+})
+
+export const GetTeamLineResponse = zod.object({
+  "team": zod.string(),
+  "linemen": zod.array(zod.object({
+  "slot": zod.string().describe('LT, LG, C, RG or RT.'),
+  "rank": zod.number().describe('1 = the starter at the slot, 2 = the swing man.'),
+  "name": zod.string(),
+  "injuryStatus": zod.string().nullable(),
+  "injuryBodyPart": zod.string().nullable(),
+  "headline": zod.string().nullable().describe('The most recent cached headline naming this lineman, if any.'),
+  "headlineUrl": zod.string().nullable()
+}))
+})
 
 
 /**

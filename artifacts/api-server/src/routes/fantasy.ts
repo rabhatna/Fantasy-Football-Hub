@@ -31,6 +31,8 @@ import {
   GetPlayersResponse,
   GetRecommendationsResponse,
   GetSettingsResponse,
+  GetTeamLineParams,
+  GetTeamLineResponse,
   GetTeamsResponse,
   RefreshDataResponse,
   SaveDraftPickBody,
@@ -45,9 +47,12 @@ import {
 } from "@workspace/api-zod";
 import {
   consensusAdp,
+  depthByPlayer,
   injuriesByPlayer,
   marketByPlayer,
   newsItems,
+  offensiveLine,
+  playersMentioned,
   readLiveCache,
   readLiveStatus,
   readMarketCache,
@@ -101,6 +106,7 @@ type ApiPlayer = DatasetPlayer & {
   adpConsensusStdev: number | null;
   adpSources: { source: string; adp: number }[];
   valueScoreConsensus: number | null;
+  depthRank: number | null;
   projectedPoints: number | null;
   aav: number | null;
 };
@@ -127,6 +133,7 @@ async function enrichedPlayers(): Promise<ApiPlayer[]> {
   ]);
   const injuries = cache ? injuriesByPlayer(cache, players) : new Map<string, PlayerInjury>();
   const marketData = marketByPlayer(marketCache, players);
+  const depthRanks = depthByPlayer(cache, players);
 
   const enriched: ApiPlayer[] = players.map((player) => {
     const injury = injuries.get(player.id);
@@ -168,6 +175,7 @@ async function enrichedPlayers(): Promise<ApiPlayer[]> {
       adpConsensusStdev: consensus.stdev === null ? null : Number(consensus.stdev.toFixed(1)),
       adpSources,
       valueScoreConsensus: null,
+      depthRank: depthRanks.get(player.id) ?? null,
       projectedPoints: projectedPoints === null ? null : Number(projectedPoints.toFixed(1)),
       aav: playerMarket?.aav ?? null,
     };
@@ -430,6 +438,55 @@ router.get("/teams", async (_req, res, next) => {
   try {
     const { teams } = await snapshot();
     res.json(GetTeamsResponse.parse(teams));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/teams/:team/line", async (req, res, next) => {
+  try {
+    const params = GetTeamLineParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid team" });
+      return;
+    }
+
+    const [{ teams }, cache] = await Promise.all([snapshot(), live()]);
+    const team = teams.find((candidate) => candidate.team === params.data.team.toUpperCase());
+    if (!team) {
+      res.status(404).json({ error: "Unknown team" });
+      return;
+    }
+
+    // The most recent cached headline naming each lineman. Linemen are turned
+    // into matchable shapes so the same full-name-only rule applies as for
+    // board players: no headline is better than the wrong one.
+    const line = offensiveLine(cache, team.team);
+    const matchable = line.map((man, index) => ({
+      id: String(index),
+      name: man.name,
+      team: team.team,
+      position: man.slot,
+    }));
+    const headlineFor = new Map<string, { title: string; link: string | null }>();
+    for (const headline of (cache?.headlines ?? []).slice(0, 60)) {
+      for (const mentioned of playersMentioned(headline.title, matchable)) {
+        if (!headlineFor.has(mentioned.id)) {
+          headlineFor.set(mentioned.id, { title: headline.title, link: headline.link });
+        }
+      }
+    }
+
+    res.json(
+      GetTeamLineResponse.parse({
+        team: team.team,
+        linemen: line.map((man, index) => ({
+          ...man,
+          headline: headlineFor.get(String(index))?.title ?? null,
+          headlineUrl: headlineFor.get(String(index))?.link ?? null,
+        })),
+      }),
+    );
   } catch (error) {
     next(error);
   }

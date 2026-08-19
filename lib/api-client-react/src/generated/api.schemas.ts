@@ -83,6 +83,14 @@ export interface Player {
      */
   valueScoreConsensus: number | null;
   /**
+     * The player's rank on his team's ESPN depth chart at his position
+     * (1 = starter; for receivers it is the overall WR pecking order).
+     * Null until depth charts have been fetched or when the chart does
+     * not list him.
+     * @nullable
+     */
+  depthRank: number | null;
+  /**
      * Projected 2026 season total in the league's scoring format, from
      * the cached market sources. Null when no source projects the
      * player — never a zero, which would read as "projected to score
@@ -206,6 +214,30 @@ export interface Team {
   compositeScore?: number | null;
   tier: string;
   trend: string;
+}
+
+export interface Lineman {
+  /** LT, LG, C, RG or RT. */
+  slot: string;
+  /** 1 = the starter at the slot, 2 = the swing man. */
+  rank: number;
+  name: string;
+  /** @nullable */
+  injuryStatus: string | null;
+  /** @nullable */
+  injuryBodyPart: string | null;
+  /**
+     * The most recent cached headline naming this lineman, if any.
+     * @nullable
+     */
+  headline: string | null;
+  /** @nullable */
+  headlineUrl: string | null;
+}
+
+export interface TeamLine {
+  team: string;
+  linemen: Lineman[];
 }
 
 /**

@@ -1,22 +1,29 @@
 import path from "node:path";
 import { readFileOrNull, writeFileAtomic } from "@workspace/store";
 import {
+  fetchDepthCharts,
   fetchFeed,
   fetchInjuries,
   NEWS_FEEDS,
+  OL_SLOTS,
+  type DepthChartRecord,
   type FetchOptions,
   type HeadlineRecord,
   type InjuryRecord,
 } from "./sources.ts";
-import { buildMatcher, playersMentioned, type MatchablePlayer } from "./match.ts";
+import { buildMatcher, normalizeName, playersMentioned, type MatchablePlayer } from "./match.ts";
 
 export { parseFeed, type FeedEntry } from "./rss.ts";
 export { buildMatcher, normalizeName, playersMentioned, type MatchablePlayer } from "./match.ts";
 export {
+  DEPTH_CHARTS_URL,
+  fetchDepthCharts,
   fetchFeed,
   fetchInjuries,
   NEWS_FEEDS,
+  OL_SLOTS,
   SLEEPER_PLAYERS_URL,
+  type DepthChartRecord,
   type HeadlineRecord,
   type InjuryRecord,
 } from "./sources.ts";
@@ -52,6 +59,8 @@ export interface LiveCache {
   fetchedAt: string;
   injuries: InjuryRecord[];
   headlines: HeadlineRecord[];
+  /** Absent in caches written before depth charts existed. */
+  depthCharts?: DepthChartRecord[];
 }
 
 export interface LiveStatus {
@@ -120,8 +129,12 @@ export async function refreshLive(
   const previous = await readLiveCache(dataDir);
   const sources: SourceResult[] = [];
 
-  const [injuryOutcome, ...feedOutcomes] = await Promise.all([
+  const [injuryOutcome, depthOutcome, ...feedOutcomes] = await Promise.all([
     fetchInjuries(options).then(
+      (records) => ({ ok: true as const, records }),
+      (error: unknown) => ({ ok: false as const, error }),
+    ),
+    fetchDepthCharts(options).then(
       (records) => ({ ok: true as const, records }),
       (error: unknown) => ({ ok: false as const, error }),
     ),
@@ -150,6 +163,23 @@ export async function refreshLive(
     });
   }
 
+  let depthCharts = previous?.depthCharts ?? [];
+  if (depthOutcome.ok) {
+    depthCharts = depthOutcome.records;
+    const teams = new Set(depthCharts.map((record) => record.team)).size;
+    sources.push({
+      name: "ESPN depth charts",
+      ok: true,
+      detail: `${depthCharts.length} entries across ${teams} teams (via nflverse)`,
+    });
+  } else {
+    sources.push({
+      name: "ESPN depth charts",
+      ok: false,
+      detail: describeError(depthOutcome.error),
+    });
+  }
+
   const headlines: HeadlineRecord[] = [];
   let anyFeedOk = false;
   for (const outcome of feedOutcomes) {
@@ -173,13 +203,14 @@ export async function refreshLive(
   // If every feed failed, keep the headlines already cached rather than
   // replacing a working feed with an empty one.
   const mergedHeadlines = anyFeedOk ? dedupeHeadlines(headlines) : (previous?.headlines ?? []);
-  const anythingArrived = injuryOutcome.ok || anyFeedOk;
+  const anythingArrived = injuryOutcome.ok || depthOutcome.ok || anyFeedOk;
 
   const cache: LiveCache | null = anythingArrived
     ? {
         fetchedAt: attemptedAt,
         injuries,
         headlines: mergedHeadlines,
+        depthCharts,
       }
     : previous;
 
@@ -271,6 +302,86 @@ export function injuriesByPlayer(
   }
 
   return result;
+}
+
+/**
+ * Map each ranked player to his depth-chart standing.
+ *
+ * Joins by gsis_id first (nflverse carries it for most), then by normalised
+ * name + team + matching slot. The slot must agree with the player's fantasy
+ * position so a name collision across positions cannot produce a rank.
+ */
+export function depthByPlayer(
+  cache: LiveCache | null,
+  players: readonly MatchablePlayer[],
+): Map<string, number> {
+  const result = new Map<string, number>();
+  const records = cache?.depthCharts;
+  if (!records || records.length === 0) return result;
+
+  const byGsis = new Map(records.filter((r) => r.gsisId).map((r) => [r.gsisId as string, r]));
+  const byNameTeam = new Map<string, DepthChartRecord[]>();
+  for (const record of records) {
+    const key = `${normalizeName(record.name)}|${record.team}`;
+    const bucket = byNameTeam.get(key);
+    if (bucket) bucket.push(record);
+    else byNameTeam.set(key, [record]);
+  }
+
+  for (const player of players) {
+    const record =
+      byGsis.get(player.id) ??
+      byNameTeam
+        .get(`${normalizeName(player.name)}|${player.team}`)
+        ?.find((candidate) => candidate.slot === player.position);
+    if (record && record.slot === player.position) result.set(player.id, record.rank);
+  }
+
+  return result;
+}
+
+export interface LinemanShape {
+  slot: string;
+  rank: number;
+  name: string;
+  injuryStatus: string | null;
+  injuryBodyPart: string | null;
+}
+
+/**
+ * A team's offensive line, read left to right, with availability merged from
+ * the injury feed. Depth 1 and 2 per slot — the starter and the swing man.
+ */
+export function offensiveLine(cache: LiveCache | null, team: string): LinemanShape[] {
+  const records = cache?.depthCharts;
+  if (!records) return [];
+
+  const injuriesByName = new Map<string, InjuryRecord>();
+  for (const record of cache?.injuries ?? []) {
+    if (record.position !== "OL" || record.team !== team) continue;
+    injuriesByName.set(normalizeName(record.name), record);
+  }
+
+  const line: LinemanShape[] = [];
+  for (const slot of OL_SLOTS) {
+    const slotRecords = records
+      .filter((record) => record.team === team && record.slot === slot && record.rank <= 2)
+      .sort((a, b) => a.rank - b.rank);
+    for (const record of slotRecords) {
+      const injury = injuriesByName.get(normalizeName(record.name));
+      line.push({
+        slot,
+        rank: record.rank,
+        name: record.name,
+        injuryStatus:
+          injury?.designation ??
+          (injury?.rosterStatus && injury.rosterStatus !== "Active" ? injury.rosterStatus : null),
+        injuryBodyPart: injury?.bodyPart ?? null,
+      });
+    }
+  }
+
+  return line;
 }
 
 export interface NewsItemShape {

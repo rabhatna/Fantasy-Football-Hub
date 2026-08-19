@@ -36,7 +36,8 @@ import type {
   PlayerNoteInput,
   Recommendation,
   RefreshStatus,
-  Team
+  Team,
+  TeamLine
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -370,6 +371,87 @@ export function useGetTeams<TData = Awaited<ReturnType<typeof getTeams>>, TError
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetTeamsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetTeamLineUrl = (team: string,) => {
+
+
+
+
+  return `/api/teams/${team}/line`
+}
+
+/**
+ * The starting five (and swing men) from the team's ESPN depth chart,
+ * read left to right, each with any injury designation and the most
+ * recent cached headline naming him. Empty until depth charts have been
+ * fetched.
+ * @summary A team's offensive line, with availability
+ */
+export const getTeamLine = async (team: string, options?: Parameters<typeof customFetch>[1]): Promise<TeamLine> => {
+
+  return customFetch<TeamLine>(getGetTeamLineUrl(team),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTeamLineQueryKey = (team: string,) => {
+    return [
+    `/api/teams/${team}/line`
+    ] as const;
+    }
+
+
+export const getGetTeamLineQueryOptions = <TData = Awaited<ReturnType<typeof getTeamLine>>, TError = ErrorType<void>>(team: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTeamLine>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTeamLineQueryKey(team);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTeamLine>>> = ({ signal }) => getTeamLine(team, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: team !== null && team !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTeamLine>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTeamLineQueryResult = NonNullable<Awaited<ReturnType<typeof getTeamLine>>>
+export type GetTeamLineQueryError = ErrorType<void>
+
+
+/**
+ * @summary A team's offensive line, with availability
+ */
+
+export function useGetTeamLine<TData = Awaited<ReturnType<typeof getTeamLine>>, TError = ErrorType<void>>(
+ team: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTeamLine>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTeamLineQueryOptions(team,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

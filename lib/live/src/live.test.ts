@@ -140,6 +140,12 @@ describe("refreshLive", () => {
     d: { full_name: "Some Lineman", position: "OT", team: "DET", status: "Active", gsis_id: null },
   });
 
+  const depthCsv = [
+    "dt,team,player_name,espn_id,gsis_id,pos_grp,pos_abb,pos_slot,pos_rank",
+    "2026-08-18T07:00:00Z,LAR,Puka Nacua,1,,Offense,WR,1,1",
+    "2026-08-18T07:00:00Z,DET,Some Lineman,2,,Offense,LT,1,1",
+  ].join("\n");
+
   function stubFetch(handlers: Record<string, () => Promise<Response> | Response>): typeof fetch {
     return (async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -157,6 +163,7 @@ describe("refreshLive", () => {
     const { cache, status } = await refreshLive(dir, {
       fetchImpl: stubFetch({
         "sleeper.app": () => ok(injuryPayload, "application/json"),
+        "nflverse-data": () => ok(depthCsv, "text/csv"),
         "espn.com": () => ok(RSS, "text/xml"),
         "cbssports.com": () => ok(RSS, "text/xml"),
         "nbcsports.com": () => ok(RSS, "text/xml"),
@@ -166,11 +173,14 @@ describe("refreshLive", () => {
 
     assert.ok(cache);
     assert.equal(status.stale, false);
-    assert.equal(status.sources.length, 5);
+    assert.equal(status.sources.length, 6);
     assert.ok(status.sources.every((source) => source.ok));
 
-    // Non-skill positions are dropped before they reach the cache.
+    // Linemen are kept (normalised to OL, for the O-Line center); everything
+    // else off the board is dropped before it reaches the cache.
+    assert.ok(cache!.injuries.some((record) => record.position === "OL"));
     assert.ok(!cache!.injuries.some((record) => record.position === "OT"));
+    assert.equal(cache!.depthCharts?.length, 2);
     // The same story from four feeds collapses to one headline.
     assert.equal(cache!.headlines.length, 2);
 
@@ -183,6 +193,7 @@ describe("refreshLive", () => {
     const { cache, status } = await refreshLive(dir, {
       fetchImpl: stubFetch({
         "sleeper.app": () => ok(injuryPayload, "application/json"),
+        "nflverse-data": () => ok(depthCsv, "text/csv"),
         "espn.com": () => ok(RSS, "text/xml"),
         "cbssports.com": () => new Response("nope", { status: 503, statusText: "Service Unavailable" }),
         "nbcsports.com": () => { throw new Error("network down"); },
@@ -203,6 +214,7 @@ describe("refreshLive", () => {
     const dir = await scratch();
     const good = stubFetch({
       "sleeper.app": () => ok(injuryPayload, "application/json"),
+      "nflverse-data": () => ok(depthCsv, "text/csv"),
       "espn.com": () => ok(RSS, "text/xml"),
       "cbssports.com": () => ok(RSS, "text/xml"),
       "nbcsports.com": () => ok(RSS, "text/xml"),

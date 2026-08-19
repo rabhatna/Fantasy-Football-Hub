@@ -101,6 +101,30 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Team"
+  /teams/{team}/line:
+    get:
+      operationId: getTeamLine
+      tags: [teams]
+      summary: A team's offensive line, with availability
+      description: |
+        The starting five (and swing men) from the team's ESPN depth chart,
+        read left to right, each with any injury designation and the most
+        recent cached headline naming him. Empty until depth charts have been
+        fetched.
+      parameters:
+        - name: team
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The line, LT through RT
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamLine"
+        "404":
+          description: Unknown team
   /news:
     get:
       operationId: getNews
@@ -371,7 +395,7 @@ components:
         separation and catch rate for receivers, rushing yards over expected
         and eight-plus-box rate for backs. Clients must render these as "no
         data", never as 0.
-      required: [id, rank, name, team, position, adp, adpConsensus, adpConsensusStdev, adpSources, valueScoreConsensus, projectedPoints, aav, tier, isRookie, nextGen, consistency]
+      required: [id, rank, name, team, position, adp, adpConsensus, adpConsensusStdev, adpSources, valueScoreConsensus, depthRank, projectedPoints, aav, tier, isRookie, nextGen, consistency]
       properties:
         id:
           type: string
@@ -408,6 +432,13 @@ components:
             of the single-source ADP column, on the same SD scale. Computed
             locally, so it can differ slightly from the pipeline's number;
             null until market data has been fetched.
+        depthRank:
+          type: [number, "null"]
+          description: |
+            The player's rank on his team's ESPN depth chart at his position
+            (1 = starter; for receivers it is the overall WR pecking order).
+            Null until depth charts have been fetched or when the chart does
+            not list him.
         projectedPoints:
           type: [number, "null"]
           description: |
@@ -506,6 +537,32 @@ components:
         compositeScore: { type: [number, "null"] }
         tier: { type: string }
         trend: { type: string }
+    Lineman:
+      type: object
+      required: [slot, rank, name, injuryStatus, injuryBodyPart, headline, headlineUrl]
+      properties:
+        slot:
+          type: string
+          description: LT, LG, C, RG or RT.
+        rank:
+          type: number
+          description: 1 = the starter at the slot, 2 = the swing man.
+        name: { type: string }
+        injuryStatus: { type: [string, "null"] }
+        injuryBodyPart: { type: [string, "null"] }
+        headline:
+          type: [string, "null"]
+          description: The most recent cached headline naming this lineman, if any.
+        headlineUrl: { type: [string, "null"] }
+    TeamLine:
+      type: object
+      required: [team, linemen]
+      properties:
+        team: { type: string }
+        linemen:
+          type: array
+          items:
+            $ref: "#/components/schemas/Lineman"
     NewsItem:
       type: object
       description: |

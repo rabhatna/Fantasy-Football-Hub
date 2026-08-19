@@ -52,6 +52,14 @@ export interface Player {
      */
   valueScoreConsensus: number | null;
   /**
+     * The player's rank on his team's ESPN depth chart at his position
+     * (1 = starter; for receivers it is the overall WR pecking order).
+     * Null until depth charts have been fetched or when the chart does
+     * not list him.
+     * @nullable
+     */
+  depthRank: number | null;
+  /**
      * Projected 2026 season total in the league's scoring format, from
      * the cached market sources. Null when no source projects the
      * player — never a zero, which would read as "projected to score
