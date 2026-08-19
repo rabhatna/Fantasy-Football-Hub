@@ -16,6 +16,13 @@ export interface DatasetTeam {
   pointsPerGame: number | null;
   playsPerGame: number | null;
   returningStarters: number | null;
+  projectedStarters: number | null;
+  olSnaps2025: number | null;
+  olSnapsReturning: number | null;
+  /** 0-100 health of the projected starting five. See olHealthScore(). */
+  olHealthScore: number | null;
+  /** Intact, Degraded, Critical, or Unknown. */
+  olHealthStatus: string;
   /** 0-100 composite of the line's run and pass blocking plus continuity. */
   compositeScore: number | null;
   tier: string;
@@ -65,6 +72,48 @@ function tierForScore(score: number | null): string {
 }
 
 /**
+ * Health of the line as continuity, not injury.
+ *
+ * The dataset carries no injury or beat reporting for offensive linemen — no
+ * roster, no game status, not even names — so there is nothing to build a true
+ * injury read from. What it does carry is how much of the unit actually
+ * returns: the share of 2025 line snaps coming back, and how many of the
+ * projected starting five started last season. A line missing two starters and
+ * half its snaps is the same analytical problem as an injured one, and this is
+ * the honest version of that signal.
+ *
+ * Snaps carry more weight than the starter count because five returning
+ * starters who barely played is a weaker unit than four who played every down.
+ */
+function olHealthScore(
+  continuity: number | null,
+  returningStarters: number | null,
+  projectedStarters: number | null,
+): number | null {
+  const startersReturning =
+    returningStarters === null || projectedStarters === null || projectedStarters <= 0
+      ? null
+      : normalize(returningStarters / projectedStarters, 0, 1);
+
+  return weightedAverage([
+    { value: continuity, weight: 0.6 },
+    { value: startersReturning, weight: 0.4 },
+  ]);
+}
+
+/**
+ * Bands for the health score. Degraded and Critical are what the O-Line centre
+ * counts as unit alerts, so the boundary matters: 80 is roughly a line with one
+ * starter turned over, 60 is two plus a meaningful share of its snaps.
+ */
+function olHealthStatus(score: number | null): string {
+  if (score === null) return "Unknown";
+  if (score >= 80) return "Intact";
+  if (score >= 60) return "Degraded";
+  return "Critical";
+}
+
+/**
  * Continuity is how much of the 2025 offensive line is back in 2026, so it
  * describes which direction the unit is heading rather than how good it is.
  */
@@ -98,6 +147,11 @@ export function toTeam(row: Row): DatasetTeam {
     { value: normalize(continuity, RANGES.continuity.min, RANGES.continuity.max), weight: 0.15 },
   ]);
 
+  const projectedStarters = number(row, "tm_proj_starters");
+  const returningStarters = number(row, "tm_returning_starters");
+  const continuityPct = percent(row, "tm_ol_continuity_pct");
+  const healthScore = olHealthScore(continuityPct, returningStarters, projectedStarters);
+
   const vacatedTargets = percent(row, "tm_vacated_target_pct");
   const vacatedCarries = percent(row, "tm_vacated_carry_pct");
   const vacatedOpportunity =
@@ -120,10 +174,15 @@ export function toTeam(row: Row): DatasetTeam {
     vacatedOpportunity,
     pointsPerGame: rounded(row, "tm_points_per_game", 1),
     playsPerGame: rounded(row, "tm_plays_per_game", 1),
-    returningStarters: number(row, "tm_returning_starters"),
+    returningStarters,
+    projectedStarters,
+    olSnaps2025: rounded(row, "tm_ol_snaps_2025", 0),
+    olSnapsReturning: rounded(row, "tm_ol_snaps_returning", 0),
+    olHealthScore: healthScore,
+    olHealthStatus: olHealthStatus(healthScore),
     compositeScore,
     tier: tierForScore(compositeScore),
-    trend: trendForContinuity(continuity, number(row, "tm_returning_starters")),
+    trend: trendForContinuity(continuity, returningStarters),
   };
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { Activity, ArrowDown, ArrowUp, BarChart3, Bell, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Command, ExternalLink, Filter, Flame, LayoutGrid, LineChart, ListFilter, Loader2, Menu, Moon, Newspaper, PanelRight, RefreshCw, Search, ShieldAlert, SlidersHorizontal, Sparkles, Sun, Target, TrendingDown, TrendingUp, Users, X, Zap } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, BarChart3, Bell, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Command, ExternalLink, Filter, Flame, LineChart, ListFilter, Loader2, Menu, Moon, Newspaper, PanelRight, RefreshCw, Search, ShieldAlert, SlidersHorizontal, Sparkles, Sun, Target, TrendingDown, TrendingUp, X, Zap } from "lucide-react";
 import { Link, Route, Switch, useLocation, useParams, Router as WouterRouter } from "wouter";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Toaster } from "@/components/ui/toaster";
@@ -22,7 +22,7 @@ import {
   useHealthCheck,
   useRefreshData,
 } from "@workspace/api-client-react";
-import type { DraftPick, DraftSummary, LiveStatus, NewsItem, OLImpactAnalysis, RBOLImpact, OLTeamScore, Player, Team } from "@workspace/api-client-react";
+import type { DraftPick, DraftSummary, LiveStatus, NewsItem, RBOLImpact, Player, Team } from "@workspace/api-client-react";
 import { useDraftBoard, usePlayerNote } from "@/hooks/use-draft-state";
 import { NO_DATA, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
 import NotFound from "@/pages/not-found";
@@ -133,8 +133,7 @@ function Shell({ children }: { children: ReactNode }) {
 
   const links = [
     { href: "/", label: "Draft room", icon: Command, detail: "Rankings + board" },
-    { href: "/teams", label: "Team context", icon: LayoutGrid, detail: "Line play matrix" },
-    { href: "/ol-impact", label: "OL Impact", icon: Activity, detail: "RB vs line analysis" },
+    { href: "/ol-center", label: "O-Line center", icon: Activity, detail: "Team lines + skill impact" },
     { href: "/news", label: "Signal feed", icon: Newspaper, detail: "Injury + market" },
   ];
 
@@ -459,7 +458,7 @@ function OLScatterPlot({ rbImpacts }: { rbImpacts: RBOLImpact[]; onSelect: (rb: 
   );
 }
 
-function OLImpactPage() {
+function RBImpactSection() {
   const { data, isLoading, isError, refetch } = useGetOLImpact({ query: { queryKey: getGetOLImpactQueryKey() } });
   const [, setLocation] = useLocation();
   const [filter, setFilter] = useState("All");
@@ -469,13 +468,14 @@ function OLImpactPage() {
   const filtered = filter === "All" ? rbImpacts : rbImpacts.filter((rb) => rb.impactLabel === filter);
 
   return (
-    <div className="mx-auto max-w-[1500px]">
-      <SectionHeading
-        eyebrow="OL Impact analysis"
-        title="Follow the blocks."
-        detail="Running backs plotted against their team's offensive line composite score — find the edges before the market does."
-        action={<Link href="/teams" data-testid="link-teams-from-ol" className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-[10px] font-semibold hover:border-primary/40 hover:text-primary"><LayoutGrid size={13} />Team matrix<ExternalLink size={11} /></Link>}
-      />
+    <div className="mt-8">
+      <div className="mb-5 flex items-end justify-between gap-4">
+        <div>
+          <Kicker>Skill impact</Kicker>
+          <h2 className="display mt-1.5 text-[22px] font-bold tracking-[-0.04em]">Which backs the line actually helps.</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Every RB plotted against his line's composite score — the edges the market has not priced yet.</p>
+        </div>
+      </div>
 
       {isLoading ? (
         <LoadingRows />
@@ -615,22 +615,191 @@ function OLImpactPage() {
   );
 }
 
-function TeamsPage() {
+/**
+ * Health bands for a line. Health is continuity — how much of the unit returns
+ * — not injury status: the 2026 snapshot carries no lineman roster or injury
+ * reporting at all, so grading it as injury would be inventing data. See
+ * olHealthScore() in lib/dataset/src/teams.ts.
+ */
+const olHealthTone = (status: string) => status === "Intact" ? "text-primary" : status === "Degraded" ? "text-accent-foreground" : status === "Critical" ? "text-destructive" : "text-muted-foreground";
+const isOLAlert = (status: string) => status === "Degraded" || status === "Critical";
+
+/** Continuity trend: Stable and Rising are good news, Watch cautions, Risk does not. */
+const trendTone = (trend: string) => trend === "Stable" || trend === "Rising" ? "text-primary" : trend === "Watch" ? "text-accent-foreground" : trend === "Risk" ? "text-destructive" : "text-muted-foreground";
+
+// Real ranges across the 32 teams. A flat "good is >= 65" only worked on the
+// old generated numbers — real adjusted line yards top out around 3.5.
+const OL_RANGE = { aly: { min: 2.2, max: 3.7 }, stuffRate: { min: 9, max: 27 }, grade: { min: 0, max: 100 } };
+
+const metricTone = (value: number | null | undefined, range: { min: number; max: number }, inverse = false) => {
+  if (!hasValue(value)) return "text-muted-foreground";
+  const position = inverse ? 100 - barWidth(value, range.min, range.max) : barWidth(value, range.min, range.max);
+  return position >= 65 ? "text-primary" : position < 35 ? "text-destructive" : "text-accent-foreground";
+};
+
+function TrendMark({ trend }: { trend: string }) {
+  return <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${trendTone(trend)}`} data-testid={`trend-${trend.toLowerCase()}`}>
+    {trend === "Rising" ? <ArrowUp size={12} /> : trend === "Risk" ? <ArrowDown size={12} /> : <span className="text-current">—</span>}{trend}
+  </span>;
+}
+
+function StatTile({ label, value, tone = "" }: { label: string; value: string; tone?: string }) {
+  return <div className="rounded-xl border border-border bg-card p-3"><Kicker>{label}</Kicker><span className={`mono mt-1 block text-[15px] font-medium ${tone}`}>{value}</span></div>;
+}
+
+function CompositeBar({ label, value, display, note }: { label: string; value: number | null | undefined; display: string; note?: string }) {
+  return <div className="rounded-xl border border-border bg-card p-4">
+    <div className="flex items-center justify-between"><Kicker>{label}</Kicker>{note && <span className="mono text-[9px] text-primary">{note}</span>}</div>
+    <div className="mt-3 flex items-center gap-3">
+      <div className="relative h-1.5 flex-1 rounded-full bg-muted">{hasValue(value) && <div className="absolute left-0 top-0 h-full rounded-full bg-primary" style={{ width: `${barWidth(value, OL_RANGE.grade.min, OL_RANGE.grade.max)}%` }} />}</div>
+      <span className={`mono shrink-0 text-[12px] font-medium ${hasValue(value) ? "" : "text-muted-foreground"}`}>{display}</span>
+    </div>
+  </div>;
+}
+
+/**
+ * The drill-in under a team row: the metrics behind the two composites, then
+ * what the line is actually made of.
+ */
+function TeamLineDetail({ team, rbs, onInspect }: { team: Team; rbs: RBOLImpact[]; onInspect: (playerId: string) => void }) {
+  const startersReturning = hasValue(team.returningStarters) && hasValue(team.projectedStarters) ? `${int(team.returningStarters)} / ${int(team.projectedStarters)}` : NO_DATA;
+  const snapsReturning = hasValue(team.olSnapsReturning) && hasValue(team.olSnaps2025) ? `${int(team.olSnapsReturning)} of ${int(team.olSnaps2025)}` : NO_DATA;
+
+  return <div className="border-b border-border/70 bg-muted/25 px-4 py-4 sm:px-5" data-testid={`detail-team-${team.team}`}>
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <StatTile label="ALY" value={num(team.aly, 2)} tone={metricTone(team.aly, OL_RANGE.aly)} />
+      <StatTile label="Stuff rate" value={pct(team.stuffRate)} tone={metricTone(team.stuffRate, OL_RANGE.stuffRate, true)} />
+      <StatTile label="Pass block" value={num(team.passBlockGrade)} tone={metricTone(team.passBlockGrade, OL_RANGE.grade)} />
+      <StatTile label="PROE" value={`${hasValue(team.proe) && team.proe > 0 ? "+" : ""}${pct(team.proe)}`} tone={!hasValue(team.proe) ? "text-muted-foreground" : team.proe >= 0 ? "text-primary" : "text-destructive"} />
+      <StatTile label="Snap cont." value={pct(team.snapContinuity)} />
+      <StatTile label="Vacated opp." value={pct(team.vacatedOpportunity)} />
+    </div>
+
+    <div className="mt-3 grid gap-2 lg:grid-cols-2">
+      <CompositeBar label="Run-block composite" value={team.runBlockGrade} display={num(team.runBlockGrade)} note={team.tier} />
+      <CompositeBar label="Pass-block composite" value={team.passBlockGrade} display={num(team.passBlockGrade)} />
+    </div>
+
+    <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-center justify-between"><Kicker>Line continuity</Kicker><span className={`mono text-[10px] font-semibold ${olHealthTone(team.olHealthStatus)}`}>{team.olHealthStatus}</span></div>
+        <div className="mt-3 grid grid-cols-3 gap-3">
+          <div><span className="mono block text-[9px] text-muted-foreground">STARTERS BACK</span><span className="mono mt-0.5 block text-[13px] font-medium">{startersReturning}</span></div>
+          <div><span className="mono block text-[9px] text-muted-foreground">SNAPS BACK</span><span className="mono mt-0.5 block text-[13px] font-medium">{snapsReturning}</span></div>
+          <div><span className="mono block text-[9px] text-muted-foreground">HEALTH</span><span className={`mono mt-0.5 block text-[13px] font-medium ${olHealthTone(team.olHealthStatus)}`}>{num(team.olHealthScore)}</span></div>
+        </div>
+        <p className="mt-3 text-[10px] leading-4 text-muted-foreground">The snapshot carries no per-lineman roster or injury reporting, so health grades how much of the unit returns — returning snaps weighted with returning starters — not who is on the report this week.</p>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <Kicker>Skill players attached</Kicker>
+        {rbs.length === 0 ? <p className="mt-3 text-[10px] leading-4 text-muted-foreground">No ranked back is attached to this front in the top 250.</p> : <div className="mt-2 divide-y divide-border/70">
+          {rbs.map((rb) => <button type="button" key={rb.playerId} onClick={() => onInspect(rb.playerId)} data-testid={`button-team-rb-${rb.playerId}`} className="group flex w-full items-center gap-2 py-2 text-left">
+            <span className="mono w-8 shrink-0 text-[10px] text-muted-foreground">#{rb.rank}</span>
+            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold group-hover:text-primary">{rb.playerName}</span>
+            <span className={`inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 mono text-[9px] font-medium ${IMPACT_COLORS[rb.impactLabel]?.badge ?? IMPACT_COLORS["Avoid"].badge}`}>{rb.impactLabel}</span>
+          </button>)}
+        </div>}
+      </div>
+    </div>
+  </div>;
+}
+
+function TeamLineRow({ team, rank, expanded, onToggle, rbs, onInspect }: { team: Team; rank: number; expanded: boolean; onToggle: () => void; rbs: RBOLImpact[]; onInspect: (playerId: string) => void }) {
+  return <>
+    <button type="button" onClick={onToggle} aria-expanded={expanded} data-testid={`row-team-${team.team}`} className="data-row grid w-full grid-cols-[34px_minmax(180px,1.5fr)_repeat(4,minmax(90px,1fr))_110px_24px] items-center gap-3 border-b border-border/70 px-4 py-3.5 text-left last:border-b-0 sm:px-5">
+      <span className="mono text-[11px] text-muted-foreground">{String(rank).padStart(2, "0")}</span>
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary mono text-[10px] font-medium">{team.team}</span>
+        <span className="min-w-0"><span className="block truncate text-[11px] font-bold">{team.fullName}</span><span className="mono block text-[9px] text-muted-foreground">{team.tier} front</span></span>
+      </span>
+      <span><span className={`mono block text-[11px] font-medium ${metricTone(team.runBlockGrade, OL_RANGE.grade)}`}>{num(team.runBlockGrade)}</span>{hasValue(team.runBlockGrade) && <ScoreBar value={team.runBlockGrade} color="primary" />}</span>
+      <span><span className={`mono block text-[11px] font-medium ${metricTone(team.passBlockGrade, OL_RANGE.grade)}`}>{num(team.passBlockGrade)}</span>{hasValue(team.passBlockGrade) && <ScoreBar value={team.passBlockGrade} color="accent" />}</span>
+      <span><span className={`mono block text-[11px] font-medium ${olHealthTone(team.olHealthStatus)}`}>{num(team.olHealthScore)}</span><span className={`mono block text-[9px] ${olHealthTone(team.olHealthStatus)}`}>{team.olHealthStatus}</span></span>
+      <span className="mono text-[11px]">{pct(team.snapContinuity)}</span>
+      <TrendMark trend={team.trend} />
+      <ChevronDown size={14} className={`text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+    </button>
+    {expanded && <TeamLineDetail team={team} rbs={rbs} onInspect={onInspect} />}
+  </>;
+}
+
+/**
+ * O-Line command center: every front ranked by run block, with the metrics
+ * behind each grade a click away, and the backs attached to it underneath.
+ */
+function OLCenterPage() {
   const { data: teamsData, isLoading, isError, refetch } = useGetTeams();
-  const teams = teamsData ?? [];
+  const { data: olData } = useGetOLImpact({ query: { queryKey: getGetOLImpactQueryKey() } });
+  const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [trend, setTrend] = useState("all");
-  const filtered = teams.filter((team) => team.fullName.toLowerCase().includes(search.toLowerCase()) || team.team.toLowerCase().includes(search.toLowerCase())).filter((team) => trend === "all" || team.trend.toLowerCase().includes(trend));
-  // Thresholds are relative to each metric's real range across the 32 teams.
-  // A flat "good is >= 65" only worked on the old generated numbers: real
-  // adjusted line yards top out around 3.5, so every team graded red.
-  const colorMetric = (value: number | null | undefined, range: { min: number; max: number }, inverse = false) => {
-    if (!hasValue(value)) return "text-muted-foreground";
-    const position = inverse ? 100 - barWidth(value, range.min, range.max) : barWidth(value, range.min, range.max);
-    return position >= 65 ? "text-primary" : position < 35 ? "text-destructive" : "text-accent-foreground";
-  };
-  const RANGE = { aly: { min: 2.2, max: 3.7 }, stuffRate: { min: 9, max: 27 }, grade: { min: 0, max: 100 } };
-  return <div className="mx-auto max-w-[1500px]"><SectionHeading eyebrow="Context matrix" title="Follow the blocking." detail="Offensive environment changes the shape of every player bet." action={<div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2"><Users size={14} className="text-primary" /><span className="mono text-[10px]">{teams.length || "—"} teams indexed</span></div>} /><Surface className="overflow-hidden"><div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between"><div className="relative w-full sm:w-[260px]"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a team" data-testid="input-search-teams" className="h-9 w-full rounded-xl border border-input bg-background pl-9 pr-3 text-xs outline-none focus:ring-4 focus:ring-primary/10" /></div><div className="flex items-center gap-2"><Filter size={13} className="text-muted-foreground" /><select value={trend} onChange={(event) => setTrend(event.target.value)} data-testid="select-team-trend" className="rounded-xl border border-input bg-background px-3 py-2 text-[10px] font-semibold outline-none"><option value="all">All trends</option><option value="up">Rising</option><option value="down">Falling</option></select></div></div>{isLoading ? <LoadingRows /> : isError ? <ErrorState label="Team context is temporarily out of range." onRetry={() => void refetch()} /> : filtered.length === 0 ? <EmptyState label="No team matches this filter." /> : <div className="overflow-x-auto"><div className="min-w-[980px]"><div className="grid grid-cols-[1.6fr_repeat(7,1fr)] gap-3 border-b border-border bg-muted/45 px-5 py-3 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground"><span>Team / offense</span><span>ALY</span><span>Stuff rate</span><span>Pass block</span><span>PROE</span><span>Snap cont.</span><span>Vacated opp.</span><span>Trend</span></div>{filtered.map((team) => <div key={team.team} data-testid={`row-team-${team.team}`} className="data-row grid grid-cols-[1.6fr_repeat(7,1fr)] items-center gap-3 border-b border-border/70 px-5 py-4 last:border-b-0"><div><div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary mono text-[10px] font-medium">{team.team}</span><div><p className="text-[11px] font-bold">{team.fullName}</p><p className="mono mt-0.5 text-[9px] text-muted-foreground">offensive environment</p></div></div></div><span className={`mono text-[11px] font-medium ${colorMetric(team.aly, RANGE.aly)}`}>{num(team.aly, 2)}</span><span className={`mono text-[11px] ${colorMetric(team.stuffRate, RANGE.stuffRate, true)}`}>{pct(team.stuffRate)}</span><span className={`mono text-[11px] font-medium ${colorMetric(team.passBlockGrade, RANGE.grade)}`}>{num(team.passBlockGrade)}</span><span className={`mono text-[11px] ${!hasValue(team.proe) ? "text-muted-foreground" : team.proe >= 0 ? "text-primary" : "text-destructive"}`}>{hasValue(team.proe) && team.proe > 0 ? "+" : ""}{pct(team.proe)}</span><span className="mono text-[11px]">{pct(team.snapContinuity)}</span><span className="mono text-[11px]">{pct(team.vacatedOpportunity)}</span><span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${team.trend.toLowerCase().includes("up") || team.trend.toLowerCase().includes("rise") ? "text-primary" : "text-destructive"}`}>{team.trend.toLowerCase().includes("up") || team.trend.toLowerCase().includes("rise") ? <ArrowUp size={12} /> : <ArrowDown size={12} />}{team.trend}</span></div>)}</div></div>}<div className="flex items-center justify-between border-t border-border px-5 py-3"><span className="text-[10px] text-muted-foreground">Grades normalized to 2025 league baseline</span><span className="mono text-[9px] text-muted-foreground">select a row to compare</span></div></Surface><div className="mt-6 grid gap-4 md:grid-cols-3"><Surface className="p-5"><Kicker>How to read it</Kicker><h2 className="mt-2 text-sm font-bold">Context is a multiplier.</h2><p className="mt-2 text-[11px] leading-5 text-muted-foreground">Prioritize skill players attached to stable snaps, efficient blocking, and positive pass rate over expectation.</p></Surface><Surface className="border-accent/25 bg-accent/[0.06] p-5"><Kicker>Opportunity watch</Kicker><h2 className="mt-2 text-sm font-bold">Vacated targets are live capital.</h2><p className="mt-2 text-[11px] leading-5 text-muted-foreground">Use the vacated opportunity column to spot offenses where a role can expand before the market moves.</p></Surface><Surface className="p-5"><Kicker>RB impact analysis</Kicker><h2 className="mt-2 text-sm font-bold">See which RBs the line helps.</h2><p className="mt-2 text-[11px] leading-5 text-muted-foreground">The OL Impact view plots every RB against their team's composite line score to surface buy-lows and landmines.</p><Link href="/ol-impact" data-testid="link-ol-impact-from-teams" className="mt-3 flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline">Open OL Impact <ExternalLink size={11} /></Link></Surface></div></div>;
+  const [sort, setSort] = useState<"run" | "pass" | "health">("run");
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const teams = teamsData ?? [];
+  const rbImpacts = olData?.rbImpacts ?? [];
+  const rbsByTeam = useMemo(() => {
+    const map = new Map<string, RBOLImpact[]>();
+    for (const rb of rbImpacts) map.set(rb.team, [...(map.get(rb.team) ?? []), rb]);
+    return map;
+  }, [rbImpacts]);
+
+  const sortKey = (team: Team) => sort === "run" ? team.runBlockGrade : sort === "pass" ? team.passBlockGrade : team.olHealthScore;
+  const ranked = useMemo(() => teams
+    .filter((team) => `${team.fullName} ${team.team}`.toLowerCase().includes(search.trim().toLowerCase()))
+    .filter((team) => trend === "all" || team.trend === trend)
+    // Missing grades sort last rather than to the bottom of the scale.
+    .sort((a, b) => (sortKey(b) ?? -1) - (sortKey(a) ?? -1)), [teams, search, trend, sort]);
+
+  const eliteLines = teams.filter((team) => team.tier === "Elite").length;
+  const unitAlerts = teams.filter((team) => isOLAlert(team.olHealthStatus)).length;
+  const stableUnits = teams.filter((team) => team.trend === "Stable").length;
+
+  return <div className="mx-auto max-w-[1500px]">
+    <div className="enter"><SectionHeading eyebrow="O-Line command center" title="Follow the blocking." detail="Team line quality, unit continuity, and how the trenches shape every RB / WR / TE bet — one board." action={<div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2"><Activity size={14} className="text-primary" /><span className="mono text-[10px]">{teams.length || NO_DATA} lines indexed</span></div>} /></div>
+
+    <div className="enter enter-1 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:gap-3">
+      <Metric label="Teams indexed" value={teams.length || NO_DATA} detail="all 32 fronts" />
+      <Metric label="Elite lines" value={eliteLines} detail="composite tier" />
+      <Metric label="Unit alerts" value={unitAlerts} detail="degraded or critical" accent />
+      <Metric label="Stable units" value={stableUnits} detail="continuity locked" />
+    </div>
+
+    <Surface className="enter enter-2 mt-6 overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div><Kicker>Team line rankings</Kicker><h2 className="mt-1 text-sm font-bold">{sort === "run" ? "Run-block composite" : sort === "pass" ? "Pass-block composite" : "Line continuity"} · click a row to drill in</h2></div>
+        <div className="flex items-center gap-2">
+          <div className="relative w-full sm:w-[220px]"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a team" data-testid="input-search-teams" className="h-9 w-full rounded-xl border border-input bg-background pl-9 pr-3 text-xs outline-none focus:ring-4 focus:ring-primary/10" /></div>
+          <Filter size={13} className="shrink-0 text-muted-foreground" />
+          <select value={trend} onChange={(event) => setTrend(event.target.value)} data-testid="select-team-trend" className="shrink-0 rounded-xl border border-input bg-background px-3 py-2 text-[10px] font-semibold outline-none">
+            <option value="all">All trends</option>
+            <option value="Stable">Stable</option>
+            <option value="Watch">Watch</option>
+            <option value="Risk">Risk</option>
+          </select>
+        </div>
+      </div>
+
+      {isLoading ? <LoadingRows /> : isError ? <ErrorState label="Team line data could not be loaded." onRetry={() => void refetch()} /> : ranked.length === 0 ? <EmptyState label="No front matches this filter." /> : <div className="overflow-x-auto"><div className="min-w-[900px]">
+        <div className="grid grid-cols-[34px_minmax(180px,1.5fr)_repeat(4,minmax(90px,1fr))_110px_24px] gap-3 border-b border-border bg-muted/45 px-4 py-2.5 text-[9px] font-semibold uppercase tracking-[0.13em] text-muted-foreground sm:px-5">
+          <span>#</span><span>Team / offense</span>
+          <button type="button" onClick={() => setSort("run")} data-testid="button-sort-run-block" className={`text-left hover:text-primary ${sort === "run" ? "text-primary" : ""}`}>Run block</button>
+          <button type="button" onClick={() => setSort("pass")} data-testid="button-sort-pass-block" className={`text-left hover:text-primary ${sort === "pass" ? "text-primary" : ""}`}>Pass block</button>
+          <button type="button" onClick={() => setSort("health")} data-testid="button-sort-ol-health" className={`text-left hover:text-primary ${sort === "health" ? "text-primary" : ""}`}>OL health</button>
+          <span>Snap cont.</span><span>Trend</span><span />
+        </div>
+        {ranked.map((team, index) => <TeamLineRow key={team.team} team={team} rank={index + 1} expanded={expanded === team.team} onToggle={() => setExpanded((current) => current === team.team ? null : team.team)} rbs={rbsByTeam.get(team.team) ?? []} onInspect={(playerId) => setLocation(`/players/${playerId}`)} />)}
+      </div></div>}
+
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 sm:px-5">
+        <span className="text-[10px] text-muted-foreground">Grades are 2025 PFF-style line grades; health is 2026 continuity, not injury status.</span>
+        <span className="mono text-[9px] text-muted-foreground">{ranked.length} / {teams.length || 0} fronts shown</span>
+      </div>
+    </Surface>
+
+    <div className="enter enter-3"><RBImpactSection /></div>
+  </div>;
 }
 
 function NewsPage() {
@@ -694,7 +863,7 @@ function ActivityIcon() {
 
 function Router() {
   const [location, setLocation] = useLocation();
-  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/teams" component={TeamsPage} /><Route path="/ol-impact" component={OLImpactPage} /><Route path="/news" component={NewsPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
+  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
 }
 
 function App() {
