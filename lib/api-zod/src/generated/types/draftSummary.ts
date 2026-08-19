@@ -15,6 +15,11 @@ export interface DraftSummary {
   valueTargets: number;
   /** Scrape date of the dataset currently loaded, e.g. 2026-08-14. */
   snapshotVersion: string;
+  /**
+     * Starting spots still to fill at each position, derived from the
+     * league settings roster net of drafted players. FLEX counts RB/WR/TE
+     * drafted beyond their base spots.
+     */
   positionalNeeds: DraftSummaryPositionalNeeds;
   lastRefresh: string;
 }

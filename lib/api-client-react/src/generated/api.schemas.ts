@@ -180,11 +180,17 @@ export interface NewsItem {
   status?: string | null;
 }
 
+/**
+ * Starting spots still to fill at each position, derived from the
+ * league settings roster net of drafted players. FLEX counts RB/WR/TE
+ * drafted beyond their base spots.
+ */
 export type DraftSummaryPositionalNeeds = {
   QB: number;
   RB: number;
   WR: number;
   TE: number;
+  FLEX: number;
 };
 
 export interface DraftSummary {
@@ -195,8 +201,77 @@ export interface DraftSummary {
   valueTargets: number;
   /** Scrape date of the dataset currently loaded, e.g. 2026-08-14. */
   snapshotVersion: string;
+  /**
+     * Starting spots still to fill at each position, derived from the
+     * league settings roster net of drafted players. FLEX counts RB/WR/TE
+     * drafted beyond their base spots.
+     */
   positionalNeeds: DraftSummaryPositionalNeeds;
   lastRefresh: string;
+}
+
+export type LeagueSettingsScoring = typeof LeagueSettingsScoring[keyof typeof LeagueSettingsScoring];
+
+
+export const LeagueSettingsScoring = {
+  ppr: 'ppr',
+  half_ppr: 'half_ppr',
+  standard: 'standard',
+} as const;
+
+export type LeagueSettingsDraftType = typeof LeagueSettingsDraftType[keyof typeof LeagueSettingsDraftType];
+
+
+export const LeagueSettingsDraftType = {
+  snake: 'snake',
+  auction: 'auction',
+} as const;
+
+/**
+ * Starting spots per position, plus bench depth.
+ */
+export type LeagueSettingsRoster = {
+  /** @minimum 0 */
+  QB: number;
+  /** @minimum 0 */
+  RB: number;
+  /** @minimum 0 */
+  WR: number;
+  /** @minimum 0 */
+  TE: number;
+  /** @minimum 0 */
+  FLEX: number;
+  /** @minimum 0 */
+  K: number;
+  /** @minimum 0 */
+  DST: number;
+  /** @minimum 0 */
+  BENCH: number;
+};
+
+/**
+ * The league this draft board is for. One document, replaced whole; the
+ * server clamps and defaults rather than failing on partial garbage, but
+ * rejects settings that contradict themselves.
+ */
+export interface LeagueSettings {
+  /**
+     * @minimum 4
+     * @maximum 20
+     */
+  teamCount: number;
+  scoring: LeagueSettingsScoring;
+  draftType: LeagueSettingsDraftType;
+  /**
+     * The user's position in the draft order, 1..teamCount.
+     * @minimum 1
+     * @maximum 20
+     */
+  draftSlot: number;
+  /** @minimum 1 */
+  auctionBudget: number;
+  /** Starting spots per position, plus bench depth. */
+  roster: LeagueSettingsRoster;
 }
 
 export interface DraftPickInput {

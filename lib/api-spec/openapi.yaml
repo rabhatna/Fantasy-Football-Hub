@@ -211,6 +211,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PlayerNote"
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [draft]
+      summary: Get league settings
+      description: Returns the saved league configuration, or the defaults when none has been saved yet.
+      responses:
+        "200":
+          description: Current league settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeagueSettings"
+    put:
+      operationId: updateSettings
+      tags: [draft]
+      summary: Replace league settings
+      description: Replaces the whole settings document. Positional needs and scoring-dependent numbers change immediately.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeagueSettings"
+      responses:
+        "200":
+          description: Saved league settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeagueSettings"
+        "400":
+          description: Invalid settings (for example a draft slot beyond the team count)
   /ol-impact:
     get:
       operationId: getOLImpact
@@ -392,13 +425,57 @@ components:
           description: Scrape date of the dataset currently loaded, e.g. 2026-08-14.
         positionalNeeds:
           type: object
-          required: [QB, RB, WR, TE]
+          description: |
+            Starting spots still to fill at each position, derived from the
+            league settings roster net of drafted players. FLEX counts RB/WR/TE
+            drafted beyond their base spots.
+          required: [QB, RB, WR, TE, FLEX]
           properties:
             QB: { type: number }
             RB: { type: number }
             WR: { type: number }
             TE: { type: number }
+            FLEX: { type: number }
         lastRefresh: { type: string }
+    LeagueSettings:
+      type: object
+      description: |
+        The league this draft board is for. One document, replaced whole; the
+        server clamps and defaults rather than failing on partial garbage, but
+        rejects settings that contradict themselves.
+      required: [teamCount, scoring, draftType, draftSlot, auctionBudget, roster]
+      properties:
+        teamCount:
+          type: number
+          minimum: 4
+          maximum: 20
+        scoring:
+          type: string
+          enum: [ppr, half_ppr, standard]
+        draftType:
+          type: string
+          enum: [snake, auction]
+        draftSlot:
+          type: number
+          minimum: 1
+          maximum: 20
+          description: The user's position in the draft order, 1..teamCount.
+        auctionBudget:
+          type: number
+          minimum: 1
+        roster:
+          type: object
+          description: Starting spots per position, plus bench depth.
+          required: [QB, RB, WR, TE, FLEX, K, DST, BENCH]
+          properties:
+            QB: { type: number, minimum: 0 }
+            RB: { type: number, minimum: 0 }
+            WR: { type: number, minimum: 0 }
+            TE: { type: number, minimum: 0 }
+            FLEX: { type: number, minimum: 0 }
+            K: { type: number, minimum: 0 }
+            DST: { type: number, minimum: 0 }
+            BENCH: { type: number, minimum: 0 }
     DraftPickInput:
       type: object
       required: [playerId, pickNumber]

@@ -174,8 +174,9 @@ export const GetDraftSummaryResponse = zod.object({
   "QB": zod.number(),
   "RB": zod.number(),
   "WR": zod.number(),
-  "TE": zod.number()
-}),
+  "TE": zod.number(),
+  "FLEX": zod.number()
+}).describe('Starting spots still to fill at each position, derived from the\nleague settings roster net of drafted players. FLEX counts RB\/WR\/TE\ndrafted beyond their base spots.\n'),
   "lastRefresh": zod.string()
 })
 
@@ -254,6 +255,142 @@ export const SavePlayerNoteResponse = zod.object({
   "note": zod.string(),
   "updatedAt": zod.string()
 })
+
+
+/**
+ * Returns the saved league configuration, or the defaults when none has been saved yet.
+ * @summary Get league settings
+ */
+export const getSettingsResponseTeamCountMin = 4;
+export const getSettingsResponseTeamCountMax = 20;
+
+export const getSettingsResponseDraftSlotMax = 20;
+
+
+export const getSettingsResponseRosterQBMin = 0;
+
+export const getSettingsResponseRosterRBMin = 0;
+
+export const getSettingsResponseRosterWRMin = 0;
+
+export const getSettingsResponseRosterTEMin = 0;
+
+export const getSettingsResponseRosterFLEXMin = 0;
+
+export const getSettingsResponseRosterKMin = 0;
+
+export const getSettingsResponseRosterDSTMin = 0;
+
+export const getSettingsResponseRosterBENCHMin = 0;
+
+
+
+export const GetSettingsResponse = zod.object({
+  "teamCount": zod.number().min(getSettingsResponseTeamCountMin).max(getSettingsResponseTeamCountMax),
+  "scoring": zod.enum(['ppr', 'half_ppr', 'standard']),
+  "draftType": zod.enum(['snake', 'auction']),
+  "draftSlot": zod.number().min(1).max(getSettingsResponseDraftSlotMax).describe('The user\'s position in the draft order, 1..teamCount.'),
+  "auctionBudget": zod.number().min(1),
+  "roster": zod.object({
+  "QB": zod.number().min(getSettingsResponseRosterQBMin),
+  "RB": zod.number().min(getSettingsResponseRosterRBMin),
+  "WR": zod.number().min(getSettingsResponseRosterWRMin),
+  "TE": zod.number().min(getSettingsResponseRosterTEMin),
+  "FLEX": zod.number().min(getSettingsResponseRosterFLEXMin),
+  "K": zod.number().min(getSettingsResponseRosterKMin),
+  "DST": zod.number().min(getSettingsResponseRosterDSTMin),
+  "BENCH": zod.number().min(getSettingsResponseRosterBENCHMin)
+}).describe('Starting spots per position, plus bench depth.')
+}).describe('The league this draft board is for. One document, replaced whole; the\nserver clamps and defaults rather than failing on partial garbage, but\nrejects settings that contradict themselves.\n')
+
+
+/**
+ * Replaces the whole settings document. Positional needs and scoring-dependent numbers change immediately.
+ * @summary Replace league settings
+ */
+export const updateSettingsBodyTeamCountMin = 4;
+export const updateSettingsBodyTeamCountMax = 20;
+
+export const updateSettingsBodyDraftSlotMax = 20;
+
+
+export const updateSettingsBodyRosterQBMin = 0;
+
+export const updateSettingsBodyRosterRBMin = 0;
+
+export const updateSettingsBodyRosterWRMin = 0;
+
+export const updateSettingsBodyRosterTEMin = 0;
+
+export const updateSettingsBodyRosterFLEXMin = 0;
+
+export const updateSettingsBodyRosterKMin = 0;
+
+export const updateSettingsBodyRosterDSTMin = 0;
+
+export const updateSettingsBodyRosterBENCHMin = 0;
+
+
+
+export const UpdateSettingsBody = zod.object({
+  "teamCount": zod.number().min(updateSettingsBodyTeamCountMin).max(updateSettingsBodyTeamCountMax),
+  "scoring": zod.enum(['ppr', 'half_ppr', 'standard']),
+  "draftType": zod.enum(['snake', 'auction']),
+  "draftSlot": zod.number().min(1).max(updateSettingsBodyDraftSlotMax).describe('The user\'s position in the draft order, 1..teamCount.'),
+  "auctionBudget": zod.number().min(1),
+  "roster": zod.object({
+  "QB": zod.number().min(updateSettingsBodyRosterQBMin),
+  "RB": zod.number().min(updateSettingsBodyRosterRBMin),
+  "WR": zod.number().min(updateSettingsBodyRosterWRMin),
+  "TE": zod.number().min(updateSettingsBodyRosterTEMin),
+  "FLEX": zod.number().min(updateSettingsBodyRosterFLEXMin),
+  "K": zod.number().min(updateSettingsBodyRosterKMin),
+  "DST": zod.number().min(updateSettingsBodyRosterDSTMin),
+  "BENCH": zod.number().min(updateSettingsBodyRosterBENCHMin)
+}).describe('Starting spots per position, plus bench depth.')
+}).describe('The league this draft board is for. One document, replaced whole; the\nserver clamps and defaults rather than failing on partial garbage, but\nrejects settings that contradict themselves.\n')
+
+export const updateSettingsResponseTeamCountMin = 4;
+export const updateSettingsResponseTeamCountMax = 20;
+
+export const updateSettingsResponseDraftSlotMax = 20;
+
+
+export const updateSettingsResponseRosterQBMin = 0;
+
+export const updateSettingsResponseRosterRBMin = 0;
+
+export const updateSettingsResponseRosterWRMin = 0;
+
+export const updateSettingsResponseRosterTEMin = 0;
+
+export const updateSettingsResponseRosterFLEXMin = 0;
+
+export const updateSettingsResponseRosterKMin = 0;
+
+export const updateSettingsResponseRosterDSTMin = 0;
+
+export const updateSettingsResponseRosterBENCHMin = 0;
+
+
+
+export const UpdateSettingsResponse = zod.object({
+  "teamCount": zod.number().min(updateSettingsResponseTeamCountMin).max(updateSettingsResponseTeamCountMax),
+  "scoring": zod.enum(['ppr', 'half_ppr', 'standard']),
+  "draftType": zod.enum(['snake', 'auction']),
+  "draftSlot": zod.number().min(1).max(updateSettingsResponseDraftSlotMax).describe('The user\'s position in the draft order, 1..teamCount.'),
+  "auctionBudget": zod.number().min(1),
+  "roster": zod.object({
+  "QB": zod.number().min(updateSettingsResponseRosterQBMin),
+  "RB": zod.number().min(updateSettingsResponseRosterRBMin),
+  "WR": zod.number().min(updateSettingsResponseRosterWRMin),
+  "TE": zod.number().min(updateSettingsResponseRosterTEMin),
+  "FLEX": zod.number().min(updateSettingsResponseRosterFLEXMin),
+  "K": zod.number().min(updateSettingsResponseRosterKMin),
+  "DST": zod.number().min(updateSettingsResponseRosterDSTMin),
+  "BENCH": zod.number().min(updateSettingsResponseRosterBENCHMin)
+}).describe('Starting spots per position, plus bench depth.')
+}).describe('The league this draft board is for. One document, replaced whole; the\nserver clamps and defaults rather than failing on partial garbage, but\nrejects settings that contradict themselves.\n')
 
 
 /**

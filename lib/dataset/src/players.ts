@@ -36,6 +36,16 @@ export interface DatasetPlayer {
   valueScore: number | null;
   marketVerdict: string | null;
   ppg: number | null;
+  /**
+   * 2025 points per game under each scoring format. `ppg` above is the PPR
+   * value (the dataset's primary scoring); these let the server serve whichever
+   * format the league settings ask for without reloading the snapshot.
+   */
+  ppgByScoring: {
+    ppr: number | null;
+    halfPpr: number | null;
+    standard: number | null;
+  };
   share: number | null;
   oLineGrade: number | null;
   injuryStatus: string | null;
@@ -132,6 +142,11 @@ export function toPlayer(row: Row): DatasetPlayer {
     valueScore: rounded(row, "value_score", 2),
     marketVerdict: text(row, "market_verdict"),
     ppg: rounded(row, "y25_ppr_ppg", 1),
+    ppgByScoring: {
+      ppr: rounded(row, "y25_ppr_ppg", 1),
+      halfPpr: rounded(row, "y25_half_ppr_ppg", 1),
+      standard: rounded(row, "y25_standard_ppg", 1),
+    },
     share: opportunityShare(row, position),
     oLineGrade: rounded(row, "tm_ol_overall_grade", 1),
     // The dataset carries no injury or availability status — it is built from

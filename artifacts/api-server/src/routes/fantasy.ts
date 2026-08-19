@@ -1,6 +1,11 @@
 import path from "node:path";
 import { Router, type IRouter } from "express";
-import { createStore, resolveDataDir, type DraftPickRecord } from "@workspace/store";
+import {
+  createStore,
+  resolveDataDir,
+  type DraftPickRecord,
+  type RosterSettings,
+} from "@workspace/store";
 import {
   loadSnapshot,
   normalizeName,
@@ -20,6 +25,7 @@ import {
   GetPlayerResponse,
   GetPlayersQueryParams,
   GetPlayersResponse,
+  GetSettingsResponse,
   GetTeamsResponse,
   RefreshDataResponse,
   SaveDraftPickBody,
@@ -27,6 +33,8 @@ import {
   SavePlayerNoteBody,
   SavePlayerNoteParams,
   SavePlayerNoteResponse,
+  UpdateSettingsBody,
+  UpdateSettingsResponse,
 } from "@workspace/api-zod";
 import {
   injuriesByPlayer,
@@ -64,22 +72,36 @@ function live(): Promise<LiveCache | null> {
 }
 
 /**
- * Merge live availability onto the ranked players.
+ * Merge live availability and the league's scoring format onto the ranked
+ * players.
  *
  * A player the injury source has no record of keeps a null status. Null means
- * unknown — it is never rendered or treated as "healthy".
+ * unknown — it is never rendered or treated as "healthy". Points per game is
+ * served in the scoring the league settings ask for; the dataset's primary
+ * scoring (and the consistency profile) remains full PPR.
  */
-async function playersWithInjuries(): Promise<DatasetPlayer[]> {
-  const [{ players }, cache] = await Promise.all([snapshot(), live()]);
-  if (!cache) return players;
-
-  const injuries = injuriesByPlayer(cache, players);
-  if (injuries.size === 0) return players;
+async function enrichedPlayers(): Promise<DatasetPlayer[]> {
+  const [{ players }, cache, settings] = await Promise.all([
+    snapshot(),
+    live(),
+    store.leagueSettings.read(),
+  ]);
+  const injuries = cache ? injuriesByPlayer(cache, players) : new Map<string, PlayerInjury>();
 
   return players.map((player) => {
-    const injury: PlayerInjury | undefined = injuries.get(player.id);
-    if (!injury) return player;
-    return { ...player, injuryStatus: injury.status, injuryBodyPart: injury.bodyPart };
+    const injury = injuries.get(player.id);
+    const ppg =
+      settings.scoring === "half_ppr"
+        ? player.ppgByScoring.halfPpr
+        : settings.scoring === "standard"
+          ? player.ppgByScoring.standard
+          : player.ppg;
+    if (!injury && ppg === player.ppg) return player;
+
+    const enriched = { ...player, ppg };
+    return injury
+      ? { ...enriched, injuryStatus: injury.status, injuryBodyPart: injury.bodyPart }
+      : enriched;
   });
 }
 
@@ -156,6 +178,35 @@ async function reconcilePicks(players: DatasetPlayer[]): Promise<DraftPickRecord
   });
 }
 
+// ── Positional needs ─────────────────────────────────────────────────────────
+
+/**
+ * Starting spots still to fill, from the league's roster settings.
+ *
+ * FLEX is consumed only by RB/WR/TE drafted beyond their base spots: a third
+ * WR in a 2-WR league fills the flex, not a phantom WR3 slot. K and DST are
+ * not tracked on the board, so they carry no need here.
+ */
+function positionalNeeds(roster: RosterSettings, drafted: DatasetPlayer[]) {
+  const counts = { QB: 0, RB: 0, WR: 0, TE: 0 };
+  for (const player of drafted) {
+    if (player.position in counts) counts[player.position as keyof typeof counts] += 1;
+  }
+
+  const flexUsed = (["RB", "WR", "TE"] as const).reduce(
+    (used, position) => used + Math.max(0, counts[position] - roster[position]),
+    0,
+  );
+
+  return {
+    QB: Math.max(0, roster.QB - counts.QB),
+    RB: Math.max(0, roster.RB - counts.RB),
+    WR: Math.max(0, roster.WR - counts.WR),
+    TE: Math.max(0, roster.TE - counts.TE),
+    FLEX: Math.max(0, roster.FLEX - flexUsed),
+  };
+}
+
 // ── Offensive line impact ────────────────────────────────────────────────────
 
 function impactLabel(valueScore: number | null, olScore: number | null): string {
@@ -218,7 +269,7 @@ router.get("/players", async (req, res, next) => {
     }
 
     const { position, search, maxAdp, minShare, excludeUnhealthy } = parsed.data;
-    const players = await playersWithInjuries();
+    const players = await enrichedPlayers();
     const normalizedSearch = search?.trim().toLowerCase();
 
     const filtered = players.filter((player) => {
@@ -257,7 +308,7 @@ router.get("/players/:id", async (req, res, next) => {
       return;
     }
 
-    const players = await playersWithInjuries();
+    const players = await enrichedPlayers();
     const player = players.find((item) => item.id === params.data.id);
     if (!player) {
       res.status(404).json({ error: "Player not found" });
@@ -302,18 +353,16 @@ router.get("/live/status", async (_req, res, next) => {
 router.get("/draft/summary", async (_req, res, next) => {
   try {
     const { players, version } = await snapshot();
-    const picks = await reconcilePicks(players);
+    const [picks, settings] = await Promise.all([
+      reconcilePicks(players),
+      store.leagueSettings.read(),
+    ]);
 
     const draftedPlayers = players.filter((player) =>
       picks.some((pick) => pick.playerId === player.id),
     );
 
-    const needs = { QB: 1, RB: 2, WR: 3, TE: 1 };
-    for (const player of draftedPlayers) {
-      if (player.position in needs && needs[player.position as keyof typeof needs] > 0) {
-        needs[player.position as keyof typeof needs] -= 1;
-      }
-    }
+    const needs = positionalNeeds(settings.roster, draftedPlayers);
 
     // Averaged over picks that resolve to a player in this snapshot; a pick
     // carried over from an older dataset has no ADP to average.
@@ -454,6 +503,35 @@ router.put("/notes/:playerId", async (req, res, next) => {
     }
 
     res.json(SavePlayerNoteResponse.parse(note));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/settings", async (_req, res, next) => {
+  try {
+    res.json(GetSettingsResponse.parse(await store.leagueSettings.read()));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/settings", async (req, res, next) => {
+  try {
+    const body = UpdateSettingsBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "Invalid league settings" });
+      return;
+    }
+    // Cross-field rule the schema cannot express: the user must actually have
+    // a slot in the draft order they configured.
+    if (body.data.draftSlot > body.data.teamCount) {
+      res.status(400).json({ error: "Draft slot is beyond the last team" });
+      return;
+    }
+
+    const saved = await store.leagueSettings.write(body.data);
+    res.json(UpdateSettingsResponse.parse(saved));
   } catch (error) {
     next(error);
   }

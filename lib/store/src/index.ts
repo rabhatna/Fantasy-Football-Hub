@@ -1,9 +1,19 @@
 import path from "node:path";
 import { CsvTable, type TableSchema } from "./table.ts";
+import { LeagueSettingsStore } from "./settings.ts";
 
 export { CsvTable, type TableSchema } from "./table.ts";
 export { parseCsv, stringifyCsv, type CsvRow } from "./csv.ts";
 export { writeFileAtomic, readFileOrNull } from "./atomic.ts";
+export {
+  DEFAULT_LEAGUE_SETTINGS,
+  LeagueSettingsStore,
+  sanitizeLeagueSettings,
+  type DraftType,
+  type LeagueSettingsRecord,
+  type RosterSettings,
+  type ScoringFormat,
+} from "./settings.ts";
 
 /**
  * A drafted player.
@@ -97,11 +107,14 @@ export class Store {
   readonly dataDir: string;
   readonly draftPicks: CsvTable<DraftPickRecord>;
   readonly playerNotes: CsvTable<PlayerNoteRecord>;
+  readonly leagueSettings: LeagueSettingsStore;
 
   constructor(dataDir: string) {
     this.dataDir = dataDir;
     const userDir = path.join(dataDir, "user");
     const backupDir = path.join(userDir, "backups");
+
+    this.leagueSettings = new LeagueSettingsStore(path.join(userDir, "league-settings.json"));
 
     this.draftPicks = new CsvTable(
       path.join(userDir, "draft_picks.csv"),
@@ -115,10 +128,11 @@ export class Store {
     );
   }
 
-  /** Force both tables to re-read from disk (after an external edit). */
+  /** Force everything to re-read from disk (after an external edit). */
   invalidate(): void {
     this.draftPicks.invalidate();
     this.playerNotes.invalidate();
+    this.leagueSettings.invalidate();
   }
 }
 

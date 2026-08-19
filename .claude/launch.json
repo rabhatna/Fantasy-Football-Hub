@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "start"],
       "port": 8080
+    },
+    {
+      "name": "start-alt",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "PORT=8090 pnpm run start"],
+      "port": 8090
     }
   ]
 }
