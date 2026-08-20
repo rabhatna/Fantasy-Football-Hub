@@ -38,6 +38,7 @@ export * from './oLImpactAnalysis';
 export * from './oLTeamScore';
 export * from './player';
 export * from './playerAdpSourcesItem';
+export * from './playerAdvanced';
 export * from './playerConsistency';
 export * from './playerNextGen';
 export * from './playerNote';

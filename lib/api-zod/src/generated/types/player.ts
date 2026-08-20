@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PlayerAdpSourcesItem } from './playerAdpSourcesItem';
+import type { PlayerAdvanced } from './playerAdvanced';
 import type { PlayerConsistency } from './playerConsistency';
 import type { PlayerNextGen } from './playerNextGen';
 
@@ -135,4 +136,12 @@ export interface Player {
   note?: string | null;
   nextGen: PlayerNextGen;
   consistency: PlayerConsistency;
+  /**
+     * The advanced 2025 layer: usage shares, expected touchdowns,
+     * per-touch efficiency and situational volume, straight from the
+     * season snapshot. Every field is nullable for the same reason as
+     * above — a rookie or a player the tracking data does not cover has
+     * no number, not a zero.
+     */
+  advanced: PlayerAdvanced;
 }

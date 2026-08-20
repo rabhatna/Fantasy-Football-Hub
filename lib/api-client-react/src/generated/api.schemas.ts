@@ -41,6 +41,97 @@ export type PlayerConsistency = {
 };
 
 /**
+ * The advanced 2025 layer: usage shares, expected touchdowns,
+ * per-touch efficiency and situational volume, straight from the
+ * season snapshot. Every field is nullable for the same reason as
+ * above — a rookie or a player the tracking data does not cover has
+ * no number, not a zero.
+ */
+export type PlayerAdvanced = {
+  /**
+     * Weighted Opportunity Rating, 1.5 x target share + 0.7 x air-yards share. 0.70+ is elite usage.
+     * @nullable
+     */
+  wopr: number | null;
+  /**
+     * Share of the team's intended air yards, as a percentage.
+     * @nullable
+     */
+  airYardsShare: number | null;
+  /**
+     * Average depth of target in air yards.
+     * @nullable
+     */
+  adot: number | null;
+  /**
+     * Receiving yards per air yard. Unstable for tiny air-yard samples — clients should ignore extremes.
+     * @nullable
+     */
+  racr: number | null;
+  /** @nullable */
+  targetsPerGame: number | null;
+  /** @nullable */
+  carriesPerGame: number | null;
+  /**
+     * 2025 touches or targets inside the opponent 20.
+     * @nullable
+     */
+  rzOpportunities: number | null;
+  /** @nullable */
+  inside10Touches: number | null;
+  /** @nullable */
+  inside5Touches: number | null;
+  /**
+     * Expected touchdowns from where and how he was used.
+     * @nullable
+     */
+  expectedTds: number | null;
+  /**
+     * Actual minus expected touchdowns, signed. Beyond about +/-3 is a regression flag.
+     * @nullable
+     */
+  tdOverExpected: number | null;
+  /**
+     * PPR points per carry-or-target.
+     * @nullable
+     */
+  pointsPerOpportunity: number | null;
+  /** @nullable */
+  rushEpaPerAtt: number | null;
+  /** @nullable */
+  recEpaPerTarget: number | null;
+  /**
+     * Next Gen rushing yards over expected per attempt.
+     * @nullable
+     */
+  ryoePerAtt: number | null;
+  /**
+     * Next Gen yards after catch over expected, per reception.
+     * @nullable
+     */
+  yacOverExpected: number | null;
+  /**
+     * Drops per target, as a percentage.
+     * @nullable
+     */
+  dropPct: number | null;
+  /**
+     * Broken tackles across carries and receptions combined.
+     * @nullable
+     */
+  brokenTackles: number | null;
+  /**
+     * Standard deviation of weekly PPR scores.
+     * @nullable
+     */
+  weeklyStdev: number | null;
+  /** @nullable */
+  draftRound: number | null;
+  /** @nullable */
+  draftPick: number | null;
+};
+
+/**
  * Nullable fields are nullable because the source data genuinely lacks
  * them, and a blank is not a zero. 33 of the 250 players took no 2025
  * snaps (rookies, or a missed season) so they have no production at all,
@@ -166,6 +257,14 @@ export interface Player {
   note?: string | null;
   nextGen: PlayerNextGen;
   consistency: PlayerConsistency;
+  /**
+     * The advanced 2025 layer: usage shares, expected touchdowns,
+     * per-touch efficiency and situational volume, straight from the
+     * season snapshot. Every field is nullable for the same reason as
+     * above — a rookie or a player the tracking data does not cover has
+     * no number, not a zero.
+     */
+  advanced: PlayerAdvanced;
 }
 
 export interface Team {
@@ -226,6 +325,47 @@ export interface Team {
   compositeScore?: number | null;
   tier: string;
   trend: string;
+  /**
+     * Opponent-adjusted sack rate allowed per dropback, as a percentage. Under 5.5 is good, over 8 is bad.
+     * @nullable
+     */
+  sackRateAdj?: number | null;
+  /**
+     * Pressure rate allowed per dropback, as a percentage.
+     * @nullable
+     */
+  pressureRateAllowed?: number | null;
+  /**
+     * Average pocket time in seconds.
+     * @nullable
+     */
+  pocketTime?: number | null;
+  /**
+     * Pass rate in one-score game states, as a percentage — the play-caller's real lean, before game script.
+     * @nullable
+     */
+  neutralPassRate?: number | null;
+  /** @nullable */
+  rzTripsPerGame?: number | null;
+  /**
+     * Team yards before contact per carry — the line's share of the run game.
+     * @nullable
+     */
+  ybcPerAtt?: number | null;
+  /**
+     * Team yards after contact per carry — the backs' share.
+     * @nullable
+     */
+  yacPerAtt?: number | null;
+  /** @nullable */
+  passEpaPerPlay?: number | null;
+  /** @nullable */
+  rushEpaPerPlay?: number | null;
+  /**
+     * Share of 2025 red-zone touches leaving the roster, as a percentage.
+     * @nullable
+     */
+  vacatedRzPct?: number | null;
 }
 
 export interface Lineman {

@@ -77,7 +77,30 @@ export const GetPlayersResponseItem = zod.object({
   "boomRate": zod.number().nullable(),
   "bustRate": zod.number().nullable(),
   "weeksPlayed": zod.number().nullable()
-})
+}),
+  "advanced": zod.object({
+  "wopr": zod.number().nullable().describe('Weighted Opportunity Rating, 1.5 x target share + 0.7 x air-yards share. 0.70+ is elite usage.'),
+  "airYardsShare": zod.number().nullable().describe('Share of the team\'s intended air yards, as a percentage.'),
+  "adot": zod.number().nullable().describe('Average depth of target in air yards.'),
+  "racr": zod.number().nullable().describe('Receiving yards per air yard. Unstable for tiny air-yard samples — clients should ignore extremes.'),
+  "targetsPerGame": zod.number().nullable(),
+  "carriesPerGame": zod.number().nullable(),
+  "rzOpportunities": zod.number().nullable().describe('2025 touches or targets inside the opponent 20.'),
+  "inside10Touches": zod.number().nullable(),
+  "inside5Touches": zod.number().nullable(),
+  "expectedTds": zod.number().nullable().describe('Expected touchdowns from where and how he was used.'),
+  "tdOverExpected": zod.number().nullable().describe('Actual minus expected touchdowns, signed. Beyond about +\/-3 is a regression flag.'),
+  "pointsPerOpportunity": zod.number().nullable().describe('PPR points per carry-or-target.'),
+  "rushEpaPerAtt": zod.number().nullable(),
+  "recEpaPerTarget": zod.number().nullable(),
+  "ryoePerAtt": zod.number().nullable().describe('Next Gen rushing yards over expected per attempt.'),
+  "yacOverExpected": zod.number().nullable().describe('Next Gen yards after catch over expected, per reception.'),
+  "dropPct": zod.number().nullable().describe('Drops per target, as a percentage.'),
+  "brokenTackles": zod.number().nullable().describe('Broken tackles across carries and receptions combined.'),
+  "weeklyStdev": zod.number().nullable().describe('Standard deviation of weekly PPR scores.'),
+  "draftRound": zod.number().nullable(),
+  "draftPick": zod.number().nullable()
+}).describe('The advanced 2025 layer: usage shares, expected touchdowns,\nper-touch efficiency and situational volume, straight from the\nseason snapshot. Every field is nullable for the same reason as\nabove — a rookie or a player the tracking data does not cover has\nno number, not a zero.\n')
 }).describe('Nullable fields are nullable because the source data genuinely lacks\nthem, and a blank is not a zero. 33 of the 250 players took no 2025\nsnaps (rookies, or a missed season) so they have no production at all,\nand Next Gen Stats are only recorded for the positions they apply to —\nseparation and catch rate for receivers, rushing yards over expected\nand eight-plus-box rate for backs. Clients must render these as \"no\ndata\", never as 0.\n')
 export const GetPlayersResponse = zod.array(GetPlayersResponseItem)
 
@@ -138,7 +161,30 @@ export const GetPlayerResponse = zod.object({
   "boomRate": zod.number().nullable(),
   "bustRate": zod.number().nullable(),
   "weeksPlayed": zod.number().nullable()
-})
+}),
+  "advanced": zod.object({
+  "wopr": zod.number().nullable().describe('Weighted Opportunity Rating, 1.5 x target share + 0.7 x air-yards share. 0.70+ is elite usage.'),
+  "airYardsShare": zod.number().nullable().describe('Share of the team\'s intended air yards, as a percentage.'),
+  "adot": zod.number().nullable().describe('Average depth of target in air yards.'),
+  "racr": zod.number().nullable().describe('Receiving yards per air yard. Unstable for tiny air-yard samples — clients should ignore extremes.'),
+  "targetsPerGame": zod.number().nullable(),
+  "carriesPerGame": zod.number().nullable(),
+  "rzOpportunities": zod.number().nullable().describe('2025 touches or targets inside the opponent 20.'),
+  "inside10Touches": zod.number().nullable(),
+  "inside5Touches": zod.number().nullable(),
+  "expectedTds": zod.number().nullable().describe('Expected touchdowns from where and how he was used.'),
+  "tdOverExpected": zod.number().nullable().describe('Actual minus expected touchdowns, signed. Beyond about +\/-3 is a regression flag.'),
+  "pointsPerOpportunity": zod.number().nullable().describe('PPR points per carry-or-target.'),
+  "rushEpaPerAtt": zod.number().nullable(),
+  "recEpaPerTarget": zod.number().nullable(),
+  "ryoePerAtt": zod.number().nullable().describe('Next Gen rushing yards over expected per attempt.'),
+  "yacOverExpected": zod.number().nullable().describe('Next Gen yards after catch over expected, per reception.'),
+  "dropPct": zod.number().nullable().describe('Drops per target, as a percentage.'),
+  "brokenTackles": zod.number().nullable().describe('Broken tackles across carries and receptions combined.'),
+  "weeklyStdev": zod.number().nullable().describe('Standard deviation of weekly PPR scores.'),
+  "draftRound": zod.number().nullable(),
+  "draftPick": zod.number().nullable()
+}).describe('The advanced 2025 layer: usage shares, expected touchdowns,\nper-touch efficiency and situational volume, straight from the\nseason snapshot. Every field is nullable for the same reason as\nabove — a rookie or a player the tracking data does not cover has\nno number, not a zero.\n')
 }).describe('Nullable fields are nullable because the source data genuinely lacks\nthem, and a blank is not a zero. 33 of the 250 players took no 2025\nsnaps (rookies, or a missed season) so they have no production at all,\nand Next Gen Stats are only recorded for the positions they apply to —\nseparation and catch rate for receivers, rushing yards over expected\nand eight-plus-box rate for backs. Clients must render these as \"no\ndata\", never as 0.\n')
 
 
@@ -168,7 +214,17 @@ export const GetTeamsResponseItem = zod.object({
   "olHealthStatus": zod.string().describe('Intact, Degraded, Critical, or Unknown.'),
   "compositeScore": zod.number().nullish(),
   "tier": zod.string(),
-  "trend": zod.string()
+  "trend": zod.string(),
+  "sackRateAdj": zod.number().nullish().describe('Opponent-adjusted sack rate allowed per dropback, as a percentage. Under 5.5 is good, over 8 is bad.'),
+  "pressureRateAllowed": zod.number().nullish().describe('Pressure rate allowed per dropback, as a percentage.'),
+  "pocketTime": zod.number().nullish().describe('Average pocket time in seconds.'),
+  "neutralPassRate": zod.number().nullish().describe('Pass rate in one-score game states, as a percentage — the play-caller\'s real lean, before game script.'),
+  "rzTripsPerGame": zod.number().nullish(),
+  "ybcPerAtt": zod.number().nullish().describe('Team yards before contact per carry — the line\'s share of the run game.'),
+  "yacPerAtt": zod.number().nullish().describe('Team yards after contact per carry — the backs\' share.'),
+  "passEpaPerPlay": zod.number().nullish(),
+  "rushEpaPerPlay": zod.number().nullish(),
+  "vacatedRzPct": zod.number().nullish().describe('Share of 2025 red-zone touches leaving the roster, as a percentage.')
 })
 export const GetTeamsResponse = zod.array(GetTeamsResponseItem)
 

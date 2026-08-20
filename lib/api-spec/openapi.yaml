@@ -525,7 +525,7 @@ components:
         separation and catch rate for receivers, rushing yards over expected
         and eight-plus-box rate for backs. Clients must render these as "no
         data", never as 0.
-      required: [id, rank, name, team, position, adp, adpConsensus, adpConsensusStdev, adpSources, valueScoreConsensus, ecrRank, ecrDelta, depthRank, projectedPoints, aav, tier, isRookie, nextGen, consistency]
+      required: [id, rank, name, team, position, adp, adpConsensus, adpConsensusStdev, adpSources, valueScoreConsensus, ecrRank, ecrDelta, depthRank, projectedPoints, aav, tier, isRookie, nextGen, consistency, advanced]
       properties:
         id:
           type: string
@@ -640,6 +640,70 @@ components:
             boomRate: { type: [number, "null"] }
             bustRate: { type: [number, "null"] }
             weeksPlayed: { type: [number, "null"] }
+        advanced:
+          type: object
+          description: |
+            The advanced 2025 layer: usage shares, expected touchdowns,
+            per-touch efficiency and situational volume, straight from the
+            season snapshot. Every field is nullable for the same reason as
+            above — a rookie or a player the tracking data does not cover has
+            no number, not a zero.
+          required:
+            [
+              wopr, airYardsShare, adot, racr, targetsPerGame, carriesPerGame,
+              rzOpportunities, inside10Touches, inside5Touches, expectedTds,
+              tdOverExpected, pointsPerOpportunity, rushEpaPerAtt,
+              recEpaPerTarget, ryoePerAtt, yacOverExpected, dropPct,
+              brokenTackles, weeklyStdev, draftRound, draftPick,
+            ]
+          properties:
+            wopr:
+              type: [number, "null"]
+              description: Weighted Opportunity Rating, 1.5 x target share + 0.7 x air-yards share. 0.70+ is elite usage.
+            airYardsShare:
+              type: [number, "null"]
+              description: Share of the team's intended air yards, as a percentage.
+            adot:
+              type: [number, "null"]
+              description: Average depth of target in air yards.
+            racr:
+              type: [number, "null"]
+              description: Receiving yards per air yard. Unstable for tiny air-yard samples — clients should ignore extremes.
+            targetsPerGame: { type: [number, "null"] }
+            carriesPerGame: { type: [number, "null"] }
+            rzOpportunities:
+              type: [number, "null"]
+              description: 2025 touches or targets inside the opponent 20.
+            inside10Touches: { type: [number, "null"] }
+            inside5Touches: { type: [number, "null"] }
+            expectedTds:
+              type: [number, "null"]
+              description: Expected touchdowns from where and how he was used.
+            tdOverExpected:
+              type: [number, "null"]
+              description: Actual minus expected touchdowns, signed. Beyond about +/-3 is a regression flag.
+            pointsPerOpportunity:
+              type: [number, "null"]
+              description: PPR points per carry-or-target.
+            rushEpaPerAtt: { type: [number, "null"] }
+            recEpaPerTarget: { type: [number, "null"] }
+            ryoePerAtt:
+              type: [number, "null"]
+              description: Next Gen rushing yards over expected per attempt.
+            yacOverExpected:
+              type: [number, "null"]
+              description: Next Gen yards after catch over expected, per reception.
+            dropPct:
+              type: [number, "null"]
+              description: Drops per target, as a percentage.
+            brokenTackles:
+              type: [number, "null"]
+              description: Broken tackles across carries and receptions combined.
+            weeklyStdev:
+              type: [number, "null"]
+              description: Standard deviation of weekly PPR scores.
+            draftRound: { type: [number, "null"] }
+            draftPick: { type: [number, "null"] }
     Team:
       type: object
       required: [team, fullName, tier, trend, olHealthStatus]
@@ -676,6 +740,30 @@ components:
         compositeScore: { type: [number, "null"] }
         tier: { type: string }
         trend: { type: string }
+        sackRateAdj:
+          type: [number, "null"]
+          description: Opponent-adjusted sack rate allowed per dropback, as a percentage. Under 5.5 is good, over 8 is bad.
+        pressureRateAllowed:
+          type: [number, "null"]
+          description: Pressure rate allowed per dropback, as a percentage.
+        pocketTime:
+          type: [number, "null"]
+          description: Average pocket time in seconds.
+        neutralPassRate:
+          type: [number, "null"]
+          description: Pass rate in one-score game states, as a percentage — the play-caller's real lean, before game script.
+        rzTripsPerGame: { type: [number, "null"] }
+        ybcPerAtt:
+          type: [number, "null"]
+          description: Team yards before contact per carry — the line's share of the run game.
+        yacPerAtt:
+          type: [number, "null"]
+          description: Team yards after contact per carry — the backs' share.
+        passEpaPerPlay: { type: [number, "null"] }
+        rushEpaPerPlay: { type: [number, "null"] }
+        vacatedRzPct:
+          type: [number, "null"]
+          description: Share of 2025 red-zone touches leaving the roster, as a percentage.
     Lineman:
       type: object
       required: [slot, rank, name, injuryStatus, injuryBodyPart, headline, headlineUrl]

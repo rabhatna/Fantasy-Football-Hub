@@ -64,4 +64,45 @@ export interface Team {
   compositeScore?: number | null;
   tier: string;
   trend: string;
+  /**
+     * Opponent-adjusted sack rate allowed per dropback, as a percentage. Under 5.5 is good, over 8 is bad.
+     * @nullable
+     */
+  sackRateAdj?: number | null;
+  /**
+     * Pressure rate allowed per dropback, as a percentage.
+     * @nullable
+     */
+  pressureRateAllowed?: number | null;
+  /**
+     * Average pocket time in seconds.
+     * @nullable
+     */
+  pocketTime?: number | null;
+  /**
+     * Pass rate in one-score game states, as a percentage — the play-caller's real lean, before game script.
+     * @nullable
+     */
+  neutralPassRate?: number | null;
+  /** @nullable */
+  rzTripsPerGame?: number | null;
+  /**
+     * Team yards before contact per carry — the line's share of the run game.
+     * @nullable
+     */
+  ybcPerAtt?: number | null;
+  /**
+     * Team yards after contact per carry — the backs' share.
+     * @nullable
+     */
+  yacPerAtt?: number | null;
+  /** @nullable */
+  passEpaPerPlay?: number | null;
+  /** @nullable */
+  rushEpaPerPlay?: number | null;
+  /**
+     * Share of 2025 red-zone touches leaving the roster, as a percentage.
+     * @nullable
+     */
+  vacatedRzPct?: number | null;
 }
