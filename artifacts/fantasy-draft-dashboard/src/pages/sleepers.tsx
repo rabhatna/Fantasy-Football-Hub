@@ -90,6 +90,7 @@ export default function SleepersPage() {
   const { data: players } = useGetPlayers();
   const [, setLocation] = useLocation();
   const [filter, setFilter] = useState("all");
+  const [position, setPosition] = useState("all");
   const targetState = useTargets();
 
   const playerById = useMemo(
@@ -98,14 +99,30 @@ export default function SleepersPage() {
   );
 
   const picks = sleepers ?? [];
-  const visible = filter === "all" ? picks : picks.filter((pick) => pick.tags.includes(filter));
+  const byPosition = position === "all" ? picks : picks.filter((pick) => pick.position === position);
+  const visible =
+    filter === "all" ? byPosition : byPosition.filter((pick) => pick.tags.includes(filter));
+
+  // Each chip row counts within the other row's selection, so the numbers
+  // always describe what clicking the chip would actually show.
   const counts = useMemo(() => {
-    const map = new Map<string, number>([["all", picks.length]]);
-    for (const pick of picks) {
+    const map = new Map<string, number>([["all", byPosition.length]]);
+    for (const pick of byPosition) {
       for (const tag of pick.tags) map.set(tag, (map.get(tag) ?? 0) + 1);
     }
     return map;
+  }, [byPosition]);
+  const byTag = filter === "all" ? picks : picks.filter((pick) => pick.tags.includes(filter));
+  const positions = useMemo(() => {
+    const order = ["QB", "RB", "WR", "TE"];
+    const present = new Set(picks.map((pick) => pick.position));
+    return ["all", ...order.filter((pos) => present.has(pos)), ...[...present].filter((pos) => !order.includes(pos)).sort()];
   }, [picks]);
+  const positionCounts = useMemo(() => {
+    const map = new Map<string, number>([["all", byTag.length]]);
+    for (const pick of byTag) map.set(pick.position, (map.get(pick.position) ?? 0) + 1);
+    return map;
+  }, [byTag]);
 
   return (
     <div className="mx-auto max-w-[1250px]">
@@ -125,7 +142,7 @@ export default function SleepersPage() {
         <Flame size={20} className="shrink-0 text-accent" />
       </div>
 
-      <div className="mb-5 flex gap-2 overflow-x-auto">
+      <div className="mb-2 flex gap-2 overflow-x-auto">
         {Object.entries(TAG_LABELS).map(([value, label]) => (
           <button
             type="button"
@@ -139,6 +156,23 @@ export default function SleepersPage() {
             }`}
           >
             {label} ({counts.get(value) ?? 0})
+          </button>
+        ))}
+      </div>
+      <div className="mb-5 flex gap-2 overflow-x-auto">
+        {positions.map((value) => (
+          <button
+            type="button"
+            key={value}
+            onClick={() => setPosition(value)}
+            data-testid={`button-sleeper-position-${value}`}
+            className={`mono shrink-0 rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold uppercase transition ${
+              position === value
+                ? "border-accent/40 bg-accent/10 text-accent"
+                : "border-border bg-card text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {value === "all" ? "All positions" : value} ({positionCounts.get(value) ?? 0})
           </button>
         ))}
       </div>

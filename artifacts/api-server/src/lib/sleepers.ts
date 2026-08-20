@@ -54,7 +54,12 @@ export interface SleeperInput {
 
 const price = (player: SleeperCandidate) => player.adpConsensus ?? player.adp;
 
-export function findSleepers(input: SleeperInput, limit = 24): SleeperPick[] {
+// Deep by design: a draft-day sleeper list should outlast the first waiver
+// run, so the cap is generous — the score ordering still puts the loudest
+// arguments on top.
+const DEFAULT_LIMIT = 60;
+
+export function findSleepers(input: SleeperInput, limit = DEFAULT_LIMIT): SleeperPick[] {
   const { players, unavailableIds, teamCount } = input;
 
   // "Under the radar" means the room is not spending an early pick: anything
@@ -162,8 +167,9 @@ export function findSleepers(input: SleeperInput, limit = 24): SleeperPick[] {
     }
 
     // A rookie is always listed (the rookie filter needs him); anyone else
-    // needs a real argument and a late price.
-    if (tags.length === 0 || (!player.isRookie && (!isLate || score < 0.2))) continue;
+    // needs a late price and at least one real argument — a single signal
+    // (a late handcuff, a modest value gap) is enough to make the deep list.
+    if (tags.length === 0 || (!player.isRookie && (!isLate || score < 0.12))) continue;
 
     picks.push({
       playerId: player.id,

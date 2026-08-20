@@ -51,6 +51,9 @@ import {
   SavePlayerNoteBody,
   SavePlayerNoteParams,
   SavePlayerNoteResponse,
+  UpdateKeeperBody,
+  UpdateKeeperParams,
+  UpdateKeeperResponse,
   UpdateSettingsBody,
   UpdateSettingsResponse,
 } from "@workspace/api-zod";
@@ -915,6 +918,59 @@ router.post("/keepers/import", async (req, res, next) => {
       "Imported keepers from sheet",
     );
     res.json(ImportKeepersResponse.parse({ imported: additions.length, skipped, keepers }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/keepers/:id", async (req, res, next) => {
+  try {
+    const params = UpdateKeeperParams.safeParse(req.params);
+    const body = UpdateKeeperBody.safeParse(req.body);
+    if (!params.success || !body.success) {
+      res.status(400).json({ error: "Invalid keeper update" });
+      return;
+    }
+
+    type Outcome =
+      | { kind: "missing" }
+      | { kind: "invalid" }
+      | { kind: "ok"; keeper: KeeperRecord };
+
+    const outcome = await store.keepers.update((records): { next: KeeperRecord[]; result: Outcome } => {
+      const index = records.findIndex((keeper) => keeper.id === params.data.id);
+      if (index === -1) return { next: records, result: { kind: "missing" } };
+
+      const current = records[index];
+      const owner = body.data.owner ?? current.owner;
+      const corrected: KeeperRecord = {
+        ...current,
+        owner,
+        ownerName: owner === "me" ? "" : (body.data.ownerName ?? current.ownerName).trim(),
+        costType: body.data.costType ?? current.costType,
+        costValue: body.data.costValue ?? current.costValue,
+      };
+      // A snake keeper burns a round, so round costs start at 1; auction
+      // dollars can legitimately be 0 (a free keeper).
+      if (corrected.costType === "round" && corrected.costValue < 1) {
+        return { next: records, result: { kind: "invalid" } };
+      }
+
+      const next = [...records];
+      next[index] = corrected;
+      return { next, result: { kind: "ok", keeper: corrected } };
+    });
+
+    if (outcome.kind === "missing") {
+      res.status(404).json({ error: "No keeper with that id" });
+      return;
+    }
+    if (outcome.kind === "invalid") {
+      res.status(400).json({ error: "A round keeper needs a round of at least 1" });
+      return;
+    }
+
+    res.json(UpdateKeeperResponse.parse(outcome.keeper));
   } catch (error) {
     next(error);
   }

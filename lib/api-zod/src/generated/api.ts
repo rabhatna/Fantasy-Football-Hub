@@ -422,6 +422,41 @@ export const ImportKeepersResponse = zod.object({
 
 
 /**
+ * Corrects a keeper without re-uploading the sheet — whose team he is on,
+ * the team's label, or what he costs. The player himself is fixed; to move
+ * a keeper to a different player, remove him and add the right one.
+ * @summary Edit a keeper in place
+ */
+export const UpdateKeeperParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateKeeperBodyCostValueMin = 0;
+
+
+
+export const UpdateKeeperBody = zod.object({
+  "owner": zod.enum(['me', 'other']).optional(),
+  "ownerName": zod.string().optional().describe('The league team\'s label. Ignored when the keeper ends up owned by \"me\".'),
+  "costType": zod.enum(['round', 'dollars']).optional(),
+  "costValue": zod.number().min(updateKeeperBodyCostValueMin).optional()
+}).describe('A partial correction to a saved keeper. Every field is optional;\nomitted fields keep their current value. Setting owner to \"me\"\nclears ownerName.\n')
+
+export const UpdateKeeperResponse = zod.object({
+  "id": zod.string(),
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "owner": zod.enum(['me', 'other']),
+  "ownerName": zod.string().describe('The league team keeping him; empty when it is the user\'s own keeper.'),
+  "costType": zod.enum(['round', 'dollars']),
+  "costValue": zod.number(),
+  "createdAt": zod.string()
+}).describe('playerName, team and position are denormalised for the same reason as\ndraft picks — playerId can change across dataset refreshes, and the\nCSV should read cleanly in a spreadsheet.\n')
+
+
+/**
  * @summary Remove a keeper
  */
 export const DeleteKeeperParams = zod.object({

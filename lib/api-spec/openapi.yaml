@@ -297,6 +297,36 @@ paths:
         "400":
           description: Unparseable CSV
   /keepers/{id}:
+    patch:
+      operationId: updateKeeper
+      tags: [draft]
+      summary: Edit a keeper in place
+      description: |
+        Corrects a keeper without re-uploading the sheet — whose team he is on,
+        the team's label, or what he costs. The player himself is fixed; to move
+        a keeper to a different player, remove him and add the right one.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeeperUpdate"
+      responses:
+        "200":
+          description: The corrected keeper
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Keeper"
+        "400":
+          description: Invalid update
+        "404":
+          description: No keeper with that id
     delete:
       operationId: deleteKeeper
       tags: [draft]
@@ -909,6 +939,25 @@ components:
           type: number
           minimum: 0
           description: The round the keeper consumes (snake) or the dollars he costs (auction).
+    KeeperUpdate:
+      type: object
+      description: |
+        A partial correction to a saved keeper. Every field is optional;
+        omitted fields keep their current value. Setting owner to "me"
+        clears ownerName.
+      properties:
+        owner:
+          type: string
+          enum: [me, other]
+        ownerName:
+          type: string
+          description: The league team's label. Ignored when the keeper ends up owned by "me".
+        costType:
+          type: string
+          enum: [round, dollars]
+        costValue:
+          type: number
+          minimum: 0
     Keeper:
       type: object
       description: |
