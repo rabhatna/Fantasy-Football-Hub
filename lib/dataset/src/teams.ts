@@ -27,6 +27,24 @@ export interface DatasetTeam {
   compositeScore: number | null;
   tier: string;
   trend: string;
+  /** Sack rate allowed per dropback, opponent-adjusted, as a percentage. */
+  sackRateAdj: number | null;
+  /** Pressure rate allowed per dropback, as a percentage. */
+  pressureRateAllowed: number | null;
+  /** Average pocket time in seconds. */
+  pocketTime: number | null;
+  /** Pass rate in one-score game states, as a percentage — the coach's real lean. */
+  neutralPassRate: number | null;
+  /** Red-zone trips per game. */
+  rzTripsPerGame: number | null;
+  /** Team yards before contact per carry — the line's share of the run game. */
+  ybcPerAtt: number | null;
+  /** Team yards after contact per carry — the backs' share. */
+  yacPerAtt: number | null;
+  passEpaPerPlay: number | null;
+  rushEpaPerPlay: number | null;
+  /** Share of 2025 red-zone touches leaving the roster, as a percentage. */
+  vacatedRzPct: number | null;
 }
 
 const TEAM_NAMES: Record<string, string> = {
@@ -183,6 +201,16 @@ export function toTeam(row: Row): DatasetTeam {
     compositeScore,
     tier: tierForScore(compositeScore),
     trend: trendForContinuity(continuity, returningStarters),
+    sackRateAdj: percent(row, "tm_sack_rate_adj"),
+    pressureRateAllowed: percent(row, "tm_pressure_rate_allowed"),
+    pocketTime: rounded(row, "tm_avg_pocket_time", 2),
+    neutralPassRate: percent(row, "tm_neutral_pass_rate"),
+    rzTripsPerGame: rounded(row, "tm_rz_trips_per_game", 2),
+    ybcPerAtt: rounded(row, "tm_ybc_per_att", 2),
+    yacPerAtt: rounded(row, "tm_yac_per_att", 2),
+    passEpaPerPlay: rounded(row, "tm_pass_epa_per_play", 3),
+    rushEpaPerPlay: rounded(row, "tm_rush_epa_per_play", 3),
+    vacatedRzPct: percent(row, "tm_vacated_rz_pct"),
   };
 }
 

@@ -30,11 +30,12 @@ import { SettingsDialog } from "@/components/settings-dialog";
 import { SuggestedPicks } from "@/components/suggested-picks";
 import { TeamLineFive } from "@/components/team-line";
 import { useDraftBoard, usePlayerNote } from "@/hooks/use-draft-state";
-import { NO_DATA, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
+import { NO_DATA, VALUE_TARGET_SD, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
 import DraftSheetPage from "@/pages/draft-sheet";
 import LeaguePage from "@/pages/league";
 import SleepersPage from "@/pages/sleepers";
 import SourcesPage from "@/pages/sources";
+import StatLabPage from "@/pages/stat-lab";
 import NotFound from "@/pages/not-found";
 import { TargetList } from "@/components/target-list";
 import { useTargets } from "@/hooks/use-targets";
@@ -94,8 +95,11 @@ function PositionBadge({ position }: { position: string }) {
   return <span className={`inline-flex h-6 min-w-8 items-center justify-center rounded-md border px-1.5 mono text-[10px] font-medium ${color}`}>{position}</span>;
 }
 
-function ScoreBar({ value, color = "primary" }: { value: number; color?: "primary" | "accent" | "chart-3" }) {
-  return <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full bg-${color}`} style={{ width: `${clamp(value)}%` }} /></div>;
+// Full class names, not `bg-${color}` — Tailwind's scanner only keeps classes
+// it can see as literals, so a constructed name may not exist in the build.
+const SCORE_BAR_COLORS = { primary: "bg-primary", accent: "bg-accent", "chart-3": "bg-chart-3" } as const;
+function ScoreBar({ value, color = "primary" }: { value: number; color?: keyof typeof SCORE_BAR_COLORS }) {
+  return <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${SCORE_BAR_COLORS[color]}`} style={{ width: `${clamp(value)}%` }} /></div>;
 }
 
 function LoadingRows() {
@@ -149,6 +153,7 @@ function Shell({ children }: { children: ReactNode }) {
     { href: "/sleepers", label: "sleepers" },
     { href: "/league", label: "league" },
     { href: "/draft-sheet", label: "draft_sheet" },
+    { href: "/stats", label: "stat_lab" },
     { href: "/ol-center", label: "o-line" },
     { href: "/news", label: "signal" },
     { href: "/sources", label: "sources" },
@@ -431,10 +436,14 @@ function OLScatterPlot({ rbImpacts, onSelect }: { rbImpacts: RBOLImpact[]; onSel
   const iH = H - PAD.top - PAD.bottom;
   const minOL = 30;
   const maxOL = 100;
-  const minVal = 0;
-  const maxVal = 11;
-  const midOL = (minOL + maxOL) / 2;
-  const midVal = (minVal + maxVal) / 2;
+  // Value scores are SDs spanning roughly -3 to +2.5, and the quadrant
+  // boundaries must match the server's impact labels: a good line is a
+  // composite >= 60 and a good value is >= VALUE_TARGET_SD (0.5). Midpoints
+  // of the axes would draw dots in quadrants their badges disagree with.
+  const minVal = -3;
+  const maxVal = 3;
+  const midOL = 60;
+  const midVal = VALUE_TARGET_SD;
   const xScale = (v: number) => PAD.left + ((v - minOL) / (maxOL - minOL)) * iW;
   const yScale = (v: number) => PAD.top + iH - ((v - minVal) / (maxVal - minVal)) * iH;
   return (
@@ -846,7 +855,7 @@ function ActivityIcon() {
 
 function Router() {
   const [location, setLocation] = useLocation();
-  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/sleepers" component={SleepersPage} /><Route path="/league" component={LeaguePage} /><Route path="/keepers" component={LeaguePage} /><Route path="/draft-sheet" component={DraftSheetPage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route path="/sources" component={SourcesPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
+  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/sleepers" component={SleepersPage} /><Route path="/league" component={LeaguePage} /><Route path="/keepers" component={LeaguePage} /><Route path="/draft-sheet" component={DraftSheetPage} /><Route path="/stats" component={StatLabPage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route path="/sources" component={SourcesPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
 }
 
 function App() {

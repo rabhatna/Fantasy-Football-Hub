@@ -72,6 +72,48 @@ export interface DatasetPlayer {
     bustRate: number | null;
     weeksPlayed: number | null;
   };
+  /**
+   * The advanced 2025 layer: usage shares, expected touchdowns, per-touch
+   * efficiency and situational volume. All season-level, all nullable — a
+   * rookie or a player without the underlying tracking data carries nulls,
+   * never zeros.
+   */
+  advanced: {
+    /** Weighted Opportunity Rating: 1.5 x target share + 0.7 x air-yards share. */
+    wopr: number | null;
+    /** Share of the team's intended air yards, as a percentage. */
+    airYardsShare: number | null;
+    /** Average depth of target, in air yards per target. */
+    adot: number | null;
+    /** Receiver air conversion ratio: receiving yards per air yard thrown his way. */
+    racr: number | null;
+    targetsPerGame: number | null;
+    carriesPerGame: number | null;
+    /** Touches or targets inside the opponent 20. */
+    rzOpportunities: number | null;
+    inside10Touches: number | null;
+    inside5Touches: number | null;
+    /** Expected touchdowns from where and how he was used. */
+    expectedTds: number | null;
+    /** Actual minus expected touchdowns — the regression signal, signed. */
+    tdOverExpected: number | null;
+    /** PPR points per opportunity (carry or target). */
+    pointsPerOpportunity: number | null;
+    rushEpaPerAtt: number | null;
+    recEpaPerTarget: number | null;
+    /** NGS rushing yards over expected per attempt. */
+    ryoePerAtt: number | null;
+    /** NGS yards after catch over expected, per reception. */
+    yacOverExpected: number | null;
+    /** Drops per target, as a percentage. */
+    dropPct: number | null;
+    /** Broken tackles across carries and receptions combined. */
+    brokenTackles: number | null;
+    /** Weekly PPR standard deviation — the week-to-week swing. */
+    weeklyStdev: number | null;
+    draftRound: number | null;
+    draftPick: number | null;
+  };
 }
 
 /**
@@ -178,7 +220,44 @@ export function toPlayer(row: Row): DatasetPlayer {
       bustRate: percent(row, "y25_bust_rate"),
       weeksPlayed: integer(row, "y25_weeks_played"),
     },
+    advanced: {
+      wopr: rounded(row, "y25_wopr", 2),
+      // The _active variant is computed only over weeks the player took a
+      // snap, same as the target/carry shares above.
+      airYardsShare:
+        percent(row, "y25_air_yards_share_active") ?? percent(row, "y25_air_yards_share"),
+      adot: rounded(row, "y25_adot", 1),
+      racr: rounded(row, "y25_racr", 2),
+      targetsPerGame: rounded(row, "y25_targets_per_game", 1),
+      carriesPerGame: rounded(row, "y25_carries_per_game", 1),
+      rzOpportunities: integer(row, "y25_rz_opportunities"),
+      inside10Touches: integer(row, "y25_inside_10_touches"),
+      inside5Touches: integer(row, "y25_inside_5_touches"),
+      expectedTds: rounded(row, "y25_expected_tds", 1),
+      tdOverExpected: rounded(row, "y25_td_over_expected", 1),
+      pointsPerOpportunity: rounded(row, "y25_points_per_opportunity", 2),
+      rushEpaPerAtt: rounded(row, "y25_rush_epa_per_att", 3),
+      recEpaPerTarget: rounded(row, "y25_rec_epa_per_target", 3),
+      ryoePerAtt: rounded(row, "ngs_ryoe_per_att", 2),
+      yacOverExpected: rounded(row, "ngs_yac_over_expected", 2),
+      dropPct: percent(row, "rec_drop_pct"),
+      brokenTackles: totalBrokenTackles(row),
+      weeklyStdev: rounded(row, "y25_weekly_stdev", 1),
+      draftRound: integer(row, "draft_round"),
+      draftPick: integer(row, "draft_pick"),
+    },
   };
+}
+
+/**
+ * Broken tackles across carries and receptions. Null only when both sides are
+ * missing — a pure receiver with no rushing charting still has a real count.
+ */
+function totalBrokenTackles(row: Row): number | null {
+  const rush = number(row, "rush_broken_tackles");
+  const rec = number(row, "rec_broken_tackles");
+  if (rush === null && rec === null) return null;
+  return (rush ?? 0) + (rec ?? 0);
 }
 
 /**
