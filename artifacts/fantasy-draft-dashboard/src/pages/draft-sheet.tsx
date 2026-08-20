@@ -1,5 +1,6 @@
 import { Printer } from "lucide-react";
 import {
+  useGetDraftPlan,
   useGetDraftSummary,
   useGetKeepers,
   useGetPlayers,
@@ -30,6 +31,7 @@ export default function DraftSheetPage() {
   const { data: keepers } = useGetKeepers();
   const { data: summary } = useGetDraftSummary();
   const { data: settings } = useGetSettings();
+  const { data: plan } = useGetDraftPlan();
 
   const pool = players ?? [];
   const keptIds = new Set((keepers ?? []).map((keeper) => keeper.playerId));
@@ -114,6 +116,66 @@ export default function DraftSheetPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* ── The proposed plan ────────────────────────────────────────── */}
+        <div data-testid="section-draft-plan">
+          <h3 className="mono border-b border-border pb-1 text-[11px] font-bold uppercase tracking-[0.12em] print:border-black">
+            The plan — a target for every pick, with fallbacks
+          </h3>
+          {(plan?.slots ?? []).length === 0 ? (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Roster complete — nothing left to plan.
+            </p>
+          ) : (
+            <div className="mt-2 space-y-1.5">
+              {(plan?.slots ?? []).map((slot) => {
+                const primary = slot.options[0];
+                const fallbacks = slot.options.slice(1);
+                return (
+                  <div
+                    key={slot.overall}
+                    className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 break-inside-avoid border-b border-border/40 pb-1 text-[12px] print:border-black/15"
+                    data-testid={`plan-slot-${slot.round}`}
+                  >
+                    <span className="mono w-16 shrink-0 text-[10px] font-bold">
+                      R{slot.round}·#{slot.overall}
+                    </span>
+                    {primary ? (
+                      <>
+                        <span className="font-bold">{primary.name}</span>
+                        <span className="mono text-[10px] text-muted-foreground">
+                          {primary.position} · {primary.team} · ADP {fmt(primary.adp)} ·{" "}
+                          {Math.round(primary.availability * 100)}% there · {primary.role}
+                        </span>
+                        {fallbacks.length > 0 && (
+                          <span className="text-[10.5px] text-muted-foreground">
+                            if gone:{" "}
+                            {fallbacks.map((option, index) => (
+                              <span key={option.playerId}>
+                                {index > 0 && " · "}
+                                <span className="font-semibold text-foreground">{option.name}</span>{" "}
+                                <span className="mono text-[9px]">
+                                  {option.position} {fmt(option.adp, 0)}
+                                </span>
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-[11px] italic text-muted-foreground">{slot.note}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <p className="mono mt-1.5 text-[9px] text-muted-foreground">
+            Built from the live board: keepers and drafted players are off it, no name repeats,
+            and the lineup fills before the bench. "% there" is the chance he survives to that
+            pick at consensus ADP.
+          </p>
         </div>
 
         {/* ── Targets by round ─────────────────────────────────────────── */}

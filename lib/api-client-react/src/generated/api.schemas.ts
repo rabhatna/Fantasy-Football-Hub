@@ -629,6 +629,35 @@ export interface KeeperImportResult {
   keepers: Keeper[];
 }
 
+export interface PlanOption {
+  playerId: string;
+  name: string;
+  team: string;
+  position: string;
+  /** The price the plan reasoned from — consensus ADP when one exists. */
+  adp: number;
+  /** Chance he is still on the board at this pick, 0-1. */
+  availability: number;
+  /** What taking him does for the roster — "fills RB", "flex", or "depth". */
+  role: string;
+}
+
+export interface DraftPlanSlot {
+  round: number;
+  overall: number;
+  /** Best first — the first option is the primary target. */
+  options: PlanOption[];
+  /**
+     * Set when the slot proposes no ranked players — streaming rounds, or an exhausted board.
+     * @nullable
+     */
+  note: string | null;
+}
+
+export interface DraftPlan {
+  slots: DraftPlanSlot[];
+}
+
 export interface SleeperPick {
   playerId: string;
   name: string;

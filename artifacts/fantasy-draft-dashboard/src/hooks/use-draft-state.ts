@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetDraftPicksQueryKey,
+  getGetDraftPlanQueryKey,
   getGetDraftSummaryQueryKey,
   getGetNotesQueryKey,
   getGetRecommendationsQueryKey,
@@ -62,6 +63,10 @@ export function useDraftBoard(players: Player[]) {
     // Suggestions depend on the board: every pick changes needs and timing.
     void queryClient.invalidateQueries({
       queryKey: getGetRecommendationsQueryKey(),
+    });
+    // So does the round-by-round plan.
+    void queryClient.invalidateQueries({
+      queryKey: getGetDraftPlanQueryKey(),
     });
   }, [queryClient]);
 

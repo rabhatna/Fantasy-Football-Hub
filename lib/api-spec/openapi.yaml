@@ -171,6 +171,27 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Recommendation"
+  /draft/plan:
+    get:
+      operationId: getDraftPlan
+      tags: [draft]
+      summary: Proposed round-by-round draft plan
+      description: |
+        A target list for every pick the user still holds, computed from
+        whoever is still on the board once keepers and drafted players come
+        off it. Each slot proposes several options, best first — the primary
+        will sometimes be gone — and no player appears twice across the plan.
+        Positional need walks forward with the plan, so it fills a legal
+        starting lineup before it drafts depth; kicker and defense rounds are
+        planned as streaming notes on the final picks, since the ranked board
+        does not cover them.
+      responses:
+        "200":
+          description: The plan, one slot per remaining pick, in draft order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftPlan"
   /draft/sleepers:
     get:
       operationId: getSleepers
@@ -965,6 +986,45 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Keeper"
+    DraftPlan:
+      type: object
+      required: [slots]
+      properties:
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/DraftPlanSlot"
+    DraftPlanSlot:
+      type: object
+      required: [round, overall, options, note]
+      properties:
+        round: { type: number }
+        overall: { type: number }
+        options:
+          type: array
+          description: Best first — the first option is the primary target.
+          items:
+            $ref: "#/components/schemas/PlanOption"
+        note:
+          type: [string, "null"]
+          description: Set when the slot proposes no ranked players — streaming rounds, or an exhausted board.
+    PlanOption:
+      type: object
+      required: [playerId, name, team, position, adp, availability, role]
+      properties:
+        playerId: { type: string }
+        name: { type: string }
+        team: { type: string }
+        position: { type: string }
+        adp:
+          type: number
+          description: The price the plan reasoned from — consensus ADP when one exists.
+        availability:
+          type: number
+          description: Chance he is still on the board at this pick, 0-1.
+        role:
+          type: string
+          description: What taking him does for the roster — "fills RB", "flex", or "depth".
     SleeperPick:
       type: object
       required: [playerId, name, team, position, adp, score, tags, reasons]

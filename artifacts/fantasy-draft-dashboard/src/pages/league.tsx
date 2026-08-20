@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  getGetDraftPlanQueryKey,
   getGetDraftSummaryQueryKey,
   getGetKeepersQueryKey,
   getGetRecommendationsQueryKey,
@@ -589,6 +590,8 @@ export default function LeaguePage() {
     void client.invalidateQueries({ queryKey: getGetKeepersQueryKey() });
     void client.invalidateQueries({ queryKey: getGetDraftSummaryQueryKey() });
     void client.invalidateQueries({ queryKey: getGetRecommendationsQueryKey() });
+    // The proposed plan is built from the post-keeper board.
+    void client.invalidateQueries({ queryKey: getGetDraftPlanQueryKey() });
   };
 
   const removeKeeper = (id: string) => {

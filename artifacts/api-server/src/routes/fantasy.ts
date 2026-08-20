@@ -21,6 +21,7 @@ import {
   DeleteKeeperParams,
   DeleteTargetParams,
   GetDraftPicksResponse,
+  GetDraftPlanResponse,
   GetKeepersResponse,
   GetDraftSummaryResponse,
   GetLiveStatusResponse,
@@ -79,6 +80,7 @@ import {
 import { VALUE_TARGET_SD, isUnavailableStatus } from "@workspace/shared";
 import { logger } from "../lib/logger";
 import { remainingPicks } from "../lib/draft-math";
+import { buildDraftPlan } from "../lib/draft-plan";
 import { positionalNeeds, recommend } from "../lib/recommend";
 import { findSleepers } from "../lib/sleepers";
 import { consensusValueScores } from "../lib/value";
@@ -646,6 +648,33 @@ router.get("/draft/recommendations", async (_req, res, next) => {
     });
 
     res.json(GetRecommendationsResponse.parse(suggestions));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/draft/plan", async (_req, res, next) => {
+  try {
+    const players = await enrichedPlayers();
+    const [picks, keepers, settings] = await Promise.all([
+      reconcilePicks(players),
+      reconcileKeepers(players),
+      store.leagueSettings.read(),
+    ]);
+    const myKeepers = keepers.filter((keeper) => keeper.owner === "me");
+
+    const slots = buildDraftPlan({
+      players,
+      unavailableIds: new Set([
+        ...picks.map((pick) => pick.playerId),
+        ...keepers.map((keeper) => keeper.playerId),
+      ]),
+      myRoster: [...myKeepers, ...picks].map((entry) => ({ position: entry.position })),
+      roster: settings.roster,
+      myNextPicks: myRemainingPicks(settings, myKeepers, picks.length),
+    });
+
+    res.json(GetDraftPlanResponse.parse({ slots }));
   } catch (error) {
     next(error);
   }
