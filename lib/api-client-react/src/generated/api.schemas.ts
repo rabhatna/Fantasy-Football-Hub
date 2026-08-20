@@ -558,6 +558,36 @@ export interface KeeperInput {
   costValue: number;
 }
 
+export type KeeperUpdateOwner = typeof KeeperUpdateOwner[keyof typeof KeeperUpdateOwner];
+
+
+export const KeeperUpdateOwner = {
+  me: 'me',
+  other: 'other',
+} as const;
+
+export type KeeperUpdateCostType = typeof KeeperUpdateCostType[keyof typeof KeeperUpdateCostType];
+
+
+export const KeeperUpdateCostType = {
+  round: 'round',
+  dollars: 'dollars',
+} as const;
+
+/**
+ * A partial correction to a saved keeper. Every field is optional;
+ * omitted fields keep their current value. Setting owner to "me"
+ * clears ownerName.
+ */
+export interface KeeperUpdate {
+  owner?: KeeperUpdateOwner;
+  /** The league team's label. Ignored when the keeper ends up owned by "me". */
+  ownerName?: string;
+  costType?: KeeperUpdateCostType;
+  /** @minimum 0 */
+  costValue?: number;
+}
+
 export interface TargetInput {
   /**
      * The round the user intends to spend on him.

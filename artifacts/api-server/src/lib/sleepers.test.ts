@@ -80,6 +80,23 @@ test("hurt players and already-owned players are never sleepers", () => {
   assert.deepEqual(picks.map((pick) => pick.name), []);
 });
 
+test("the list runs deep but still caps at 60", () => {
+  // 70 late-priced year-two players, every one carrying a real argument.
+  const pool = Array.from({ length: 70 }, (_, index) =>
+    candidate({ age: 23, rank: 80 + index, adpConsensus: 80 + index }),
+  );
+  const picks = run(pool);
+  assert.equal(picks.length, 60);
+});
+
+test("a single real signal at a late price makes the deep list", () => {
+  const starter = candidate({ name: "Healthy Starter", depthRank: 1, adpConsensus: 30 });
+  const cuff = candidate({ name: "Quiet Handcuff", depthRank: 2, rank: 140, adpConsensus: 140 });
+  const picks = run([starter, cuff]);
+  const pick = picks.find((entry) => entry.name === "Quiet Handcuff");
+  assert.ok(pick && pick.tags.includes("handcuff"));
+});
+
 test("an early-career efficiency flash beats an anonymous veteran at the same price", () => {
   const young = candidate({
     name: "Year Two Leap",

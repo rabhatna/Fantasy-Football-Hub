@@ -29,6 +29,7 @@ import type {
   KeeperImportInput,
   KeeperImportResult,
   KeeperInput,
+  KeeperUpdate,
   LeagueSettings,
   LiveStatus,
   NewsItem,
@@ -1230,6 +1231,81 @@ export const useImportKeepers = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getImportKeepersMutationOptions(options));
+    }
+
+export const getUpdateKeeperUrl = (id: string,) => {
+
+
+
+
+  return `/api/keepers/${id}`
+}
+
+/**
+ * Corrects a keeper without re-uploading the sheet — whose team he is on,
+ * the team's label, or what he costs. The player himself is fixed; to move
+ * a keeper to a different player, remove him and add the right one.
+ * @summary Edit a keeper in place
+ */
+export const updateKeeper = async (id: string,
+    keeperUpdate: KeeperUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Keeper> => {
+
+  return customFetch<Keeper>(getUpdateKeeperUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(keeperUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateKeeperMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateKeeper>>, TError,{id: string;data: BodyType<KeeperUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateKeeper>>, TError,{id: string;data: BodyType<KeeperUpdate>}, TContext> => {
+
+const mutationKey = ['updateKeeper'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateKeeper>>, {id: string;data: BodyType<KeeperUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateKeeper(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateKeeperMutationResult = NonNullable<Awaited<ReturnType<typeof updateKeeper>>>
+    export type UpdateKeeperMutationBody = BodyType<KeeperUpdate>
+    export type UpdateKeeperMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit a keeper in place
+ */
+export const useUpdateKeeper = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateKeeper>>, TError,{id: string;data: BodyType<KeeperUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateKeeper>>,
+        TError,
+        {id: string;data: BodyType<KeeperUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateKeeperMutationOptions(options));
     }
 
 export const getDeleteKeeperUrl = (id: string,) => {
