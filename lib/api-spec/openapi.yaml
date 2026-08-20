@@ -101,6 +101,30 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Team"
+  /teams/{team}/line:
+    get:
+      operationId: getTeamLine
+      tags: [teams]
+      summary: A team's offensive line, with availability
+      description: |
+        The starting five (and swing men) from the team's ESPN depth chart,
+        read left to right, each with any injury designation and the most
+        recent cached headline naming him. Empty until depth charts have been
+        fetched.
+      parameters:
+        - name: team
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The line, LT through RT
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamLine"
+        "404":
+          description: Unknown team
   /news:
     get:
       operationId: getNews
@@ -147,6 +171,27 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Recommendation"
+  /draft/sleepers:
+    get:
+      operationId: getSleepers
+      tags: [draft]
+      summary: Sleepers and rookies
+      description: |
+        Under-the-radar picks, argued: rookies wherever they are priced, plus
+        late-priced players with a real signal — early-career arcs, handcuffs
+        one injury from a job (or already behind a hurt starter), committee
+        backs with live touches, efficiency the box score hid, and boom-weeks
+        ceilings. Tags allow filtering (rookie, early-career, handcuff,
+        committee, value, boom); reasons carry the argument.
+      responses:
+        "200":
+          description: Ranked sleeper picks, loudest argument first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SleeperPick"
   /draft/picks:
     get:
       operationId: getDraftPicks
@@ -225,6 +270,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Keeper"
+  /keepers/import:
+    post:
+      operationId: importKeepers
+      tags: [draft]
+      summary: Import keepers from a CSV sheet
+      description: |
+        Bulk-loads keepers from CSV text with a `player,team,owner,round,dollars`
+        header. `owner` is "me" for the user's own keepers or the league team's
+        name; `team` disambiguates duplicate player names and may be blank;
+        exactly one of `round`/`dollars` should carry the cost. Rows that do
+        not match a ranked player are reported back, not silently dropped.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeeperImportInput"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeeperImportResult"
+        "400":
+          description: Unparseable CSV
   /keepers/{id}:
     delete:
       operationId: deleteKeeper
@@ -240,6 +311,59 @@ paths:
           description: Keeper removed
         "404":
           description: No keeper with that id
+  /targets:
+    get:
+      operationId: getTargets
+      tags: [draft]
+      summary: List draft targets
+      responses:
+        "200":
+          description: The user's target list, ordered by intended round
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Target"
+  /targets/{playerId}:
+    put:
+      operationId: saveTarget
+      tags: [draft]
+      summary: Add or update a draft target
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TargetInput"
+      responses:
+        "200":
+          description: Saved target
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Target"
+        "404":
+          description: Player not found
+    delete:
+      operationId: deleteTarget
+      tags: [draft]
+      summary: Remove a draft target
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Target removed
+        "404":
+          description: No target for that player
   /notes:
     get:
       operationId: getNotes
@@ -371,7 +495,7 @@ components:
         separation and catch rate for receivers, rushing yards over expected
         and eight-plus-box rate for backs. Clients must render these as "no
         data", never as 0.
-      required: [id, rank, name, team, position, adp, adpConsensus, adpConsensusStdev, adpSources, valueScoreConsensus, projectedPoints, aav, tier, isRookie, nextGen, consistency]
+      required: [id, rank, name, team, position, adp, adpConsensus, adpConsensusStdev, adpSources, valueScoreConsensus, ecrRank, ecrDelta, depthRank, projectedPoints, aav, tier, isRookie, nextGen, consistency]
       properties:
         id:
           type: string
@@ -408,6 +532,22 @@ components:
             of the single-source ADP column, on the same SD scale. Computed
             locally, so it can differ slightly from the pipeline's number;
             null until market data has been fetched.
+        ecrRank:
+          type: [number, "null"]
+          description: |
+            The player's current FantasyPros expert-consensus overall rank,
+            fetched live on refresh. Null before market data is cached. Where
+            it disagrees with `rank`, the live number is the newer read.
+        ecrDelta:
+          type: [number, "null"]
+          description: Rank movement since the previous expert-consensus scrape; positive = rising.
+        depthRank:
+          type: [number, "null"]
+          description: |
+            The player's rank on his team's ESPN depth chart at his position
+            (1 = starter; for receivers it is the overall WR pecking order).
+            Null until depth charts have been fetched or when the chart does
+            not list him.
         projectedPoints:
           type: [number, "null"]
           description: |
@@ -506,6 +646,32 @@ components:
         compositeScore: { type: [number, "null"] }
         tier: { type: string }
         trend: { type: string }
+    Lineman:
+      type: object
+      required: [slot, rank, name, injuryStatus, injuryBodyPart, headline, headlineUrl]
+      properties:
+        slot:
+          type: string
+          description: LT, LG, C, RG or RT.
+        rank:
+          type: number
+          description: 1 = the starter at the slot, 2 = the swing man.
+        name: { type: string }
+        injuryStatus: { type: [string, "null"] }
+        injuryBodyPart: { type: [string, "null"] }
+        headline:
+          type: [string, "null"]
+          description: The most recent cached headline naming this lineman, if any.
+        headlineUrl: { type: [string, "null"] }
+    TeamLine:
+      type: object
+      required: [team, linemen]
+      properties:
+        team: { type: string }
+        linemen:
+          type: array
+          items:
+            $ref: "#/components/schemas/Lineman"
     NewsItem:
       type: object
       description: |
@@ -586,7 +752,7 @@ components:
         The league this draft board is for. One document, replaced whole; the
         server clamps and defaults rather than failing on partial garbage, but
         rejects settings that contradict themselves.
-      required: [teamCount, scoring, draftType, draftSlot, auctionBudget, roster]
+      required: [teamCount, scoring, draftType, draftSlot, auctionBudget, missingRounds, roster]
       properties:
         teamCount:
           type: number
@@ -606,6 +772,12 @@ components:
         auctionBudget:
           type: number
           minimum: 1
+        missingRounds:
+          type: array
+          description: Rounds the user has no pick in (traded away); removed from the remaining-picks math.
+          items:
+            type: number
+            minimum: 1
         roster:
           type: object
           description: Starting spots per position, plus bench depth.
@@ -647,6 +819,50 @@ components:
         position: { type: string }
         pickNumber: { type: number }
         draftedAt: { type: string }
+    KeeperImportInput:
+      type: object
+      required: [csv]
+      properties:
+        csv:
+          type: string
+          description: The sheet's contents as CSV text.
+        replace:
+          type: boolean
+          description: When true, existing keepers are cleared before the import. Default false (merge).
+    KeeperImportResult:
+      type: object
+      required: [imported, skipped, keepers]
+      properties:
+        imported: { type: number }
+        skipped:
+          type: array
+          description: Rows that could not be imported, with the 1-based CSV line and why.
+          items:
+            type: object
+            required: [line, reason]
+            properties:
+              line: { type: number }
+              reason: { type: string }
+        keepers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Keeper"
+    SleeperPick:
+      type: object
+      required: [playerId, name, team, position, adp, score, tags, reasons]
+      properties:
+        playerId: { type: string }
+        name: { type: string }
+        team: { type: string }
+        position: { type: string }
+        adp: { type: number }
+        score: { type: number }
+        tags:
+          type: array
+          items: { type: string }
+        reasons:
+          type: array
+          items: { type: string }
     Recommendation:
       type: object
       description: |
@@ -683,6 +899,9 @@ components:
           type: string
           enum: [me, other]
           description: Whose team keeps the player. "other" only removes him from the pool.
+        ownerName:
+          type: string
+          description: The league team's name, for grouping keepers by team. Ignored when owner is "me".
         costType:
           type: string
           enum: [round, dollars]
@@ -696,7 +915,7 @@ components:
         playerName, team and position are denormalised for the same reason as
         draft picks — playerId can change across dataset refreshes, and the
         CSV should read cleanly in a spreadsheet.
-      required: [id, playerId, playerName, team, position, owner, costType, costValue, createdAt]
+      required: [id, playerId, playerName, team, position, owner, ownerName, costType, costValue, createdAt]
       properties:
         id: { type: string }
         playerId: { type: string }
@@ -706,10 +925,35 @@ components:
         owner:
           type: string
           enum: [me, other]
+        ownerName:
+          type: string
+          description: The league team keeping him; empty when it is the user's own keeper.
         costType:
           type: string
           enum: [round, dollars]
         costValue: { type: number }
+        createdAt: { type: string }
+    TargetInput:
+      type: object
+      required: [targetRound]
+      properties:
+        targetRound:
+          type: number
+          minimum: 1
+          description: The round the user intends to spend on him.
+        note:
+          type: string
+          description: A short reminder for draft day.
+    Target:
+      type: object
+      required: [playerId, playerName, team, position, targetRound, note, createdAt]
+      properties:
+        playerId: { type: string }
+        playerName: { type: string }
+        team: { type: string }
+        position: { type: string }
+        targetRound: { type: number }
+        note: { type: string }
         createdAt: { type: string }
     PlayerNoteInput:
       type: object

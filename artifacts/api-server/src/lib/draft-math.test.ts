@@ -48,6 +48,19 @@ test("each pick made consumes the earliest remaining slot", () => {
   ]);
 });
 
+test("traded-away rounds vanish alongside keeper rounds", () => {
+  const slots = remainingPicks({
+    teamCount: 12,
+    draftSlot: 1,
+    rounds: 6,
+    keeperRounds: [6],
+    missingRounds: [2, 3, 4, 5],
+    picksMade: 0,
+  });
+  // Only round 1 survives: 2-5 were traded, 6 went to a keeper.
+  assert.deepEqual(slots, [{ round: 1, overall: 1 }]);
+});
+
 test("a fully drafted roster has no remaining picks", () => {
   const slots = remainingPicks({
     teamCount: 10,

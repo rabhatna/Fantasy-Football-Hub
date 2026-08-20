@@ -79,62 +79,62 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  --background: 42 35% 96%;
-  --foreground: 224 28% 15%;
-  --border: 35 21% 87%;
-  --card: 42 40% 98%;
-  --card-foreground: 224 28% 15%;
-  --card-border: 35 21% 87%;
-  --sidebar: 224 28% 16%;
-  --sidebar-foreground: 42 35% 96%;
-  --sidebar-border: 224 20% 25%;
-  --sidebar-primary: 174 70% 39%;
-  --sidebar-primary-foreground: 224 28% 12%;
-  --sidebar-accent: 224 22% 22%;
-  --sidebar-accent-foreground: 42 35% 96%;
-  --sidebar-ring: 174 70% 39%;
-  --popover: 42 40% 98%;
-  --popover-foreground: 224 28% 15%;
-  --popover-border: 35 21% 87%;
-  --primary: 174 70% 35%;
-  --primary-foreground: 42 40% 98%;
-  --secondary: 36 34% 91%;
-  --secondary-foreground: 224 28% 20%;
-  --muted: 38 24% 92%;
-  --muted-foreground: 221 13% 43%;
-  --accent: 34 88% 55%;
-  --accent-foreground: 224 28% 15%;
-  --destructive: 5 68% 49%;
-  --destructive-foreground: 42 40% 98%;
-  --input: 35 21% 82%;
-  --ring: 174 70% 35%;
-  --chart-1: 174 70% 35%;
-  --chart-2: 34 88% 55%;
-  --chart-3: 224 62% 54%;
+  --background: 42 30% 96%;
+  --foreground: 165 14% 12%;
+  --border: 40 16% 86%;
+  --card: 42 35% 98%;
+  --card-foreground: 165 14% 12%;
+  --card-border: 40 16% 86%;
+  --sidebar: 165 14% 8%;
+  --sidebar-foreground: 40 25% 95%;
+  --sidebar-border: 165 10% 20%;
+  --sidebar-primary: 165 90% 42%;
+  --sidebar-primary-foreground: 165 14% 8%;
+  --sidebar-accent: 165 11% 14%;
+  --sidebar-accent-foreground: 40 25% 95%;
+  --sidebar-ring: 165 90% 42%;
+  --popover: 42 35% 98%;
+  --popover-foreground: 165 14% 12%;
+  --popover-border: 40 16% 86%;
+  --primary: 168 85% 29%;
+  --primary-foreground: 42 35% 98%;
+  --secondary: 40 26% 90%;
+  --secondary-foreground: 165 12% 18%;
+  --muted: 40 20% 91%;
+  --muted-foreground: 165 8% 40%;
+  --accent: 28 92% 51%;
+  --accent-foreground: 165 14% 12%;
+  --destructive: 5 68% 46%;
+  --destructive-foreground: 42 35% 98%;
+  --input: 40 16% 81%;
+  --ring: 168 85% 29%;
+  --chart-1: 168 85% 32%;
+  --chart-2: 34 88% 52%;
+  --chart-3: 258 60% 55%;
   --chart-4: 5 68% 49%;
-  --chart-5: 281 42% 49%;
+  --chart-5: 199 85% 40%;
   --app-font-sans: 'Manrope', sans-serif;
   --app-font-serif: 'Space Grotesk', sans-serif;
   --app-font-mono: 'DM Mono', monospace;
   --radius: 0.5rem; /* 8px */
-  --shadow-2xs: 0px 2px 0px 0px hsl(224 28% 15% / 0.02);
-  --shadow-xs: 0px 2px 0px 0px hsl(224 28% 15% / 0.03);
+  --shadow-2xs: 0px 2px 0px 0px hsl(165 14% 12% / 0.02);
+  --shadow-xs: 0px 2px 0px 0px hsl(165 14% 12% / 0.03);
   --shadow-sm:
-    0px 2px 0px 0px hsl(224 28% 15% / 0.02),
-    0px 1px 2px -1px hsl(224 28% 15% / 0.06);
+    0px 2px 0px 0px hsl(165 14% 12% / 0.02),
+    0px 1px 2px -1px hsl(165 14% 12% / 0.06);
   --shadow:
-    0px 2px 0px 0px hsl(224 28% 15% / 0.02),
-    0px 1px 2px -1px hsl(224 28% 15% / 0.06);
+    0px 2px 0px 0px hsl(165 14% 12% / 0.02),
+    0px 1px 2px -1px hsl(165 14% 12% / 0.06);
   --shadow-md:
-    0px 2px 0px 0px hsl(224 28% 15% / 0.02),
-    0px 2px 4px -1px hsl(224 28% 15% / 0.07);
+    0px 2px 0px 0px hsl(165 14% 12% / 0.02),
+    0px 2px 4px -1px hsl(165 14% 12% / 0.07);
   --shadow-lg:
-    0px 2px 0px 0px hsl(224 28% 15% / 0.02),
-    0px 4px 6px -1px hsl(224 28% 15% / 0.09);
+    0px 2px 0px 0px hsl(165 14% 12% / 0.02),
+    0px 4px 6px -1px hsl(165 14% 12% / 0.09);
   --shadow-xl:
     0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0),
     0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0);
-  --shadow-2xl: 0px 2px 0px 0px hsl(224 28% 15% / 0.12);
+  --shadow-2xl: 0px 2px 0px 0px hsl(165 14% 12% / 0.12);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -200,40 +200,40 @@
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
 
-  --background: 224 28% 12%;
-  --foreground: 42 35% 94%;
-  --border: 224 20% 24%;
-  --card: 224 25% 16%;
-  --card-foreground: 42 35% 94%;
-  --card-border: 224 20% 25%;
-  --sidebar: 224 32% 9%;
-  --sidebar-foreground: 42 35% 94%;
-  --sidebar-border: 224 20% 19%;
-  --sidebar-primary: 174 70% 45%;
-  --sidebar-primary-foreground: 224 32% 9%;
-  --sidebar-accent: 224 24% 16%;
-  --sidebar-accent-foreground: 42 35% 94%;
-  --sidebar-ring: 174 70% 45%;
-  --popover: 224 25% 16%;
-  --popover-foreground: 42 35% 94%;
-  --popover-border: 224 20% 25%;
-  --primary: 174 70% 45%;
-  --primary-foreground: 224 32% 9%;
-  --secondary: 224 22% 22%;
-  --secondary-foreground: 42 35% 94%;
-  --muted: 224 22% 20%;
-  --muted-foreground: 224 12% 66%;
-  --accent: 34 88% 58%;
-  --accent-foreground: 224 32% 9%;
-  --destructive: 5 68% 57%;
-  --destructive-foreground: 42 35% 94%;
-  --input: 224 20% 29%;
-  --ring: 174 70% 45%;
-  --chart-1: 174 70% 45%;
-  --chart-2: 34 88% 58%;
-  --chart-3: 224 62% 65%;
-  --chart-4: 5 68% 57%;
-  --chart-5: 281 42% 62%;
+  --background: 165 10% 6%;
+  --foreground: 40 28% 95%;
+  --border: 163 9% 17%;
+  --card: 164 9% 9%;
+  --card-foreground: 40 28% 95%;
+  --card-border: 163 9% 18%;
+  --sidebar: 166 13% 4%;
+  --sidebar-foreground: 40 28% 95%;
+  --sidebar-border: 164 10% 14%;
+  --sidebar-primary: 163 95% 48%;
+  --sidebar-primary-foreground: 166 13% 4%;
+  --sidebar-accent: 165 10% 10%;
+  --sidebar-accent-foreground: 40 28% 95%;
+  --sidebar-ring: 163 95% 48%;
+  --popover: 164 9% 9%;
+  --popover-foreground: 40 28% 95%;
+  --popover-border: 163 9% 18%;
+  --primary: 163 95% 45%;
+  --primary-foreground: 166 13% 4%;
+  --secondary: 164 9% 15%;
+  --secondary-foreground: 40 28% 95%;
+  --muted: 164 9% 13%;
+  --muted-foreground: 163 6% 64%;
+  --accent: 28 96% 58%;
+  --accent-foreground: 166 13% 4%;
+  --destructive: 4 78% 60%;
+  --destructive-foreground: 40 28% 95%;
+  --input: 163 9% 23%;
+  --ring: 163 95% 45%;
+  --chart-1: 163 95% 45%;
+  --chart-2: 28 96% 58%;
+  --chart-3: 258 74% 70%;
+  --chart-4: 4 78% 60%;
+  --chart-5: 199 90% 60%;
 
   --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
   --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0);
@@ -264,6 +264,27 @@
     @apply font-sans antialiased bg-background text-foreground;
     min-width: 320px;
   }
+
+  /* Faint colour glows anchor the corners so the ground reads as lit, not
+     flat — teal from the brand corner, amber from the opposite one. Fixed so
+     scrolling content moves over the light rather than dragging it. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(52rem 34rem at 12% -8%, hsl(var(--primary) / 0.07), transparent 62%),
+      radial-gradient(46rem 30rem at 105% 108%, hsl(var(--accent) / 0.06), transparent 60%);
+  }
+  .dark body::before {
+    background:
+      radial-gradient(52rem 34rem at 12% -8%, hsl(var(--primary) / 0.1), transparent 62%),
+      radial-gradient(46rem 30rem at 105% 108%, hsl(var(--accent) / 0.08), transparent 60%),
+      radial-gradient(38rem 26rem at 55% 45%, hsl(258 74% 60% / 0.05), transparent 65%);
+  }
+  body > * { position: relative; z-index: 1; }
 }
 
 @layer utilities {
@@ -281,14 +302,50 @@
   .enter-1 { animation-delay: 70ms; }
   .enter-2 { animation-delay: 140ms; }
   .enter-3 { animation-delay: 210ms; }
-  .pulse-dot { animation: pulse-dot 2.2s ease-in-out infinite; }
+  .pulse-dot { animation: pulse-dot 2.2s ease-in-out infinite; box-shadow: 0 0 8px 1px hsl(var(--primary) / .55); }
+
+  /* The chrome is a terminal title bar: near-black graphite with phosphor
+     light bleeding in from the brand corner and a hairline neon seam below. */
+  .top-rail {
+    background:
+      radial-gradient(40rem 8rem at 8% 0%, hsl(var(--sidebar-primary) / 0.13), transparent 60%),
+      radial-gradient(24rem 6rem at 96% 100%, hsl(28 96% 58% / 0.07), transparent 55%),
+      linear-gradient(180deg, hsl(var(--sidebar)), hsl(var(--sidebar-accent)));
+    border-bottom: 1px solid hsl(var(--sidebar-primary) / 0.35);
+    box-shadow: 0 1px 24px -12px hsl(var(--sidebar-primary) / 0.5);
+  }
+  .tab-item { border-bottom: 2px solid transparent; }
+  .tab-active {
+    border-bottom-color: hsl(var(--sidebar-primary));
+    text-shadow: 0 0 12px hsl(var(--sidebar-primary) / 0.6);
+    background: linear-gradient(180deg, transparent 55%, hsl(var(--sidebar-primary) / 0.1));
+  }
+  .cursor-blink { animation: cursor-blink 1.1s step-end infinite; }
   .scanline { position: relative; overflow: hidden; }
   .scanline::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 0%, hsl(var(--primary) / .04) 50%, transparent 100%); transform: translateY(-100%); animation: scan 5s linear infinite; }
+}
+
+/* The draft sheet prints black-on-white regardless of theme: the page it
+   produces goes to paper or PDF, where a dark terminal palette would just
+   burn toner. Everything outside the sheet is hidden by print:hidden. */
+@media print {
+  :root, .dark {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 8%;
+    --border: 0 0% 55%;
+    --muted-foreground: 0 0% 30%;
+  }
+  body::before { display: none; }
+  body { background: white; }
+  .sheet-body { box-shadow: none; }
 }
 
 @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes pulse-dot { 0%, 100% { opacity: .42; transform: scale(.88); } 50% { opacity: 1; transform: scale(1); } }
 @keyframes scan { to { transform: translateY(100%); } }
+@keyframes cursor-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
 /**
  * Using the elevate system.

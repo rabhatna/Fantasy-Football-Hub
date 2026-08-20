@@ -43,6 +43,9 @@ export const GetPlayersResponseItem = zod.object({
   "adp": zod.number()
 })).describe('Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.'),
   "valueScoreConsensus": zod.number().nullable().describe('The dataset\'s value score recomputed against consensus ADP instead\nof the single-source ADP column, on the same SD scale. Computed\nlocally, so it can differ slightly from the pipeline\'s number;\nnull until market data has been fetched.\n'),
+  "ecrRank": zod.number().nullable().describe('The player\'s current FantasyPros expert-consensus overall rank,\nfetched live on refresh. Null before market data is cached. Where\nit disagrees with `rank`, the live number is the newer read.\n'),
+  "ecrDelta": zod.number().nullable().describe('Rank movement since the previous expert-consensus scrape; positive = rising.'),
+  "depthRank": zod.number().nullable().describe('The player\'s rank on his team\'s ESPN depth chart at his position\n(1 = starter; for receivers it is the overall WR pecking order).\nNull until depth charts have been fetched or when the chart does\nnot list him.\n'),
   "projectedPoints": zod.number().nullable().describe('Projected 2026 season total in the league\'s scoring format, from\nthe cached market sources. Null when no source projects the\nplayer — never a zero, which would read as \"projected to score\nnothing\".\n'),
   "aav": zod.number().nullable().describe('Average auction value in league dollars, from live ESPN drafts.\nNull before the first market refresh or for players the crowd is\nnot bidding on.\n'),
   "valueScore": zod.number().nullish().describe('Production-versus-price gap in standard deviations, roughly\nZ(2025 positional finish) - Z(2026 ADP). Positive means the player\nproduced better than his draft cost implies. Spans about -3 to\n+2.5 — this is not a 0-10 rating and must not be rendered as one.\n'),
@@ -101,6 +104,9 @@ export const GetPlayerResponse = zod.object({
   "adp": zod.number()
 })).describe('Every ADP that went into the consensus, per source. Empty until a refresh has fetched market data.'),
   "valueScoreConsensus": zod.number().nullable().describe('The dataset\'s value score recomputed against consensus ADP instead\nof the single-source ADP column, on the same SD scale. Computed\nlocally, so it can differ slightly from the pipeline\'s number;\nnull until market data has been fetched.\n'),
+  "ecrRank": zod.number().nullable().describe('The player\'s current FantasyPros expert-consensus overall rank,\nfetched live on refresh. Null before market data is cached. Where\nit disagrees with `rank`, the live number is the newer read.\n'),
+  "ecrDelta": zod.number().nullable().describe('Rank movement since the previous expert-consensus scrape; positive = rising.'),
+  "depthRank": zod.number().nullable().describe('The player\'s rank on his team\'s ESPN depth chart at his position\n(1 = starter; for receivers it is the overall WR pecking order).\nNull until depth charts have been fetched or when the chart does\nnot list him.\n'),
   "projectedPoints": zod.number().nullable().describe('Projected 2026 season total in the league\'s scoring format, from\nthe cached market sources. Null when no source projects the\nplayer — never a zero, which would read as \"projected to score\nnothing\".\n'),
   "aav": zod.number().nullable().describe('Average auction value in league dollars, from live ESPN drafts.\nNull before the first market refresh or for players the crowd is\nnot bidding on.\n'),
   "valueScore": zod.number().nullish().describe('Production-versus-price gap in standard deviations, roughly\nZ(2025 positional finish) - Z(2026 ADP). Positive means the player\nproduced better than his draft cost implies. Spans about -3 to\n+2.5 — this is not a 0-10 rating and must not be rendered as one.\n'),
@@ -165,6 +171,31 @@ export const GetTeamsResponseItem = zod.object({
   "trend": zod.string()
 })
 export const GetTeamsResponse = zod.array(GetTeamsResponseItem)
+
+
+/**
+ * The starting five (and swing men) from the team's ESPN depth chart,
+ * read left to right, each with any injury designation and the most
+ * recent cached headline naming him. Empty until depth charts have been
+ * fetched.
+ * @summary A team's offensive line, with availability
+ */
+export const GetTeamLineParams = zod.object({
+  "team": zod.coerce.string()
+})
+
+export const GetTeamLineResponse = zod.object({
+  "team": zod.string(),
+  "linemen": zod.array(zod.object({
+  "slot": zod.string().describe('LT, LG, C, RG or RT.'),
+  "rank": zod.number().describe('1 = the starter at the slot, 2 = the swing man.'),
+  "name": zod.string(),
+  "injuryStatus": zod.string().nullable(),
+  "injuryBodyPart": zod.string().nullable(),
+  "headline": zod.string().nullable().describe('The most recent cached headline naming this lineman, if any.'),
+  "headlineUrl": zod.string().nullable()
+}))
+})
 
 
 /**
@@ -243,6 +274,28 @@ export const GetRecommendationsResponse = zod.array(GetRecommendationsResponseIt
 
 
 /**
+ * Under-the-radar picks, argued: rookies wherever they are priced, plus
+ * late-priced players with a real signal — early-career arcs, handcuffs
+ * one injury from a job (or already behind a hurt starter), committee
+ * backs with live touches, efficiency the box score hid, and boom-weeks
+ * ceilings. Tags allow filtering (rookie, early-career, handcuff,
+ * committee, value, boom); reasons carry the argument.
+ * @summary Sleepers and rookies
+ */
+export const GetSleepersResponseItem = zod.object({
+  "playerId": zod.string(),
+  "name": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "adp": zod.number(),
+  "score": zod.number(),
+  "tags": zod.array(zod.string()),
+  "reasons": zod.array(zod.string())
+})
+export const GetSleepersResponse = zod.array(GetSleepersResponseItem)
+
+
+/**
  * @summary List drafted players
  */
 export const GetDraftPicksResponseItem = zod.object({
@@ -297,6 +350,7 @@ export const GetKeepersResponseItem = zod.object({
   "team": zod.string(),
   "position": zod.string(),
   "owner": zod.enum(['me', 'other']),
+  "ownerName": zod.string().describe('The league team keeping him; empty when it is the user\'s own keeper.'),
   "costType": zod.enum(['round', 'dollars']),
   "costValue": zod.number(),
   "createdAt": zod.string()
@@ -314,6 +368,7 @@ export const saveKeeperBodyCostValueMin = 0;
 export const SaveKeeperBody = zod.object({
   "playerId": zod.string(),
   "owner": zod.enum(['me', 'other']).describe('Whose team keeps the player. \"other\" only removes him from the pool.'),
+  "ownerName": zod.string().optional().describe('The league team\'s name, for grouping keepers by team. Ignored when owner is \"me\".'),
   "costType": zod.enum(['round', 'dollars']),
   "costValue": zod.number().min(saveKeeperBodyCostValueMin).describe('The round the keeper consumes (snake) or the dollars he costs (auction).')
 })
@@ -325,10 +380,45 @@ export const SaveKeeperResponse = zod.object({
   "team": zod.string(),
   "position": zod.string(),
   "owner": zod.enum(['me', 'other']),
+  "ownerName": zod.string().describe('The league team keeping him; empty when it is the user\'s own keeper.'),
   "costType": zod.enum(['round', 'dollars']),
   "costValue": zod.number(),
   "createdAt": zod.string()
 }).describe('playerName, team and position are denormalised for the same reason as\ndraft picks — playerId can change across dataset refreshes, and the\nCSV should read cleanly in a spreadsheet.\n')
+
+
+/**
+ * Bulk-loads keepers from CSV text with a `player,team,owner,round,dollars`
+ * header. `owner` is "me" for the user's own keepers or the league team's
+ * name; `team` disambiguates duplicate player names and may be blank;
+ * exactly one of `round`/`dollars` should carry the cost. Rows that do
+ * not match a ranked player are reported back, not silently dropped.
+ * @summary Import keepers from a CSV sheet
+ */
+export const ImportKeepersBody = zod.object({
+  "csv": zod.string().describe('The sheet\'s contents as CSV text.'),
+  "replace": zod.boolean().optional().describe('When true, existing keepers are cleared before the import. Default false (merge).')
+})
+
+export const ImportKeepersResponse = zod.object({
+  "imported": zod.number(),
+  "skipped": zod.array(zod.object({
+  "line": zod.number(),
+  "reason": zod.string()
+})).describe('Rows that could not be imported, with the 1-based CSV line and why.'),
+  "keepers": zod.array(zod.object({
+  "id": zod.string(),
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "owner": zod.enum(['me', 'other']),
+  "ownerName": zod.string().describe('The league team keeping him; empty when it is the user\'s own keeper.'),
+  "costType": zod.enum(['round', 'dollars']),
+  "costValue": zod.number(),
+  "createdAt": zod.string()
+}).describe('playerName, team and position are denormalised for the same reason as\ndraft picks — playerId can change across dataset refreshes, and the\nCSV should read cleanly in a spreadsheet.\n'))
+})
 
 
 /**
@@ -339,6 +429,57 @@ export const DeleteKeeperParams = zod.object({
 })
 
 export const DeleteKeeperResponse = zod.void()
+
+
+/**
+ * @summary List draft targets
+ */
+export const GetTargetsResponseItem = zod.object({
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "targetRound": zod.number(),
+  "note": zod.string(),
+  "createdAt": zod.string()
+})
+export const GetTargetsResponse = zod.array(GetTargetsResponseItem)
+
+
+/**
+ * @summary Add or update a draft target
+ */
+export const SaveTargetParams = zod.object({
+  "playerId": zod.coerce.string()
+})
+
+
+
+
+export const SaveTargetBody = zod.object({
+  "targetRound": zod.number().min(1).describe('The round the user intends to spend on him.'),
+  "note": zod.string().optional().describe('A short reminder for draft day.')
+})
+
+export const SaveTargetResponse = zod.object({
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "targetRound": zod.number(),
+  "note": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Remove a draft target
+ */
+export const DeleteTargetParams = zod.object({
+  "playerId": zod.coerce.string()
+})
+
+export const DeleteTargetResponse = zod.void()
 
 
 /**
@@ -382,6 +523,7 @@ export const getSettingsResponseTeamCountMax = 20;
 export const getSettingsResponseDraftSlotMax = 20;
 
 
+
 export const getSettingsResponseRosterQBMin = 0;
 
 export const getSettingsResponseRosterRBMin = 0;
@@ -406,6 +548,7 @@ export const GetSettingsResponse = zod.object({
   "draftType": zod.enum(['snake', 'auction']),
   "draftSlot": zod.number().min(1).max(getSettingsResponseDraftSlotMax).describe('The user\'s position in the draft order, 1..teamCount.'),
   "auctionBudget": zod.number().min(1),
+  "missingRounds": zod.array(zod.number().min(1)).describe('Rounds the user has no pick in (traded away); removed from the remaining-picks math.'),
   "roster": zod.object({
   "QB": zod.number().min(getSettingsResponseRosterQBMin),
   "RB": zod.number().min(getSettingsResponseRosterRBMin),
@@ -427,6 +570,7 @@ export const updateSettingsBodyTeamCountMin = 4;
 export const updateSettingsBodyTeamCountMax = 20;
 
 export const updateSettingsBodyDraftSlotMax = 20;
+
 
 
 export const updateSettingsBodyRosterQBMin = 0;
@@ -453,6 +597,7 @@ export const UpdateSettingsBody = zod.object({
   "draftType": zod.enum(['snake', 'auction']),
   "draftSlot": zod.number().min(1).max(updateSettingsBodyDraftSlotMax).describe('The user\'s position in the draft order, 1..teamCount.'),
   "auctionBudget": zod.number().min(1),
+  "missingRounds": zod.array(zod.number().min(1)).describe('Rounds the user has no pick in (traded away); removed from the remaining-picks math.'),
   "roster": zod.object({
   "QB": zod.number().min(updateSettingsBodyRosterQBMin),
   "RB": zod.number().min(updateSettingsBodyRosterRBMin),
@@ -469,6 +614,7 @@ export const updateSettingsResponseTeamCountMin = 4;
 export const updateSettingsResponseTeamCountMax = 20;
 
 export const updateSettingsResponseDraftSlotMax = 20;
+
 
 
 export const updateSettingsResponseRosterQBMin = 0;
@@ -495,6 +641,7 @@ export const UpdateSettingsResponse = zod.object({
   "draftType": zod.enum(['snake', 'auction']),
   "draftSlot": zod.number().min(1).max(updateSettingsResponseDraftSlotMax).describe('The user\'s position in the draft order, 1..teamCount.'),
   "auctionBudget": zod.number().min(1),
+  "missingRounds": zod.array(zod.number().min(1)).describe('Rounds the user has no pick in (traded away); removed from the remaining-picks math.'),
   "roster": zod.object({
   "QB": zod.number().min(updateSettingsResponseRosterQBMin),
   "RB": zod.number().min(updateSettingsResponseRosterRBMin),

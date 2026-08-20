@@ -26,6 +26,8 @@ import type {
   GetPlayersParams,
   HealthStatus,
   Keeper,
+  KeeperImportInput,
+  KeeperImportResult,
   KeeperInput,
   LeagueSettings,
   LiveStatus,
@@ -36,7 +38,11 @@ import type {
   PlayerNoteInput,
   Recommendation,
   RefreshStatus,
-  Team
+  SleeperPick,
+  Target,
+  TargetInput,
+  Team,
+  TeamLine
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -382,6 +388,87 @@ export function useGetTeams<TData = Awaited<ReturnType<typeof getTeams>>, TError
 
 
 
+export const getGetTeamLineUrl = (team: string,) => {
+
+
+
+
+  return `/api/teams/${team}/line`
+}
+
+/**
+ * The starting five (and swing men) from the team's ESPN depth chart,
+ * read left to right, each with any injury designation and the most
+ * recent cached headline naming him. Empty until depth charts have been
+ * fetched.
+ * @summary A team's offensive line, with availability
+ */
+export const getTeamLine = async (team: string, options?: Parameters<typeof customFetch>[1]): Promise<TeamLine> => {
+
+  return customFetch<TeamLine>(getGetTeamLineUrl(team),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTeamLineQueryKey = (team: string,) => {
+    return [
+    `/api/teams/${team}/line`
+    ] as const;
+    }
+
+
+export const getGetTeamLineQueryOptions = <TData = Awaited<ReturnType<typeof getTeamLine>>, TError = ErrorType<void>>(team: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTeamLine>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTeamLineQueryKey(team);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTeamLine>>> = ({ signal }) => getTeamLine(team, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: team !== null && team !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTeamLine>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTeamLineQueryResult = NonNullable<Awaited<ReturnType<typeof getTeamLine>>>
+export type GetTeamLineQueryError = ErrorType<void>
+
+
+/**
+ * @summary A team's offensive line, with availability
+ */
+
+export function useGetTeamLine<TData = Awaited<ReturnType<typeof getTeamLine>>, TError = ErrorType<void>>(
+ team: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTeamLine>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTeamLineQueryOptions(team,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetNewsUrl = () => {
 
 
@@ -606,6 +693,89 @@ export function useGetRecommendations<TData = Awaited<ReturnType<typeof getRecom
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRecommendationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSleepersUrl = () => {
+
+
+
+
+  return `/api/draft/sleepers`
+}
+
+/**
+ * Under-the-radar picks, argued: rookies wherever they are priced, plus
+ * late-priced players with a real signal — early-career arcs, handcuffs
+ * one injury from a job (or already behind a hurt starter), committee
+ * backs with live touches, efficiency the box score hid, and boom-weeks
+ * ceilings. Tags allow filtering (rookie, early-career, handcuff,
+ * committee, value, boom); reasons carry the argument.
+ * @summary Sleepers and rookies
+ */
+export const getSleepers = async ( options?: Parameters<typeof customFetch>[1]): Promise<SleeperPick[]> => {
+
+  return customFetch<SleeperPick[]>(getGetSleepersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSleepersQueryKey = () => {
+    return [
+    `/api/draft/sleepers`
+    ] as const;
+    }
+
+
+export const getGetSleepersQueryOptions = <TData = Awaited<ReturnType<typeof getSleepers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSleepers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSleepersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSleepers>>> = ({ signal }) => getSleepers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSleepers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSleepersQueryResult = NonNullable<Awaited<ReturnType<typeof getSleepers>>>
+export type GetSleepersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Sleepers and rookies
+ */
+
+export function useGetSleepers<TData = Awaited<ReturnType<typeof getSleepers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSleepers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSleepersQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -986,6 +1156,82 @@ export const useSaveKeeper = <TError = ErrorType<unknown>,
       return useMutation(getSaveKeeperMutationOptions(options));
     }
 
+export const getImportKeepersUrl = () => {
+
+
+
+
+  return `/api/keepers/import`
+}
+
+/**
+ * Bulk-loads keepers from CSV text with a `player,team,owner,round,dollars`
+ * header. `owner` is "me" for the user's own keepers or the league team's
+ * name; `team` disambiguates duplicate player names and may be blank;
+ * exactly one of `round`/`dollars` should carry the cost. Rows that do
+ * not match a ranked player are reported back, not silently dropped.
+ * @summary Import keepers from a CSV sheet
+ */
+export const importKeepers = async (keeperImportInput: KeeperImportInput, options?: Parameters<typeof customFetch>[1]): Promise<KeeperImportResult> => {
+
+  return customFetch<KeeperImportResult>(getImportKeepersUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(keeperImportInput)
+  }
+);}
+
+
+
+
+
+export const getImportKeepersMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importKeepers>>, TError,{data: BodyType<KeeperImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importKeepers>>, TError,{data: BodyType<KeeperImportInput>}, TContext> => {
+
+const mutationKey = ['importKeepers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importKeepers>>, {data: BodyType<KeeperImportInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importKeepers(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportKeepersMutationResult = NonNullable<Awaited<ReturnType<typeof importKeepers>>>
+    export type ImportKeepersMutationBody = BodyType<KeeperImportInput>
+    export type ImportKeepersMutationError = ErrorType<void>
+
+    /**
+ * @summary Import keepers from a CSV sheet
+ */
+export const useImportKeepers = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importKeepers>>, TError,{data: BodyType<KeeperImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importKeepers>>,
+        TError,
+        {data: BodyType<KeeperImportInput>},
+        TContext
+      > => {
+      return useMutation(getImportKeepersMutationOptions(options));
+    }
+
 export const getDeleteKeeperUrl = (id: string,) => {
 
 
@@ -1055,6 +1301,226 @@ export const useDeleteKeeper = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteKeeperMutationOptions(options));
+    }
+
+export const getGetTargetsUrl = () => {
+
+
+
+
+  return `/api/targets`
+}
+
+/**
+ * @summary List draft targets
+ */
+export const getTargets = async ( options?: Parameters<typeof customFetch>[1]): Promise<Target[]> => {
+
+  return customFetch<Target[]>(getGetTargetsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTargetsQueryKey = () => {
+    return [
+    `/api/targets`
+    ] as const;
+    }
+
+
+export const getGetTargetsQueryOptions = <TData = Awaited<ReturnType<typeof getTargets>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTargets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTargetsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTargets>>> = ({ signal }) => getTargets({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTargets>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTargetsQueryResult = NonNullable<Awaited<ReturnType<typeof getTargets>>>
+export type GetTargetsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List draft targets
+ */
+
+export function useGetTargets<TData = Awaited<ReturnType<typeof getTargets>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTargets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTargetsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveTargetUrl = (playerId: string,) => {
+
+
+
+
+  return `/api/targets/${playerId}`
+}
+
+/**
+ * @summary Add or update a draft target
+ */
+export const saveTarget = async (playerId: string,
+    targetInput: TargetInput, options?: Parameters<typeof customFetch>[1]): Promise<Target> => {
+
+  return customFetch<Target>(getSaveTargetUrl(playerId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(targetInput)
+  }
+);}
+
+
+
+
+
+export const getSaveTargetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveTarget>>, TError,{playerId: string;data: BodyType<TargetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveTarget>>, TError,{playerId: string;data: BodyType<TargetInput>}, TContext> => {
+
+const mutationKey = ['saveTarget'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveTarget>>, {playerId: string;data: BodyType<TargetInput>}> = (props) => {
+          const {playerId,data} = props ?? {};
+
+          return  saveTarget(playerId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveTargetMutationResult = NonNullable<Awaited<ReturnType<typeof saveTarget>>>
+    export type SaveTargetMutationBody = BodyType<TargetInput>
+    export type SaveTargetMutationError = ErrorType<void>
+
+    /**
+ * @summary Add or update a draft target
+ */
+export const useSaveTarget = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveTarget>>, TError,{playerId: string;data: BodyType<TargetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveTarget>>,
+        TError,
+        {playerId: string;data: BodyType<TargetInput>},
+        TContext
+      > => {
+      return useMutation(getSaveTargetMutationOptions(options));
+    }
+
+export const getDeleteTargetUrl = (playerId: string,) => {
+
+
+
+
+  return `/api/targets/${playerId}`
+}
+
+/**
+ * @summary Remove a draft target
+ */
+export const deleteTarget = async (playerId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteTargetUrl(playerId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteTargetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTarget>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTarget>>, TError,{playerId: string}, TContext> => {
+
+const mutationKey = ['deleteTarget'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTarget>>, {playerId: string}> = (props) => {
+          const {playerId} = props ?? {};
+
+          return  deleteTarget(playerId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTargetMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTarget>>>
+
+    export type DeleteTargetMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove a draft target
+ */
+export const useDeleteTarget = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTarget>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTarget>>,
+        TError,
+        {playerId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteTargetMutationOptions(options));
     }
 
 export const getGetNotesUrl = () => {

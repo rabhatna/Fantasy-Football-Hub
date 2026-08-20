@@ -31,7 +31,7 @@ function SuggestionCard({
           {initials(suggestion.name)}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[11px] font-bold group-hover:text-primary">
+          <span className="block truncate text-[12px] font-bold group-hover:text-primary">
             {suggestion.name}
           </span>
           <span className="mono text-[9px] text-muted-foreground">

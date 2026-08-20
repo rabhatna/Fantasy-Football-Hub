@@ -15,6 +15,7 @@
  * down.
  */
 
+import { parseCsv } from "@workspace/store";
 import type { FetchOptions } from "./sources.ts";
 import type { MatchableSource } from "./match.ts";
 
@@ -76,6 +77,64 @@ function normalizeTeam(team: string | null): string | null {
     LA: "LAR",
   };
   return aliases[team] ?? team;
+}
+
+// ── FantasyPros expert-consensus ranks (dynastyprocess mirror) ───────────────
+
+export const ECR_URL =
+  "https://raw.githubusercontent.com/dynastyprocess/data/master/files/db_fpecr_latest.csv";
+
+export interface EcrRecord extends MatchableSource {
+  /** Overall redraft expert-consensus rank. */
+  ecr: number;
+  /** Movement since the previous scrape; positive = rising. */
+  rankDelta: number | null;
+  scrapeDate: string | null;
+}
+
+/**
+ * Live FantasyPros overall redraft ECR, via the freely mirrored dynastyprocess
+ * export — the same feed the offline dataset build reads. This is what keeps
+ * the board's rankings from ageing with the snapshot: the snapshot's 2025
+ * production is final, but expert consensus keeps moving.
+ */
+export async function fetchEcr(options?: FetchOptions): Promise<EcrRecord[]> {
+  const { timeoutMs = 20_000, fetchImpl = fetch } = options ?? {};
+  const response = await fetchImpl(ECR_URL, {
+    headers: { "user-agent": USER_AGENT, accept: "text/csv" },
+    redirect: "follow",
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+  }
+
+  const rows = parseCsv(await response.text());
+
+  const records: EcrRecord[] = [];
+  for (const row of rows) {
+    if (row["page_type"] !== "redraft-overall") continue;
+    const position = str(row["pos"]);
+    const name = str(row["player"]);
+    const ecr = num(Number(row["ecr"]));
+    if (!name || !position || ecr === null || !BOARD_POSITIONS.includes(position)) continue;
+
+    const delta = Number(row["rank_delta"]);
+    records.push({
+      gsisId: null,
+      name,
+      team: normalizeTeam(str(row["tm"]) ?? str(row["team"])),
+      position,
+      ecr,
+      rankDelta: Number.isFinite(delta) ? delta : null,
+      scrapeDate: str(row["scrape_date"]),
+    });
+  }
+
+  if (records.length === 0) {
+    throw new Error("ECR export contained no overall redraft rows");
+  }
+  return records;
 }
 
 // ── Fantasy Football Calculator ──────────────────────────────────────────────

@@ -126,9 +126,37 @@ describe("matching", () => {
       playersMentioned("Puka Nacua limited in practice", PLAYERS).map((p) => p.name),
       ["Puka Nacua"],
     );
-    // A surname alone must not tag a player: too many share one.
+    // "Chase" is a verb and a first name as well as a surname: never taggable alone.
     assert.deepEqual(playersMentioned("Chase traded to the Jets", PLAYERS), []);
     assert.deepEqual(playersMentioned("Generic league news", PLAYERS), []);
+  });
+
+  test("a name only one ranked player carries tags him without the full name", () => {
+    assert.deepEqual(
+      playersMentioned("Nacua expected to return Sunday", PLAYERS).map((p) => p.name),
+      ["Puka Nacua"],
+    );
+    // A token shared by two players (surname or first name) tags nobody.
+    const roster = [
+      ...PLAYERS,
+      { id: "x1", name: "Marvin Harrison Jr.", team: "ARI", position: "WR" },
+      { id: "x2", name: "Tre Harrison", team: "SEA", position: "RB" },
+    ];
+    assert.deepEqual(playersMentioned("Harrison misses practice", roster), []);
+    // A lone name is not unique across the whole NFL: when the headline
+    // names a position that disagrees, the tag is dropped.
+    assert.deepEqual(playersMentioned("RB Nacua signs with the Giants", PLAYERS), []);
+    assert.deepEqual(
+      playersMentioned("WR Nacua limited again", PLAYERS).map((p) => p.name),
+      ["Puka Nacua"],
+    );
+    // A different capitalized first name in front of the surname means the
+    // headline is about someone off the board entirely.
+    assert.deepEqual(playersMentioned("Giants sign Bobby Nacua to a deal", PLAYERS), []);
+    assert.deepEqual(
+      playersMentioned("Puka Nacua ramps up", PLAYERS).map((p) => p.name),
+      ["Puka Nacua"],
+    );
   });
 });
 
@@ -139,6 +167,12 @@ describe("refreshLive", () => {
     c: { full_name: "Jahmyr Gibbs", position: "RB", team: "DET", status: "Injured Reserve", injury_status: null, gsis_id: null },
     d: { full_name: "Some Lineman", position: "OT", team: "DET", status: "Active", gsis_id: null },
   });
+
+  const depthCsv = [
+    "dt,team,player_name,espn_id,gsis_id,pos_grp,pos_abb,pos_slot,pos_rank",
+    "2026-08-18T07:00:00Z,LAR,Puka Nacua,1,,Offense,WR,1,1",
+    "2026-08-18T07:00:00Z,DET,Some Lineman,2,,Offense,LT,1,1",
+  ].join("\n");
 
   function stubFetch(handlers: Record<string, () => Promise<Response> | Response>): typeof fetch {
     return (async (input: RequestInfo | URL) => {
@@ -157,6 +191,7 @@ describe("refreshLive", () => {
     const { cache, status } = await refreshLive(dir, {
       fetchImpl: stubFetch({
         "sleeper.app": () => ok(injuryPayload, "application/json"),
+        "nflverse-data": () => ok(depthCsv, "text/csv"),
         "espn.com": () => ok(RSS, "text/xml"),
         "cbssports.com": () => ok(RSS, "text/xml"),
         "nbcsports.com": () => ok(RSS, "text/xml"),
@@ -166,11 +201,14 @@ describe("refreshLive", () => {
 
     assert.ok(cache);
     assert.equal(status.stale, false);
-    assert.equal(status.sources.length, 5);
+    assert.equal(status.sources.length, 6);
     assert.ok(status.sources.every((source) => source.ok));
 
-    // Non-skill positions are dropped before they reach the cache.
+    // Linemen are kept (normalised to OL, for the O-Line center); everything
+    // else off the board is dropped before it reaches the cache.
+    assert.ok(cache!.injuries.some((record) => record.position === "OL"));
     assert.ok(!cache!.injuries.some((record) => record.position === "OT"));
+    assert.equal(cache!.depthCharts?.length, 2);
     // The same story from four feeds collapses to one headline.
     assert.equal(cache!.headlines.length, 2);
 
@@ -183,6 +221,7 @@ describe("refreshLive", () => {
     const { cache, status } = await refreshLive(dir, {
       fetchImpl: stubFetch({
         "sleeper.app": () => ok(injuryPayload, "application/json"),
+        "nflverse-data": () => ok(depthCsv, "text/csv"),
         "espn.com": () => ok(RSS, "text/xml"),
         "cbssports.com": () => new Response("nope", { status: 503, statusText: "Service Unavailable" }),
         "nbcsports.com": () => { throw new Error("network down"); },
@@ -203,6 +242,7 @@ describe("refreshLive", () => {
     const dir = await scratch();
     const good = stubFetch({
       "sleeper.app": () => ok(injuryPayload, "application/json"),
+      "nflverse-data": () => ok(depthCsv, "text/csv"),
       "espn.com": () => ok(RSS, "text/xml"),
       "cbssports.com": () => ok(RSS, "text/xml"),
       "nbcsports.com": () => ok(RSS, "text/xml"),

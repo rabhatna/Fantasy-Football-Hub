@@ -1,3 +1,4 @@
+import { parseCsv } from "@workspace/store";
 import { parseFeed, type FeedEntry } from "./rss.ts";
 
 /**
@@ -16,6 +17,9 @@ export const NEWS_FEEDS: readonly { name: string; url: string }[] = [
 ];
 
 export const SLEEPER_PLAYERS_URL = "https://api.sleeper.app/v1/players/nfl";
+
+export const DEPTH_CHARTS_URL =
+  "https://github.com/nflverse/nflverse-data/releases/download/depth_charts/depth_charts_2026.csv";
 
 /** Identifies this app to the services it reads, rather than posing as a browser. */
 const USER_AGENT = "TheDraftRoom/1.0 (local fantasy draft tool)";
@@ -99,10 +103,14 @@ export async function fetchInjuries(options?: FetchOptions): Promise<InjuryRecor
       [str(player["first_name"]), str(player["last_name"])].filter(Boolean).join(" ");
     if (!name) continue;
 
-    // Only skill positions are on the board; skip the other ~9,000 records
-    // rather than carrying them into the cache.
-    const position = str(player["position"]);
-    if (!position || !["QB", "RB", "WR", "TE"].includes(position)) continue;
+    // Skill positions are on the board, and offensive linemen matter to the
+    // O-Line center's health view; skip the other ~8,500 records rather than
+    // carrying them into the cache. Sleeper labels linemen inconsistently
+    // (OL/OT/T/G/C), so they are normalised to one position here.
+    const rawPosition = str(player["position"]);
+    if (!rawPosition) continue;
+    const position = ["OL", "OT", "T", "G", "C", "OG"].includes(rawPosition) ? "OL" : rawPosition;
+    if (!["QB", "RB", "WR", "TE", "OL"].includes(position)) continue;
 
     records.push({
       gsisId: str(player["gsis_id"]),
@@ -117,6 +125,83 @@ export async function fetchInjuries(options?: FetchOptions): Promise<InjuryRecor
 
   if (records.length === 0) {
     throw new Error("Sleeper returned no usable player records");
+  }
+  return records;
+}
+
+// ── Depth charts (ESPN, via nflverse) ────────────────────────────────────────
+
+/** One depth-chart entry: where a player sits in his team's pecking order. */
+export interface DepthChartRecord {
+  team: string;
+  name: string;
+  gsisId: string | null;
+  /** ESPN position slot: QB, RB, WR, TE, FB, LT, LG, C, RG, RT. */
+  slot: string;
+  /** 1 = the starter (for WRs, the overall WR pecking order across slots). */
+  rank: number;
+  /** null on the source side; present to satisfy the shared matcher shape. */
+  position: string | null;
+}
+
+/** The depth positions the app cares about: the skill spots plus the line. */
+const DEPTH_SLOTS = new Set(["QB", "RB", "WR", "TE", "FB", "LT", "LG", "C", "RG", "RT"]);
+
+/** Line slots, in the order a line is read left to right. */
+export const OL_SLOTS = ["LT", "LG", "C", "RG", "RT"] as const;
+
+/**
+ * ESPN's team depth charts, republished daily by nflverse as one CSV keyed by
+ * gsis_id (so board players join without name matching).
+ *
+ * The file carries every daily snapshot, newest first, and the host honours
+ * range requests — so this reads only the first ~¾ MB and keeps the rows from
+ * the newest snapshot, rather than downloading 40+ MB of history. If the host
+ * ignores the range header the whole file arrives and the same filter applies.
+ */
+export async function fetchDepthCharts(options?: FetchOptions): Promise<DepthChartRecord[]> {
+  const { timeoutMs = 20_000, fetchImpl = fetch } = options ?? {};
+  const response = await fetchImpl(DEPTH_CHARTS_URL, {
+    headers: { "user-agent": USER_AGENT, accept: "text/csv", range: "bytes=0-786431" },
+    redirect: "follow",
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok && response.status !== 206) {
+    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+  }
+
+  const text = await response.text();
+  // A ranged read (206) almost certainly ends mid-row; drop the partial line.
+  // A full read (200) is complete as-is.
+  const complete = response.status === 206 ? text.slice(0, text.lastIndexOf("\n") + 1) : text;
+  const rows = parseCsv(complete);
+  if (rows.length === 0) throw new Error("depth chart file was empty");
+
+  const latest = rows[0]["dt"];
+  if (!latest) throw new Error("depth chart file had no snapshot date");
+
+  const records: DepthChartRecord[] = [];
+  for (const row of rows) {
+    if (row["dt"] !== latest) break; // snapshots are newest-first
+    const slot = row["pos_abb"] ?? "";
+    if (!DEPTH_SLOTS.has(slot)) continue;
+    const rank = Number(row["pos_rank"]);
+    const name = row["player_name"]?.trim();
+    const team = row["team"]?.trim();
+    if (!name || !team || !Number.isFinite(rank)) continue;
+
+    records.push({
+      team,
+      name,
+      gsisId: str(row["gsis_id"]),
+      slot,
+      rank,
+      position: null,
+    });
+  }
+
+  if (records.length === 0) {
+    throw new Error("depth chart snapshot contained no usable rows");
   }
   return records;
 }

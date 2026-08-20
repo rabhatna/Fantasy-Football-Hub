@@ -2,6 +2,7 @@ import path from "node:path";
 import { Router, type IRouter } from "express";
 import {
   createStore,
+  parseCsv,
   resolveDataDir,
   type DraftPickRecord,
   type KeeperRecord,
@@ -18,6 +19,7 @@ import {
 import {
   DeleteDraftPickParams,
   DeleteKeeperParams,
+  DeleteTargetParams,
   GetDraftPicksResponse,
   GetKeepersResponse,
   GetDraftSummaryResponse,
@@ -31,12 +33,21 @@ import {
   GetPlayersResponse,
   GetRecommendationsResponse,
   GetSettingsResponse,
+  GetSleepersResponse,
+  GetTargetsResponse,
+  GetTeamLineParams,
+  GetTeamLineResponse,
   GetTeamsResponse,
+  ImportKeepersBody,
+  ImportKeepersResponse,
   RefreshDataResponse,
   SaveDraftPickBody,
   SaveDraftPickResponse,
   SaveKeeperBody,
   SaveKeeperResponse,
+  SaveTargetBody,
+  SaveTargetParams,
+  SaveTargetResponse,
   SavePlayerNoteBody,
   SavePlayerNoteParams,
   SavePlayerNoteResponse,
@@ -45,9 +56,12 @@ import {
 } from "@workspace/api-zod";
 import {
   consensusAdp,
+  depthByPlayer,
   injuriesByPlayer,
   marketByPlayer,
   newsItems,
+  offensiveLine,
+  playersMentioned,
   readLiveCache,
   readLiveStatus,
   readMarketCache,
@@ -63,6 +77,7 @@ import { VALUE_TARGET_SD, isUnavailableStatus } from "@workspace/shared";
 import { logger } from "../lib/logger";
 import { remainingPicks } from "../lib/draft-math";
 import { positionalNeeds, recommend } from "../lib/recommend";
+import { findSleepers } from "../lib/sleepers";
 import { consensusValueScores } from "../lib/value";
 
 // Draft picks and notes persist as CSV under the data directory; the player
@@ -101,6 +116,9 @@ type ApiPlayer = DatasetPlayer & {
   adpConsensusStdev: number | null;
   adpSources: { source: string; adp: number }[];
   valueScoreConsensus: number | null;
+  ecrRank: number | null;
+  ecrDelta: number | null;
+  depthRank: number | null;
   projectedPoints: number | null;
   aav: number | null;
 };
@@ -127,6 +145,7 @@ async function enrichedPlayers(): Promise<ApiPlayer[]> {
   ]);
   const injuries = cache ? injuriesByPlayer(cache, players) : new Map<string, PlayerInjury>();
   const marketData = marketByPlayer(marketCache, players);
+  const depthRanks = depthByPlayer(cache, players);
 
   const enriched: ApiPlayer[] = players.map((player) => {
     const injury = injuries.get(player.id);
@@ -168,6 +187,9 @@ async function enrichedPlayers(): Promise<ApiPlayer[]> {
       adpConsensusStdev: consensus.stdev === null ? null : Number(consensus.stdev.toFixed(1)),
       adpSources,
       valueScoreConsensus: null,
+      ecrRank: playerMarket?.ecrRank ?? null,
+      ecrDelta: playerMarket?.ecrDelta ?? null,
+      depthRank: depthRanks.get(player.id) ?? null,
       projectedPoints: projectedPoints === null ? null : Number(projectedPoints.toFixed(1)),
       aav: playerMarket?.aav ?? null,
     };
@@ -308,6 +330,7 @@ function myRemainingPicks(
     keeperRounds: myKeepers
       .filter((keeper) => keeper.costType === "round")
       .map((keeper) => keeper.costValue),
+    missingRounds: settings.missingRounds,
     picksMade,
   });
 }
@@ -430,6 +453,55 @@ router.get("/teams", async (_req, res, next) => {
   try {
     const { teams } = await snapshot();
     res.json(GetTeamsResponse.parse(teams));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/teams/:team/line", async (req, res, next) => {
+  try {
+    const params = GetTeamLineParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid team" });
+      return;
+    }
+
+    const [{ teams }, cache] = await Promise.all([snapshot(), live()]);
+    const team = teams.find((candidate) => candidate.team === params.data.team.toUpperCase());
+    if (!team) {
+      res.status(404).json({ error: "Unknown team" });
+      return;
+    }
+
+    // The most recent cached headline naming each lineman. Linemen are turned
+    // into matchable shapes so the same full-name-only rule applies as for
+    // board players: no headline is better than the wrong one.
+    const line = offensiveLine(cache, team.team);
+    const matchable = line.map((man, index) => ({
+      id: String(index),
+      name: man.name,
+      team: team.team,
+      position: man.slot,
+    }));
+    const headlineFor = new Map<string, { title: string; link: string | null }>();
+    for (const headline of (cache?.headlines ?? []).slice(0, 60)) {
+      for (const mentioned of playersMentioned(headline.title, matchable)) {
+        if (!headlineFor.has(mentioned.id)) {
+          headlineFor.set(mentioned.id, { title: headline.title, link: headline.link });
+        }
+      }
+    }
+
+    res.json(
+      GetTeamLineResponse.parse({
+        team: team.team,
+        linemen: line.map((man, index) => ({
+          ...man,
+          headline: headlineFor.get(String(index))?.title ?? null,
+          headlineUrl: headlineFor.get(String(index))?.link ?? null,
+        })),
+      }),
+    );
   } catch (error) {
     next(error);
   }
@@ -576,6 +648,30 @@ router.get("/draft/recommendations", async (_req, res, next) => {
   }
 });
 
+router.get("/draft/sleepers", async (_req, res, next) => {
+  try {
+    const players = await enrichedPlayers();
+    const [picks, keepers, settings] = await Promise.all([
+      reconcilePicks(players),
+      reconcileKeepers(players),
+      store.leagueSettings.read(),
+    ]);
+
+    const sleepers = findSleepers({
+      players,
+      unavailableIds: new Set([
+        ...picks.map((pick) => pick.playerId),
+        ...keepers.map((keeper) => keeper.playerId),
+      ]),
+      teamCount: settings.teamCount,
+    });
+
+    res.json(GetSleepersResponse.parse(sleepers));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/draft/picks", async (_req, res, next) => {
   try {
     const { players } = await snapshot();
@@ -703,6 +799,7 @@ router.post("/keepers", async (req, res, next) => {
       team: player.team,
       position: player.position,
       owner: body.data.owner,
+      ownerName: body.data.owner === "me" ? "" : (body.data.ownerName?.trim() ?? ""),
       costType: body.data.costType,
       costValue: body.data.costValue,
       createdAt: new Date().toISOString(),
@@ -710,6 +807,114 @@ router.post("/keepers", async (req, res, next) => {
 
     await store.keepers.append(keeper);
     res.status(201).json(SaveKeeperResponse.parse(keeper));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/keepers/import", async (req, res, next) => {
+  try {
+    const body = ImportKeepersBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "Invalid import request" });
+      return;
+    }
+
+    let rows: Record<string, string>[];
+    try {
+      rows = parseCsv(body.data.csv);
+    } catch {
+      res.status(400).json({ error: "The sheet could not be parsed as CSV" });
+      return;
+    }
+    if (rows.length === 0 || !("player" in rows[0]) || !("owner" in rows[0])) {
+      res.status(400).json({
+        error: "The sheet needs a header row with at least player and owner columns",
+      });
+      return;
+    }
+
+    const { players } = await snapshot();
+    const byName = new Map<string, DatasetPlayer[]>();
+    for (const player of players) {
+      const key = normalizeName(player.name);
+      const bucket = byName.get(key);
+      if (bucket) bucket.push(player);
+      else byName.set(key, [player]);
+    }
+
+    const existing = body.data.replace ? [] : await store.keepers.all();
+    const keptIds = new Set(existing.map((keeper) => keeper.playerId));
+    const additions: KeeperRecord[] = [];
+    const skipped: { line: number; reason: string }[] = [];
+    const now = new Date().toISOString();
+
+    rows.forEach((row, index) => {
+      const line = index + 2; // 1-based, after the header row
+      const name = row["player"]?.trim();
+      if (!name) {
+        skipped.push({ line, reason: "no player name" });
+        return;
+      }
+
+      const candidates = byName.get(normalizeName(name)) ?? [];
+      const sheetTeam = row["team"]?.trim().toUpperCase();
+      const player =
+        candidates.length === 1
+          ? candidates[0]
+          : candidates.find((candidate) => candidate.team === sheetTeam);
+      if (!player) {
+        skipped.push({
+          line,
+          reason:
+            candidates.length > 1
+              ? `"${name}" matches several ranked players — add his team to the team column`
+              : `"${name}" is not in the ranked 250`,
+        });
+        return;
+      }
+      if (keptIds.has(player.id)) {
+        skipped.push({ line, reason: `${player.name} is already kept` });
+        return;
+      }
+
+      const ownerRaw = row["owner"]?.trim() ?? "";
+      const isMine = ["me", "mine", "myself", "my team"].includes(ownerRaw.toLowerCase());
+      const dollars = row["dollars"]?.trim();
+      const round = row["round"]?.trim();
+      const costType = dollars ? ("dollars" as const) : ("round" as const);
+      const costValue = Number(dollars || round);
+      if (!Number.isFinite(costValue) || costValue < (costType === "round" ? 1 : 0)) {
+        skipped.push({ line, reason: `${player.name} has no usable round or dollars value` });
+        return;
+      }
+
+      keptIds.add(player.id);
+      additions.push({
+        id: `keeper-${player.id}`,
+        playerId: player.id,
+        playerName: player.name,
+        team: player.team,
+        position: player.position,
+        owner: isMine ? "me" : "other",
+        ownerName: isMine ? "" : ownerRaw,
+        costType,
+        costValue,
+        createdAt: now,
+      });
+    });
+
+    const keepers = await store.keepers.update((records) => {
+      const base = body.data.replace ? [] : records;
+      const next = [...base, ...additions];
+      return { next, result: next };
+    });
+
+    logger.info(
+      { imported: additions.length, skipped: skipped.length, replace: body.data.replace ?? false },
+      "Imported keepers from sheet",
+    );
+    res.json(ImportKeepersResponse.parse({ imported: additions.length, skipped, keepers }));
   } catch (error) {
     next(error);
   }
@@ -726,6 +931,74 @@ router.delete("/keepers/:id", async (req, res, next) => {
     const removed = await store.keepers.remove((keeper) => keeper.id === params.data.id);
     if (removed === 0) {
       res.status(404).json({ error: "No keeper with that id" });
+      return;
+    }
+
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/targets", async (_req, res, next) => {
+  try {
+    const targets = await store.targets.all();
+    // Draft order: the round you plan to spend, then when you added him.
+    targets.sort(
+      (a, b) => a.targetRound - b.targetRound || a.createdAt.localeCompare(b.createdAt),
+    );
+    res.json(GetTargetsResponse.parse(targets));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/targets/:playerId", async (req, res, next) => {
+  try {
+    const params = SaveTargetParams.safeParse(req.params);
+    const body = SaveTargetBody.safeParse(req.body);
+    if (!params.success || !body.success) {
+      res.status(400).json({ error: "Invalid target" });
+      return;
+    }
+
+    const { players } = await snapshot();
+    const player = players.find((candidate) => candidate.id === params.data.playerId);
+    if (!player) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+
+    const target = {
+      playerId: player.id,
+      playerName: player.name,
+      team: player.team,
+      position: player.position,
+      targetRound: body.data.targetRound,
+      note: body.data.note ?? "",
+      createdAt: new Date().toISOString(),
+    };
+
+    await store.targets.upsert(target, (existing) => existing.playerId === player.id);
+    res.json(SaveTargetResponse.parse(target));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/targets/:playerId", async (req, res, next) => {
+  try {
+    const params = DeleteTargetParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid player id" });
+      return;
+    }
+
+    const removed = await store.targets.remove(
+      (target) => target.playerId === params.data.playerId,
+    );
+    if (removed === 0) {
+      res.status(404).json({ error: "No target for that player" });
       return;
     }
 

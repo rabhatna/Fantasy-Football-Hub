@@ -83,6 +83,26 @@ export interface Player {
      */
   valueScoreConsensus: number | null;
   /**
+     * The player's current FantasyPros expert-consensus overall rank,
+     * fetched live on refresh. Null before market data is cached. Where
+     * it disagrees with `rank`, the live number is the newer read.
+     * @nullable
+     */
+  ecrRank: number | null;
+  /**
+     * Rank movement since the previous expert-consensus scrape; positive = rising.
+     * @nullable
+     */
+  ecrDelta: number | null;
+  /**
+     * The player's rank on his team's ESPN depth chart at his position
+     * (1 = starter; for receivers it is the overall WR pecking order).
+     * Null until depth charts have been fetched or when the chart does
+     * not list him.
+     * @nullable
+     */
+  depthRank: number | null;
+  /**
      * Projected 2026 season total in the league's scoring format, from
      * the cached market sources. Null when no source projects the
      * player — never a zero, which would read as "projected to score
@@ -206,6 +226,30 @@ export interface Team {
   compositeScore?: number | null;
   tier: string;
   trend: string;
+}
+
+export interface Lineman {
+  /** LT, LG, C, RG or RT. */
+  slot: string;
+  /** 1 = the starter at the slot, 2 = the swing man. */
+  rank: number;
+  name: string;
+  /** @nullable */
+  injuryStatus: string | null;
+  /** @nullable */
+  injuryBodyPart: string | null;
+  /**
+     * The most recent cached headline naming this lineman, if any.
+     * @nullable
+     */
+  headline: string | null;
+  /** @nullable */
+  headlineUrl: string | null;
+}
+
+export interface TeamLine {
+  team: string;
+  linemen: Lineman[];
 }
 
 /**
@@ -355,6 +399,11 @@ export interface LeagueSettings {
   draftSlot: number;
   /** @minimum 1 */
   auctionBudget: number;
+  /**
+     * Rounds the user has no pick in (traded away); removed from the remaining-picks math.
+     * @items.minimum 1
+     */
+  missingRounds: number[];
   /** Starting spots per position, plus bench depth. */
   roster: LeagueSettingsRoster;
 }
@@ -384,6 +433,71 @@ export interface DraftPick {
   position: string;
   pickNumber: number;
   draftedAt: string;
+}
+
+export interface KeeperImportInput {
+  /** The sheet's contents as CSV text. */
+  csv: string;
+  /** When true, existing keepers are cleared before the import. Default false (merge). */
+  replace?: boolean;
+}
+
+export type KeeperImportResultSkippedItem = {
+  line: number;
+  reason: string;
+};
+
+export type KeeperOwner = typeof KeeperOwner[keyof typeof KeeperOwner];
+
+
+export const KeeperOwner = {
+  me: 'me',
+  other: 'other',
+} as const;
+
+export type KeeperCostType = typeof KeeperCostType[keyof typeof KeeperCostType];
+
+
+export const KeeperCostType = {
+  round: 'round',
+  dollars: 'dollars',
+} as const;
+
+/**
+ * playerName, team and position are denormalised for the same reason as
+ * draft picks — playerId can change across dataset refreshes, and the
+ * CSV should read cleanly in a spreadsheet.
+ */
+export interface Keeper {
+  id: string;
+  playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
+  owner: KeeperOwner;
+  /** The league team keeping him; empty when it is the user's own keeper. */
+  ownerName: string;
+  costType: KeeperCostType;
+  costValue: number;
+  createdAt: string;
+}
+
+export interface KeeperImportResult {
+  imported: number;
+  /** Rows that could not be imported, with the 1-based CSV line and why. */
+  skipped: KeeperImportResultSkippedItem[];
+  keepers: Keeper[];
+}
+
+export interface SleeperPick {
+  playerId: string;
+  name: string;
+  team: string;
+  position: string;
+  adp: number;
+  score: number;
+  tags: string[];
+  reasons: string[];
 }
 
 export type RecommendationComponents = {
@@ -434,6 +548,8 @@ export interface KeeperInput {
   playerId: string;
   /** Whose team keeps the player. "other" only removes him from the pool. */
   owner: KeeperInputOwner;
+  /** The league team's name, for grouping keepers by team. Ignored when owner is "me". */
+  ownerName?: string;
   costType: KeeperInputCostType;
   /**
      * The round the keeper consumes (snake) or the dollars he costs (auction).
@@ -442,36 +558,23 @@ export interface KeeperInput {
   costValue: number;
 }
 
-export type KeeperOwner = typeof KeeperOwner[keyof typeof KeeperOwner];
+export interface TargetInput {
+  /**
+     * The round the user intends to spend on him.
+     * @minimum 1
+     */
+  targetRound: number;
+  /** A short reminder for draft day. */
+  note?: string;
+}
 
-
-export const KeeperOwner = {
-  me: 'me',
-  other: 'other',
-} as const;
-
-export type KeeperCostType = typeof KeeperCostType[keyof typeof KeeperCostType];
-
-
-export const KeeperCostType = {
-  round: 'round',
-  dollars: 'dollars',
-} as const;
-
-/**
- * playerName, team and position are denormalised for the same reason as
- * draft picks — playerId can change across dataset refreshes, and the
- * CSV should read cleanly in a spreadsheet.
- */
-export interface Keeper {
-  id: string;
+export interface Target {
   playerId: string;
   playerName: string;
   team: string;
   position: string;
-  owner: KeeperOwner;
-  costType: KeeperCostType;
-  costValue: number;
+  targetRound: number;
+  note: string;
   createdAt: string;
 }
 

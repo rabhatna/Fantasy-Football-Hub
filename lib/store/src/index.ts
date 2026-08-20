@@ -48,8 +48,24 @@ export interface KeeperRecord {
   team: string;
   position: string;
   owner: "me" | "other";
+  /** The league team keeping him — a display label; "" when it is the user's. */
+  ownerName: string;
   costType: "round" | "dollars";
   costValue: number;
+  createdAt: string;
+}
+
+/**
+ * A draft target: a player the user intends to take, and the round they
+ * expect to spend on him. The printable draft sheet is built from these.
+ */
+export interface TargetRecord {
+  playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
+  targetRound: number;
+  note: string;
   createdAt: string;
 }
 
@@ -103,6 +119,7 @@ const keeperSchema: TableSchema<KeeperRecord> = {
     "team",
     "position",
     "owner",
+    "owner_name",
     "cost_type",
     "cost_value",
     "created_at",
@@ -114,6 +131,7 @@ const keeperSchema: TableSchema<KeeperRecord> = {
     team: record.team,
     position: record.position,
     owner: record.owner,
+    owner_name: record.ownerName,
     cost_type: record.costType,
     cost_value: String(record.costValue),
     created_at: record.createdAt,
@@ -131,8 +149,38 @@ const keeperSchema: TableSchema<KeeperRecord> = {
       team: row["team"] ?? "",
       position: row["position"] ?? "",
       owner: row["owner"] === "other" ? "other" : "me",
+      ownerName: row["owner_name"] ?? "",
       costType: row["cost_type"] === "dollars" ? "dollars" : "round",
       costValue: Number.isFinite(costValue) ? costValue : 0,
+      createdAt: row["created_at"] ?? "",
+    };
+  },
+};
+
+const targetSchema: TableSchema<TargetRecord> = {
+  columns: ["player_id", "player_name", "team", "position", "target_round", "note", "created_at"],
+  encode: (record) => ({
+    player_id: record.playerId,
+    player_name: record.playerName,
+    team: record.team,
+    position: record.position,
+    target_round: String(record.targetRound),
+    note: record.note,
+    created_at: record.createdAt,
+  }),
+  decode: (row) => {
+    const playerId = requireField(row, "player_id");
+    if (!playerId) return null;
+
+    const targetRound = Number(row["target_round"]);
+
+    return {
+      playerId,
+      playerName: row["player_name"] ?? "",
+      team: row["team"] ?? "",
+      position: row["position"] ?? "",
+      targetRound: Number.isFinite(targetRound) && targetRound > 0 ? targetRound : 1,
+      note: row["note"] ?? "",
       createdAt: row["created_at"] ?? "",
     };
   },
@@ -171,6 +219,7 @@ export class Store {
   readonly draftPicks: CsvTable<DraftPickRecord>;
   readonly playerNotes: CsvTable<PlayerNoteRecord>;
   readonly keepers: CsvTable<KeeperRecord>;
+  readonly targets: CsvTable<TargetRecord>;
   readonly leagueSettings: LeagueSettingsStore;
 
   constructor(dataDir: string) {
@@ -191,6 +240,7 @@ export class Store {
       backupDir,
     );
     this.keepers = new CsvTable(path.join(userDir, "keepers.csv"), keeperSchema, backupDir);
+    this.targets = new CsvTable(path.join(userDir, "target_list.csv"), targetSchema, backupDir);
   }
 
   /** Force everything to re-read from disk (after an external edit). */
@@ -198,6 +248,7 @@ export class Store {
     this.draftPicks.invalidate();
     this.playerNotes.invalidate();
     this.keepers.invalidate();
+    this.targets.invalidate();
     this.leagueSettings.invalidate();
   }
 }

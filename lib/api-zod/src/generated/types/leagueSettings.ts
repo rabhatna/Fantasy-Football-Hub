@@ -30,6 +30,11 @@ export interface LeagueSettings {
   draftSlot: number;
   /** @minimum 1 */
   auctionBudget: number;
+  /**
+     * Rounds the user has no pick in (traded away); removed from the remaining-picks math.
+     * @items.minimum 1
+     */
+  missingRounds: number[];
   /** Starting spots per position, plus bench depth. */
   roster: LeagueSettingsRoster;
 }
