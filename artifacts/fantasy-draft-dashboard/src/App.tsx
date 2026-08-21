@@ -31,6 +31,7 @@ import { SuggestedPicks } from "@/components/suggested-picks";
 import { TeamLineFive } from "@/components/team-line";
 import { useDraftBoard, usePlayerNote } from "@/hooks/use-draft-state";
 import { NO_DATA, VALUE_TARGET_SD, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
+import DraftPlanPage from "@/pages/draft-plan";
 import DraftSheetPage from "@/pages/draft-sheet";
 import LeaguePage from "@/pages/league";
 import SleepersPage from "@/pages/sleepers";
@@ -152,6 +153,7 @@ function Shell({ children }: { children: ReactNode }) {
     { href: "/", label: "draft_room" },
     { href: "/sleepers", label: "sleepers" },
     { href: "/league", label: "league" },
+    { href: "/plan", label: "plan_room" },
     { href: "/draft-sheet", label: "draft_sheet" },
     { href: "/stats", label: "stat_lab" },
     { href: "/ol-center", label: "o-line" },
@@ -855,7 +857,7 @@ function ActivityIcon() {
 
 function Router() {
   const [location, setLocation] = useLocation();
-  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/sleepers" component={SleepersPage} /><Route path="/league" component={LeaguePage} /><Route path="/keepers" component={LeaguePage} /><Route path="/draft-sheet" component={DraftSheetPage} /><Route path="/stats" component={StatLabPage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route path="/sources" component={SourcesPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
+  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/sleepers" component={SleepersPage} /><Route path="/league" component={LeaguePage} /><Route path="/keepers" component={LeaguePage} /><Route path="/plan" component={DraftPlanPage} /><Route path="/draft-sheet" component={DraftSheetPage} /><Route path="/stats" component={StatLabPage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route path="/sources" component={SourcesPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
 }
 
 function App() {

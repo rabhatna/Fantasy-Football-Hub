@@ -35,7 +35,55 @@ export interface DraftPlanInput {
   roster: RosterSettings;
   /** The user's remaining picks, in draft order. */
   myNextPicks: readonly PlanPickSlot[];
+  /** Strategy knobs. Omitted fields fall back to the balanced defaults. */
+  tuning?: PlanTuning;
 }
+
+export type PlanRisk = "safe" | "balanced" | "upside";
+
+/**
+ * The user-tweakable strategy. Every knob has a neutral default, so an
+ * empty tuning reproduces the stock plan exactly.
+ */
+export interface PlanTuning {
+  /**
+   * Appetite for boundary players. "safe" only plans players likely to be
+   * there and leans on survival odds; "upside" chases talent it might miss
+   * and barely discounts long shots.
+   */
+  risk?: PlanRisk;
+  /**
+   * Picks of reach before a player's price stops fitting the pick. Small =
+   * strict ADP discipline; large = happy to take your guys early.
+   */
+  reachTolerance?: number;
+  /** How many options each slot proposes, primary included (2-6). */
+  optionsPerSlot?: number;
+  /**
+   * Per-position score multipliers, 0.5-1.5. Above 1 leans the plan toward
+   * the position; below 1 away from it.
+   */
+  positionBias?: Partial<Record<"QB" | "RB" | "WR" | "TE", number>>;
+  /** Do not propose a QB before this round (1 = no gate). */
+  qbFromRound?: number;
+  /** Do not propose a TE before this round (1 = no gate). */
+  teFromRound?: number;
+}
+
+/** The score weights and availability floor each risk posture uses. */
+const RISK_PROFILES: Record<
+  PlanRisk,
+  { minAvailability: number; value: number; quality: number; need: number; urgency: number; pNow: number }
+> = {
+  // Safe wants players who will actually be there, and prices that in.
+  safe: { minAvailability: 0.4, value: 0.35, quality: 0.15, need: 0.15, urgency: 0.15, pNow: 0.2 },
+  balanced: { minAvailability: 0.2, value: 0.4, quality: 0.2, need: 0.15, urgency: 0.15, pNow: 0.1 },
+  // Upside chases the best talent it can defend taking, odds be damned.
+  upside: { minAvailability: 0.1, value: 0.35, quality: 0.3, need: 0.1, urgency: 0.2, pNow: 0.05 },
+};
+
+const clampRange = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
 
 export interface PlanOption {
   playerId: string;
@@ -81,14 +129,19 @@ function seasonPoints(player: RecommendablePlayer): number | null {
   return null;
 }
 
-/** How many options each slot proposes, primary included. */
-const OPTIONS_PER_SLOT = 4;
-
-/** He has to be plausibly on the board to make the sheet at all. */
-const MIN_AVAILABILITY = 0.2;
-
 export function buildDraftPlan(input: DraftPlanInput): DraftPlanSlot[] {
   const { players, unavailableIds, myRoster, roster, myNextPicks } = input;
+
+  const tuning = input.tuning ?? {};
+  const profile = RISK_PROFILES[tuning.risk ?? "balanced"];
+  const reachTolerance = clampRange(tuning.reachTolerance ?? 24, 6, 72);
+  const optionsPerSlot = Math.round(clampRange(tuning.optionsPerSlot ?? 4, 2, 6));
+  const qbFromRound = Math.round(clampRange(tuning.qbFromRound ?? 1, 1, 20));
+  const teFromRound = Math.round(clampRange(tuning.teFromRound ?? 1, 1, 20));
+  const bias = (position: string): number => {
+    const raw = tuning.positionBias?.[position as "QB" | "RB" | "WR" | "TE"];
+    return raw === undefined ? 1 : clampRange(raw, 0.5, 1.5);
+  };
 
   // The ranked board has no kickers or defenses, so those roster spots are
   // planned as notes on the final picks — which is where they belong anyway.
@@ -119,11 +172,18 @@ export function buildDraftPlan(input: DraftPlanInput): DraftPlanSlot[] {
 
     const scored = available
       .filter((player) => !used.has(player.id))
+      .filter(
+        (player) =>
+          // Positional round gates: a plan told to wait on QB does not
+          // propose one earlier, even as a fallback.
+          !(player.position === "QB" && pick.round < qbFromRound) &&
+          !(player.position === "TE" && pick.round < teFromRound),
+      )
       .map((player) => {
         const mu = player.adpConsensus ?? player.adp;
         const sigma = Math.min(15, Math.max(3, player.adpConsensusStdev ?? 6));
         const pNow = phi((mu - pick.overall) / sigma);
-        if (pNow < MIN_AVAILABILITY) return null;
+        if (pNow < profile.minAvailability) return null;
 
         const pNext =
           index + 1 < playerSlots && nextPick !== null
@@ -156,17 +216,22 @@ export function buildDraftPlan(input: DraftPlanInput): DraftPlanSlot[] {
         // the plan should propose the best player the market expects to be
         // gone soon, not the safest one who would still be there next turn.
         const reach = Math.max(0, mu - pick.overall);
-        const value = clamp01(1 - reach / 24);
+        const value = clamp01(1 - reach / reachTolerance);
 
         const score =
-          0.4 * value + 0.2 * quality + 0.15 * need + 0.15 * urgency + 0.1 * pNow;
+          (profile.value * value +
+            profile.quality * quality +
+            profile.need * need +
+            profile.urgency * urgency +
+            profile.pNow * pNow) *
+          bias(player.position);
 
         return { player, pNow, role, score };
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
       .sort((a, b) => b.score - a.score);
 
-    const options = scored.slice(0, OPTIONS_PER_SLOT).map((entry) => ({
+    const options = scored.slice(0, optionsPerSlot).map((entry) => ({
       playerId: entry.player.id,
       name: entry.player.name,
       team: entry.player.team,

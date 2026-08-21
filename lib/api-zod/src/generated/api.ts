@@ -338,8 +338,47 @@ export const GetRecommendationsResponse = zod.array(GetRecommendationsResponseIt
  * starting lineup before it drafts depth; kicker and defense rounds are
  * planned as streaming notes on the final picks, since the ranked board
  * does not cover them.
+ *
+ * Strategy is tunable per request; every knob has a neutral default,
+ * so a bare call returns the balanced stock plan.
  * @summary Proposed round-by-round draft plan
  */
+export const getDraftPlanQueryReachMin = 6;
+export const getDraftPlanQueryReachMax = 72;
+
+export const getDraftPlanQueryOptionsMin = 2;
+export const getDraftPlanQueryOptionsMax = 6;
+
+export const getDraftPlanQueryBiasQBMin = 0.5;
+export const getDraftPlanQueryBiasQBMax = 1.5;
+
+export const getDraftPlanQueryBiasRBMin = 0.5;
+export const getDraftPlanQueryBiasRBMax = 1.5;
+
+export const getDraftPlanQueryBiasWRMin = 0.5;
+export const getDraftPlanQueryBiasWRMax = 1.5;
+
+export const getDraftPlanQueryBiasTEMin = 0.5;
+export const getDraftPlanQueryBiasTEMax = 1.5;
+
+export const getDraftPlanQueryQbFromMax = 20;
+
+export const getDraftPlanQueryTeFromMax = 20;
+
+
+
+export const GetDraftPlanQueryParams = zod.object({
+  "risk": zod.enum(['safe', 'balanced', 'upside']).optional().describe('Appetite for boundary players. Safe raises the availability floor and leans on survival odds; upside chases talent it might miss.'),
+  "reach": zod.coerce.number().min(getDraftPlanQueryReachMin).max(getDraftPlanQueryReachMax).optional().describe('Picks of reach before a player\'s price stops fitting the pick. Small = strict ADP discipline. Default 24.'),
+  "options": zod.coerce.number().min(getDraftPlanQueryOptionsMin).max(getDraftPlanQueryOptionsMax).optional().describe('Options per slot, primary included. Default 4.'),
+  "biasQB": zod.coerce.number().min(getDraftPlanQueryBiasQBMin).max(getDraftPlanQueryBiasQBMax).optional().describe('Score multiplier for quarterbacks. Above 1 leans toward them.'),
+  "biasRB": zod.coerce.number().min(getDraftPlanQueryBiasRBMin).max(getDraftPlanQueryBiasRBMax).optional(),
+  "biasWR": zod.coerce.number().min(getDraftPlanQueryBiasWRMin).max(getDraftPlanQueryBiasWRMax).optional(),
+  "biasTE": zod.coerce.number().min(getDraftPlanQueryBiasTEMin).max(getDraftPlanQueryBiasTEMax).optional(),
+  "qbFrom": zod.coerce.number().min(1).max(getDraftPlanQueryQbFromMax).optional().describe('Do not propose a QB before this round. 1 means no gate.'),
+  "teFrom": zod.coerce.number().min(1).max(getDraftPlanQueryTeFromMax).optional().describe('Do not propose a TE before this round. 1 means no gate.')
+})
+
 export const GetDraftPlanResponse = zod.object({
   "slots": zod.array(zod.object({
   "round": zod.number(),

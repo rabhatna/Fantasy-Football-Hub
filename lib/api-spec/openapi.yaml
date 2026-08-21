@@ -185,6 +185,52 @@ paths:
         starting lineup before it drafts depth; kicker and defense rounds are
         planned as streaming notes on the final picks, since the ranked board
         does not cover them.
+
+        Strategy is tunable per request; every knob has a neutral default,
+        so a bare call returns the balanced stock plan.
+      parameters:
+        - name: risk
+          in: query
+          required: false
+          schema: { type: string, enum: [safe, balanced, upside] }
+          description: Appetite for boundary players. Safe raises the availability floor and leans on survival odds; upside chases talent it might miss.
+        - name: reach
+          in: query
+          required: false
+          schema: { type: number, minimum: 6, maximum: 72 }
+          description: Picks of reach before a player's price stops fitting the pick. Small = strict ADP discipline. Default 24.
+        - name: options
+          in: query
+          required: false
+          schema: { type: number, minimum: 2, maximum: 6 }
+          description: Options per slot, primary included. Default 4.
+        - name: biasQB
+          in: query
+          required: false
+          schema: { type: number, minimum: 0.5, maximum: 1.5 }
+          description: Score multiplier for quarterbacks. Above 1 leans toward them.
+        - name: biasRB
+          in: query
+          required: false
+          schema: { type: number, minimum: 0.5, maximum: 1.5 }
+        - name: biasWR
+          in: query
+          required: false
+          schema: { type: number, minimum: 0.5, maximum: 1.5 }
+        - name: biasTE
+          in: query
+          required: false
+          schema: { type: number, minimum: 0.5, maximum: 1.5 }
+        - name: qbFrom
+          in: query
+          required: false
+          schema: { type: number, minimum: 1, maximum: 20 }
+          description: Do not propose a QB before this round. 1 means no gate.
+        - name: teFrom
+          in: query
+          required: false
+          schema: { type: number, minimum: 1, maximum: 20 }
+          description: Do not propose a TE before this round. 1 means no gate.
       responses:
         "200":
           description: The plan, one slot per remaining pick, in draft order

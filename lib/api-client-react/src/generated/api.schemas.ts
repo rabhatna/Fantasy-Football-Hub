@@ -861,3 +861,64 @@ minShare?: number;
 excludeUnhealthy?: boolean;
 };
 
+export type GetDraftPlanParams = {
+/**
+ * Appetite for boundary players. Safe raises the availability floor and leans on survival odds; upside chases talent it might miss.
+ */
+risk?: GetDraftPlanRisk;
+/**
+ * Picks of reach before a player's price stops fitting the pick. Small = strict ADP discipline. Default 24.
+ * @minimum 6
+ * @maximum 72
+ */
+reach?: number;
+/**
+ * Options per slot, primary included. Default 4.
+ * @minimum 2
+ * @maximum 6
+ */
+options?: number;
+/**
+ * Score multiplier for quarterbacks. Above 1 leans toward them.
+ * @minimum 0.5
+ * @maximum 1.5
+ */
+biasQB?: number;
+/**
+ * @minimum 0.5
+ * @maximum 1.5
+ */
+biasRB?: number;
+/**
+ * @minimum 0.5
+ * @maximum 1.5
+ */
+biasWR?: number;
+/**
+ * @minimum 0.5
+ * @maximum 1.5
+ */
+biasTE?: number;
+/**
+ * Do not propose a QB before this round. 1 means no gate.
+ * @minimum 1
+ * @maximum 20
+ */
+qbFrom?: number;
+/**
+ * Do not propose a TE before this round. 1 means no gate.
+ * @minimum 1
+ * @maximum 20
+ */
+teFrom?: number;
+};
+
+export type GetDraftPlanRisk = typeof GetDraftPlanRisk[keyof typeof GetDraftPlanRisk];
+
+
+export const GetDraftPlanRisk = {
+  safe: 'safe',
+  balanced: 'balanced',
+  upside: 'upside',
+} as const;
+

@@ -118,3 +118,60 @@ test("an exhausted board leaves an honest note instead of an empty slot", () => 
   const starved = slots.filter((slot) => slot.note?.includes("exhausted"));
   assert.ok(starved.length > 0);
 });
+
+test("a QB round gate keeps quarterbacks out of the early rounds entirely", () => {
+  const slots = run({ tuning: { qbFromRound: 8 } });
+  for (const slot of slots.filter((entry) => entry.round < 8)) {
+    assert.ok(
+      slot.options.every((option) => option.position !== "QB"),
+      `round ${slot.round} proposed a QB despite the gate`,
+    );
+  }
+  // The starting QB still gets planned once the gate opens.
+  const laterQb = slots.some(
+    (slot) => slot.round >= 8 && slot.options.some((option) => option.position === "QB"),
+  );
+  assert.ok(laterQb);
+});
+
+test("position bias leans the plan without breaking it", () => {
+  const neutral = run();
+  const teHeavy = run({ tuning: { positionBias: { TE: 1.5, RB: 0.5 } } });
+  const count = (slots: ReturnType<typeof run>, position: string) =>
+    slots.filter((slot) => slot.options[0]?.position === position).length;
+  assert.ok(count(teHeavy, "TE") >= count(neutral, "TE"));
+  assert.ok(count(teHeavy, "RB") <= count(neutral, "RB"));
+});
+
+test("safe risk raises the availability floor; upside lowers it", () => {
+  const safe = run({ tuning: { risk: "safe" } });
+  const upside = run({ tuning: { risk: "upside" } });
+  const minAvailability = (slots: ReturnType<typeof run>) =>
+    Math.min(...slots.flatMap((slot) => slot.options.map((option) => option.availability)));
+  assert.ok(minAvailability(safe) >= 0.4);
+  assert.ok(minAvailability(upside) < minAvailability(safe));
+});
+
+test("options per slot is respected and clamped", () => {
+  const two = run({ tuning: { optionsPerSlot: 2 } });
+  assert.ok(two.filter((slot) => slot.note === null).every((slot) => slot.options.length <= 2));
+  const clamped = run({ tuning: { optionsPerSlot: 99 } });
+  assert.ok(clamped.every((slot) => slot.options.length <= 6));
+});
+
+test("empty tuning reproduces the stock plan exactly", () => {
+  // The factory's ids differ between boards, so compare the plan's shape:
+  // same rounds, same positions, prices and odds in the same order.
+  const shape = (slots: ReturnType<typeof run>) =>
+    slots.map((slot) => ({
+      round: slot.round,
+      note: slot.note,
+      options: slot.options.map((option) => ({
+        position: option.position,
+        adp: option.adp,
+        availability: option.availability,
+        role: option.role,
+      })),
+    }));
+  assert.deepEqual(shape(run({ tuning: {} })), shape(run()));
+});

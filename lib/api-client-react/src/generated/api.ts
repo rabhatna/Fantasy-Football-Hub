@@ -24,6 +24,7 @@ import type {
   DraftPickInput,
   DraftPlan,
   DraftSummary,
+  GetDraftPlanParams,
   GetPlayersParams,
   HealthStatus,
   Keeper,
@@ -707,12 +708,19 @@ export function useGetRecommendations<TData = Awaited<ReturnType<typeof getRecom
 
 
 
-export const getGetDraftPlanUrl = () => {
+export const getGetDraftPlanUrl = (params?: GetDraftPlanParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/draft/plan`
+  return stringifiedParams.length > 0 ? `/api/draft/plan?${stringifiedParams}` : `/api/draft/plan`
 }
 
 /**
@@ -724,11 +732,14 @@ export const getGetDraftPlanUrl = () => {
  * starting lineup before it drafts depth; kicker and defense rounds are
  * planned as streaming notes on the final picks, since the ranked board
  * does not cover them.
+ *
+ * Strategy is tunable per request; every knob has a neutral default,
+ * so a bare call returns the balanced stock plan.
  * @summary Proposed round-by-round draft plan
  */
-export const getDraftPlan = async ( options?: Parameters<typeof customFetch>[1]): Promise<DraftPlan> => {
+export const getDraftPlan = async (params?: GetDraftPlanParams, options?: Parameters<typeof customFetch>[1]): Promise<DraftPlan> => {
 
-  return customFetch<DraftPlan>(getGetDraftPlanUrl(),
+  return customFetch<DraftPlan>(getGetDraftPlanUrl(params),
   {
     ...options,
     method: 'GET'
@@ -741,23 +752,23 @@ export const getDraftPlan = async ( options?: Parameters<typeof customFetch>[1])
 
 
 
-export const getGetDraftPlanQueryKey = () => {
+export const getGetDraftPlanQueryKey = (params?: GetDraftPlanParams,) => {
     return [
-    `/api/draft/plan`
+    `/api/draft/plan`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetDraftPlanQueryOptions = <TData = Awaited<ReturnType<typeof getDraftPlan>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetDraftPlanQueryOptions = <TData = Awaited<ReturnType<typeof getDraftPlan>>, TError = ErrorType<unknown>>(params?: GetDraftPlanParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetDraftPlanQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetDraftPlanQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDraftPlan>>> = ({ signal }) => getDraftPlan({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDraftPlan>>> = ({ signal }) => getDraftPlan(params, { signal, ...requestOptions });
 
 
 
@@ -775,11 +786,11 @@ export type GetDraftPlanQueryError = ErrorType<unknown>
  */
 
 export function useGetDraftPlan<TData = Awaited<ReturnType<typeof getDraftPlan>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetDraftPlanParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetDraftPlanQueryOptions(options)
+  const queryOptions = getGetDraftPlanQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

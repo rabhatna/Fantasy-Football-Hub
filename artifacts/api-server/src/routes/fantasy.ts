@@ -21,6 +21,7 @@ import {
   DeleteKeeperParams,
   DeleteTargetParams,
   GetDraftPicksResponse,
+  GetDraftPlanQueryParams,
   GetDraftPlanResponse,
   GetKeepersResponse,
   GetDraftSummaryResponse,
@@ -80,7 +81,7 @@ import {
 import { VALUE_TARGET_SD, isUnavailableStatus } from "@workspace/shared";
 import { logger } from "../lib/logger";
 import { remainingPicks } from "../lib/draft-math";
-import { buildDraftPlan } from "../lib/draft-plan";
+import { buildDraftPlan, type PlanRisk } from "../lib/draft-plan";
 import { positionalNeeds, recommend } from "../lib/recommend";
 import { findSleepers } from "../lib/sleepers";
 import { consensusValueScores } from "../lib/value";
@@ -653,8 +654,15 @@ router.get("/draft/recommendations", async (_req, res, next) => {
   }
 });
 
-router.get("/draft/plan", async (_req, res, next) => {
+router.get("/draft/plan", async (req, res, next) => {
   try {
+    const query = GetDraftPlanQueryParams.safeParse(req.query);
+    if (!query.success) {
+      res.status(400).json({ error: "Invalid plan tuning" });
+      return;
+    }
+    const { risk, reach, options, biasQB, biasRB, biasWR, biasTE, qbFrom, teFrom } = query.data;
+
     const players = await enrichedPlayers();
     const [picks, keepers, settings] = await Promise.all([
       reconcilePicks(players),
@@ -672,6 +680,14 @@ router.get("/draft/plan", async (_req, res, next) => {
       myRoster: [...myKeepers, ...picks].map((entry) => ({ position: entry.position })),
       roster: settings.roster,
       myNextPicks: myRemainingPicks(settings, myKeepers, picks.length),
+      tuning: {
+        risk: risk as PlanRisk | undefined,
+        reachTolerance: reach,
+        optionsPerSlot: options,
+        positionBias: { QB: biasQB, RB: biasRB, WR: biasWR, TE: biasTE },
+        qbFromRound: qbFrom,
+        teFromRound: teFrom,
+      },
     });
 
     res.json(GetDraftPlanResponse.parse({ slots }));

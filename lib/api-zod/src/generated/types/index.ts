@@ -15,6 +15,8 @@ export * from './draftSummaryMyRosterItem';
 export * from './draftSummaryMyRosterItemSource';
 export * from './draftSummaryPositionalNeeds';
 export * from './draftSummaryRemainingPicksItem';
+export * from './getDraftPlanParams';
+export * from './getDraftPlanRisk';
 export * from './getPlayersParams';
 export * from './healthStatus';
 export * from './keeper';
