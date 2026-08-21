@@ -330,6 +330,35 @@ export const GetRecommendationsResponse = zod.array(GetRecommendationsResponseIt
 
 
 /**
+ * A target list for every pick the user still holds, computed from
+ * whoever is still on the board once keepers and drafted players come
+ * off it. Each slot proposes several options, best first — the primary
+ * will sometimes be gone — and no player appears twice across the plan.
+ * Positional need walks forward with the plan, so it fills a legal
+ * starting lineup before it drafts depth; kicker and defense rounds are
+ * planned as streaming notes on the final picks, since the ranked board
+ * does not cover them.
+ * @summary Proposed round-by-round draft plan
+ */
+export const GetDraftPlanResponse = zod.object({
+  "slots": zod.array(zod.object({
+  "round": zod.number(),
+  "overall": zod.number(),
+  "options": zod.array(zod.object({
+  "playerId": zod.string(),
+  "name": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "adp": zod.number().describe('The price the plan reasoned from — consensus ADP when one exists.'),
+  "availability": zod.number().describe('Chance he is still on the board at this pick, 0-1.'),
+  "role": zod.string().describe('What taking him does for the roster — \"fills RB\", \"flex\", or \"depth\".')
+})).describe('Best first — the first option is the primary target.'),
+  "note": zod.string().nullable().describe('Set when the slot proposes no ranked players — streaming rounds, or an exhausted board.')
+}))
+})
+
+
+/**
  * Under-the-radar picks, argued: rookies wherever they are priced, plus
  * late-priced players with a real signal — early-career arcs, handcuffs
  * one injury from a job (or already behind a hurt starter), committee

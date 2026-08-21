@@ -727,6 +727,26 @@ function VerdictChip({ verdict }: { verdict: Verdict }) {
   );
 }
 
+/**
+ * Whose number this is. Team stats repeat identically for every player on
+ * the roster — labelling them keeps two teammates' breakdowns from reading
+ * as a data bug when their trench and scheme rows match.
+ */
+function ScopeChip({ scope, team }: { scope: StatDef["scope"]; team?: string | null }) {
+  if (scope === "player") {
+    return (
+      <span className="mono rounded border border-primary/25 bg-primary/8 px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide text-primary">
+        player
+      </span>
+    );
+  }
+  return (
+    <span className="mono rounded border border-border bg-muted px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+      team{team ? ` · ${team}` : ""}
+    </span>
+  );
+}
+
 /** min-median-max strip with the league's spread for one stat. */
 function RangeStrip({ values, format }: { values: number[]; format: StatDef["format"] }) {
   if (values.length === 0) {
@@ -796,6 +816,7 @@ function GuideStat({
         data-testid={`button-guide-${stat.key}`}
       >
         <span className="min-w-[150px] text-[12px] font-bold">{stat.label}</span>
+        <ScopeChip scope={stat.scope} />
         {stat.positions && (
           <span className="mono text-[9px] uppercase text-muted-foreground">
             {stat.positions.join("/")}
@@ -878,13 +899,9 @@ function BreakdownRow({
         onClick={() => setOpen((current) => !current)}
         className="grid w-full grid-cols-[minmax(120px,1.4fr)_minmax(52px,auto)_minmax(0,2fr)_minmax(60px,auto)] items-center gap-3 text-left"
       >
-        <span className="truncate text-[11px] font-semibold">
-          {stat.label}
-          {stat.scope === "team" && (
-            <span className="mono ml-1.5 text-[9px] uppercase text-muted-foreground">
-              {team?.team ?? "team"}
-            </span>
-          )}
+        <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold">
+          <span className="truncate">{stat.label}</span>
+          <ScopeChip scope={stat.scope} team={team?.team} />
         </span>
         <span className="mono text-right text-[11px] font-bold">{stat.format(value)}</span>
         <span className="flex items-center gap-2">
@@ -958,32 +975,45 @@ function PlayerBreakdown({
         </div>
         <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
           Every link in his chain, from the line that blocks for him to the price the room is
-          paying. Bars are percentiles against other {player.position}s on the board (team stats
-          rank against the other 31 lines); click any row for the reading.
+          paying. Rows tagged <span className="mono text-[10px] uppercase">player</span> are his
+          own numbers; rows tagged <span className="mono text-[10px] uppercase">team</span> are
+          {" "}{player.team} context every teammate inherits. Bars are percentiles against other{" "}
+          {player.position}s on the board (team stats rank against the other 31 lines); click any
+          row for the reading.
         </p>
       </div>
 
-      {stages.map((stage) => (
-        <section
-          key={stage.key}
-          className="rounded-2xl border border-border bg-card p-5 shadow-sm"
-          data-testid={`breakdown-stage-${stage.key}`}
-        >
-          <Kicker>{stage.title}</Kicker>
-          <div className="mt-3 space-y-2">
-            {stage.stats.map((stat) => (
-              <BreakdownRow
-                key={stat.key}
-                stat={stat}
-                player={player}
-                team={team}
-                players={players}
-                teams={teams}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
+      {stages.map((stage) => {
+        const allTeamScope = stage.stats.every((stat) => stat.scope === "team");
+        return (
+          <section
+            key={stage.key}
+            className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+            data-testid={`breakdown-stage-${stage.key}`}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <Kicker>{stage.title}</Kicker>
+              {allTeamScope && (
+                <span className="mono rounded bg-muted px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  inherited — every {player.team} player shares these
+                </span>
+              )}
+            </div>
+            <div className="mt-3 space-y-2">
+              {stage.stats.map((stat) => (
+                <BreakdownRow
+                  key={stat.key}
+                  stat={stat}
+                  player={player}
+                  team={team}
+                  players={players}
+                  teams={teams}
+                />
+              ))}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -993,10 +1023,16 @@ export default function StatLabPage() {
   const { data: teams } = useGetTeams();
   const [view, setView] = useState<"chain" | "player">("chain");
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<Player | null>(null);
+  // Only the id is held; the player object is re-derived from the live query
+  // every render, so a refresh mid-session updates the open breakdown too.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const allPlayers = useMemo(() => players ?? [], [players]);
   const allTeams = useMemo(() => teams ?? [], [teams]);
+  const selected = useMemo(
+    () => allPlayers.find((player) => player.id === selectedId) ?? null,
+    [allPlayers, selectedId],
+  );
 
   const matches = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -1048,7 +1084,7 @@ export default function StatLabPage() {
               type="search"
               value={selected ? selected.name : search}
               onChange={(event) => {
-                setSelected(null);
+                setSelectedId(null);
                 setSearch(event.target.value);
               }}
               placeholder="Search the 250-player board"
@@ -1062,7 +1098,7 @@ export default function StatLabPage() {
                     type="button"
                     key={player.id}
                     onClick={() => {
-                      setSelected(player);
+                      setSelectedId(player.id);
                       setSearch("");
                     }}
                     data-testid={`button-lab-candidate-${player.id}`}

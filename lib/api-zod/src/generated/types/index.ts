@@ -8,6 +8,8 @@
 
 export * from './draftPick';
 export * from './draftPickInput';
+export * from './draftPlan';
+export * from './draftPlanSlot';
 export * from './draftSummary';
 export * from './draftSummaryMyRosterItem';
 export * from './draftSummaryMyRosterItemSource';
@@ -36,6 +38,7 @@ export * from './liveStatus';
 export * from './newsItem';
 export * from './oLImpactAnalysis';
 export * from './oLTeamScore';
+export * from './planOption';
 export * from './player';
 export * from './playerAdpSourcesItem';
 export * from './playerAdvanced';
