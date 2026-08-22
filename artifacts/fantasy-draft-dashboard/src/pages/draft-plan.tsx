@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { Compass, Play, RotateCcw, Star } from "lucide-react";
-import { useGetDraftPlan, useGetPlayers } from "@workspace/api-client-react";
-import type { GetDraftPlanParams, PlanOption } from "@workspace/api-client-react";
+import { Compass, Play, RotateCcw, Star, X } from "lucide-react";
+import { useGetDraftPicks, useGetDraftPlan, useGetKeepers, useGetPlayers } from "@workspace/api-client-react";
+import type { GetDraftPlanParams, PlanOption, Player, Target } from "@workspace/api-client-react";
 import { useTargets } from "@/hooks/use-targets";
 import { num } from "@/lib/format";
 
@@ -199,6 +199,103 @@ function OptionRow({
   );
 }
 
+/**
+ * Every starred player, wherever the star came from — the board, the
+ * sleepers page, or the plan itself — with what the engine did about him.
+ * A star the plan cannot serve says why, instead of vanishing: a top-five
+ * price never survives to a late first-round pick.
+ */
+function StarsPanel({
+  targets,
+  playerById,
+  slots,
+  keptIds,
+  draftedIds,
+  onRemove,
+}: {
+  targets: Target[];
+  playerById: Map<string, Player>;
+  slots: { round: number; overall: number; options: PlanOption[] }[];
+  keptIds: ReadonlySet<string>;
+  draftedIds: ReadonlySet<string>;
+  onRemove: (playerId: string) => void;
+}) {
+  const plannedById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const slot of slots) {
+      for (const option of slot.options) map.set(option.playerId, slot.round);
+    }
+    return map;
+  }, [slots]);
+  const firstPick = slots[0]?.overall ?? null;
+
+  const status = (target: Target): { label: string; tone: string } => {
+    const planned = plannedById.get(target.playerId);
+    if (planned !== undefined) {
+      return { label: `planned R${planned}`, tone: "bg-primary/12 text-primary" };
+    }
+    if (keptIds.has(target.playerId)) {
+      return { label: "kept", tone: "bg-muted text-muted-foreground" };
+    }
+    if (draftedIds.has(target.playerId)) {
+      return { label: "drafted", tone: "bg-muted text-muted-foreground" };
+    }
+    const player = playerById.get(target.playerId);
+    const adp = player ? (player.adpConsensus ?? player.adp) : null;
+    if (firstPick !== null && adp !== null && adp < firstPick) {
+      return { label: `gone by #${firstPick}`, tone: "bg-destructive/12 text-destructive" };
+    }
+    return { label: "not in plan", tone: "bg-muted text-muted-foreground" };
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm" data-testid="panel-plan-stars">
+      <div className="flex items-center justify-between">
+        <Kicker>Your stars</Kicker>
+        <span className="mono text-[10px] text-muted-foreground">{targets.length}</span>
+      </div>
+      {targets.length === 0 ? (
+        <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
+          Star players anywhere — the board, the sleepers, the plan — and they all land here,
+          boosted in the engine and guaranteed a slot near their price.
+        </p>
+      ) : (
+        <div className="mt-2.5 max-h-[300px] space-y-1.5 overflow-y-auto pr-1">
+          {targets.map((target) => {
+            const read = status(target);
+            return (
+              <div
+                key={target.playerId}
+                className="group flex items-center gap-2 rounded-lg bg-muted/40 px-2 py-1.5"
+                data-testid={`plan-star-${target.playerId}`}
+              >
+                <span className="mono w-7 shrink-0 text-[9px] text-muted-foreground">
+                  {target.position}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold">
+                  {target.playerName}
+                </span>
+                <span className={`mono shrink-0 rounded px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide ${read.tone}`}>
+                  {read.label}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onRemove(target.playerId)}
+                  aria-label={`Unstar ${target.playerName}`}
+                  data-testid={`button-unstar-${target.playerId}`}
+                  className="shrink-0 rounded p-0.5 text-muted-foreground opacity-40 transition hover:text-destructive group-hover:opacity-100"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DraftPlanPage() {
   // Draft state vs applied state: the knobs move freely, the engine only
   // reruns when asked — a plan regenerating mid-drag would be noise.
@@ -206,11 +303,21 @@ export default function DraftPlanPage() {
   const [applied, setApplied] = useState<Tuning>(DEFAULTS);
   const { data: plan, isFetching } = useGetDraftPlan(toParams(applied));
   const { data: players } = useGetPlayers();
+  const { data: keepers } = useGetKeepers();
+  const { data: picks } = useGetDraftPicks();
   const targetState = useTargets();
 
   const playerById = useMemo(
     () => new Map((players ?? []).map((player) => [player.id, player])),
     [players],
+  );
+  const keptIds = useMemo(
+    () => new Set((keepers ?? []).map((keeper) => keeper.playerId)),
+    [keepers],
+  );
+  const draftedIds = useMemo(
+    () => new Set((picks ?? []).map((pick) => pick.playerId)),
+    [picks],
   );
 
   const slots = plan?.slots ?? [];
@@ -256,8 +363,17 @@ export default function DraftPlanPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[290px_minmax(0,1fr)]">
+        <div className="space-y-5 self-start lg:sticky lg:top-[76px]">
+        <StarsPanel
+          targets={targetState.targets}
+          playerById={playerById}
+          slots={slots}
+          keptIds={keptIds}
+          draftedIds={draftedIds}
+          onRemove={targetState.removeTarget}
+        />
         {/* ── The knobs ─────────────────────────────────────────────────── */}
-        <div className="space-y-5 self-start rounded-2xl border border-border bg-card p-5 shadow-sm lg:sticky lg:top-[76px]" data-testid="panel-plan-tuning">
+        <div className="space-y-5 rounded-2xl border border-border bg-card p-5 shadow-sm" data-testid="panel-plan-tuning">
           <div>
             <Kicker>Risk appetite</Kicker>
             <div className="mt-1.5 grid grid-cols-3 gap-1.5">
@@ -356,6 +472,7 @@ export default function DraftPlanPage() {
               <RotateCcw size={13} />
             </button>
           </div>
+        </div>
         </div>
 
         {/* ── The plan ──────────────────────────────────────────────────── */}
