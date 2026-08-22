@@ -390,7 +390,10 @@ export const GetDraftPlanResponse = zod.object({
   "position": zod.string(),
   "adp": zod.number().describe('The price the plan reasoned from — consensus ADP when one exists.'),
   "availability": zod.number().describe('Chance he is still on the board at this pick, 0-1.'),
-  "role": zod.string().describe('What taking him does for the roster — \"fills RB\", \"flex\", or \"depth\".')
+  "role": zod.string().describe('What taking him does for the roster — \"fills RB\", \"flex\", or \"depth\".'),
+  "targeted": zod.boolean().describe('True when the user starred him — the engine boosts his score and guarantees him a slot near his price.'),
+  "isRookie": zod.boolean(),
+  "signals": zod.array(zod.string()).describe('Why the engine likes (or discounts) him beyond the market math —\n\"your guy\", \"rookie\", \"sleeper\", \"handcuff sleeper\", \"elite line\",\n\"weak line\", \"TD rebound\", \"TD fade\", \"questionable\".\n')
 })).describe('Best first — the first option is the primary target.'),
   "note": zod.string().nullable().describe('Set when the slot proposes no ranked players — streaming rounds, or an exhausted board.')
 }))

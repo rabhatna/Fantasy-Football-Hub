@@ -159,6 +159,85 @@ test("options per slot is respected and clamped", () => {
   assert.ok(clamped.every((slot) => slot.options.length <= 6));
 });
 
+test("a starred player beats his identical twin and says why", () => {
+  const players = board() as (ReturnType<typeof player> & { targeted?: boolean })[];
+  // Two same-priced WRs mid-board; star the second one.
+  const twins = players.filter((entry) => entry.position === "WR" && entry.adp > 55 && entry.adp < 70);
+  twins[1].targeted = true;
+  const slots = run({ players });
+  const slot = slots.find((entry) => entry.options.some((option) => option.playerId === twins[1].id));
+  assert.ok(slot, "the starred player made the plan");
+  const option = slot.options.find((entry) => entry.playerId === twins[1].id);
+  assert.ok(option?.targeted);
+  assert.ok(option?.signals.includes("your guy"));
+});
+
+test("a starred longshot is forced into the slot nearest his price", () => {
+  const players = board() as (ReturnType<typeof player> & {
+    targeted?: boolean;
+    projectedPoints: number;
+  })[];
+  // A late-priced player projected so badly he would never crack the options.
+  const longshot = players.find((entry) => entry.adp === 90)!;
+  longshot.targeted = true;
+  longshot.projectedPoints = 1;
+  const slots = run({ players });
+  const planned = slots.find((slot) =>
+    slot.options.some((option) => option.playerId === longshot.id),
+  );
+  assert.ok(planned, "the starred longshot was planned somewhere");
+  // ...and not rounds before his price: pick + reach/2 must reach ADP 90.
+  assert.ok(planned.overall + 12 >= 90);
+});
+
+test("O-line shading hits low-target backs only, and names itself", () => {
+  const players = board() as (ReturnType<typeof player> & {
+    oLineScore?: number | null;
+    targetsPerGame?: number | null;
+  })[];
+  for (const entry of players) {
+    if (entry.position !== "RB") continue;
+    entry.oLineScore = 80;
+    entry.targetsPerGame = 1;
+  }
+  const slots = run({ players });
+  const rbOptions = slots.flatMap((slot) => slot.options).filter((o) => o.position === "RB");
+  assert.ok(rbOptions.some((option) => option.signals.includes("elite line")));
+
+  // A pass-catching back on the same line carries no line signal.
+  const insulated = board() as typeof players;
+  for (const entry of insulated) {
+    if (entry.position !== "RB") continue;
+    entry.oLineScore = 80;
+    entry.targetsPerGame = 5;
+  }
+  const insulatedOptions = run({ players: insulated })
+    .flatMap((slot) => slot.options)
+    .filter((option) => option.position === "RB");
+  assert.ok(insulatedOptions.every((option) => !option.signals.includes("elite line")));
+});
+
+test("regression flags and sleeper scores surface as signals", () => {
+  const players = board() as (ReturnType<typeof player> & {
+    tdOverExpected?: number | null;
+    sleeperScore?: number | null;
+    sleeperTags?: string[];
+    isRookie?: boolean;
+  })[];
+  const rebound = players.find((entry) => entry.adp === 40)!;
+  rebound.tdOverExpected = -4;
+  const sleeper = players.find((entry) => entry.adp === 80)!;
+  sleeper.sleeperScore = 0.5;
+  sleeper.sleeperTags = ["rookie"];
+  sleeper.isRookie = true;
+
+  const options = run({ players }).flatMap((slot) => slot.options);
+  assert.ok(options.find((o) => o.playerId === rebound.id)?.signals.includes("TD rebound"));
+  const sleeperOption = options.find((o) => o.playerId === sleeper.id);
+  assert.ok(sleeperOption?.signals.includes("sleeper"));
+  assert.ok(sleeperOption?.isRookie);
+});
+
 test("empty tuning reproduces the stock plan exactly", () => {
   // The factory's ids differ between boards, so compare the plan's shape:
   // same rounds, same positions, prices and odds in the same order.

@@ -664,19 +664,46 @@ router.get("/draft/plan", async (req, res, next) => {
     const { risk, reach, options, biasQB, biasRB, biasWR, biasTE, qbFrom, teFrom } = query.data;
 
     const players = await enrichedPlayers();
-    const [picks, keepers, settings] = await Promise.all([
+    const [picks, keepers, settings, targets, { teams }] = await Promise.all([
       reconcilePicks(players),
       reconcileKeepers(players),
       store.leagueSettings.read(),
+      store.targets.all(),
+      snapshot(),
     ]);
     const myKeepers = keepers.filter((keeper) => keeper.owner === "me");
 
+    const unavailableIds = new Set([
+      ...picks.map((pick) => pick.playerId),
+      ...keepers.map((keeper) => keeper.playerId),
+    ]);
+
+    // The full signal layer: the user's starred targets, the sleeper
+    // engine's reads (a high limit so late-round flags are all present),
+    // and each team's O-line composite. The player rows already carry the
+    // advanced snapshot fields (receiving usage, TD regression).
+    const targetIds = new Set(targets.map((target) => target.playerId));
+    const sleeperById = new Map(
+      findSleepers(
+        { players, unavailableIds, teamCount: settings.teamCount },
+        players.length,
+      ).map((pick) => [pick.playerId, pick]),
+    );
+    const lineByTeam = new Map(teams.map((team) => [team.team, team.compositeScore]));
+
+    const planPlayers = players.map((player) => ({
+      ...player,
+      targeted: targetIds.has(player.id),
+      sleeperScore: sleeperById.get(player.id)?.score ?? null,
+      sleeperTags: sleeperById.get(player.id)?.tags ?? [],
+      oLineScore: lineByTeam.get(player.team) ?? null,
+      targetsPerGame: player.advanced.targetsPerGame,
+      tdOverExpected: player.advanced.tdOverExpected,
+    }));
+
     const slots = buildDraftPlan({
-      players,
-      unavailableIds: new Set([
-        ...picks.map((pick) => pick.playerId),
-        ...keepers.map((keeper) => keeper.playerId),
-      ]),
+      players: planPlayers,
+      unavailableIds,
       myRoster: [...myKeepers, ...picks].map((entry) => ({ position: entry.position })),
       roster: settings.roster,
       myNextPicks: myRemainingPicks(settings, myKeepers, picks.length),

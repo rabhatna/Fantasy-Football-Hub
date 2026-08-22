@@ -31,9 +31,7 @@ import { SuggestedPicks } from "@/components/suggested-picks";
 import { TeamLineFive } from "@/components/team-line";
 import { useDraftBoard, usePlayerNote } from "@/hooks/use-draft-state";
 import { NO_DATA, VALUE_TARGET_SD, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
-import DraftPlanPage from "@/pages/draft-plan";
-import DraftSheetPage from "@/pages/draft-sheet";
-import LeaguePage from "@/pages/league";
+import ControlPanelPage from "@/pages/control-panel";
 import SleepersPage from "@/pages/sleepers";
 import SourcesPage from "@/pages/sources";
 import StatLabPage from "@/pages/stat-lab";
@@ -152,9 +150,7 @@ function Shell({ children }: { children: ReactNode }) {
   const links = [
     { href: "/", label: "draft_room" },
     { href: "/sleepers", label: "sleepers" },
-    { href: "/league", label: "league" },
-    { href: "/plan", label: "plan_room" },
-    { href: "/draft-sheet", label: "draft_sheet" },
+    { href: "/plan", label: "draft_hq" },
     { href: "/stats", label: "stat_lab" },
     { href: "/ol-center", label: "o-line" },
     { href: "/news", label: "signal" },
@@ -179,7 +175,7 @@ function Shell({ children }: { children: ReactNode }) {
       <nav className="border-t border-sidebar-border/60">
         <div className="mx-auto flex max-w-[1500px] items-center gap-0.5 overflow-x-auto px-2 sm:px-4" data-testid="nav-tabs">
           {links.map(({ href, label }) => {
-            const active = href === "/" ? location === "/" : location.startsWith(href) || (href === "/league" && location.startsWith("/keepers")) || (href === "/ol-center" && (location.startsWith("/teams") || location.startsWith("/ol-impact")));
+            const active = href === "/" ? location === "/" : location.startsWith(href) || (href === "/plan" && ["/league", "/keepers", "/draft-sheet", "/hq"].some((alias) => location.startsWith(alias))) || (href === "/ol-center" && (location.startsWith("/teams") || location.startsWith("/ol-impact")));
             return <Link href={href} key={href} data-testid={`link-nav-${label.replaceAll("_", "-")}`} className={`tab-item relative shrink-0 px-3.5 py-2.5 mono text-[11.5px] font-semibold transition-colors ${active ? "tab-active text-primary" : "text-sidebar-foreground/55 hover:text-sidebar-foreground"}`}>
               <span className="text-sidebar-foreground/35">/</span>{label}
             </Link>;
@@ -857,7 +853,7 @@ function ActivityIcon() {
 
 function Router() {
   const [location, setLocation] = useLocation();
-  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/sleepers" component={SleepersPage} /><Route path="/league" component={LeaguePage} /><Route path="/keepers" component={LeaguePage} /><Route path="/plan" component={DraftPlanPage} /><Route path="/draft-sheet" component={DraftSheetPage} /><Route path="/stats" component={StatLabPage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route path="/sources" component={SourcesPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
+  return <ErrorBoundary resetKey={location}><Switch><Route path="/" component={HomePage} /><Route path="/sleepers" component={SleepersPage} /><Route path="/league" component={ControlPanelPage} /><Route path="/keepers" component={ControlPanelPage} /><Route path="/plan" component={ControlPanelPage} /><Route path="/hq" component={ControlPanelPage} /><Route path="/draft-sheet" component={ControlPanelPage} /><Route path="/stats" component={StatLabPage} /><Route path="/players/:id" component={PlayerPage} /><Route path="/ol-center" component={OLCenterPage} /><Route path="/teams" component={OLCenterPage} /><Route path="/ol-impact" component={OLCenterPage} /><Route path="/news" component={NewsPage} /><Route path="/sources" component={SourcesPage} /><Route component={NotFound} /></Switch></ErrorBoundary>;
 }
 
 function App() {

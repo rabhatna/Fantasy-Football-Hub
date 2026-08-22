@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Flame, Star } from "lucide-react";
-import { useGetPlayers, useGetSleepers } from "@workspace/api-client-react";
+import { useGetDraftPlan, useGetPlayers, useGetSleepers } from "@workspace/api-client-react";
 import type { SleeperPick } from "@workspace/api-client-react";
 import { useTargets } from "@/hooks/use-targets";
 
@@ -27,11 +27,14 @@ const TAG_TONES: Record<string, string> = {
 function SleeperCard({
   pick,
   targeted,
+  plannedRound,
   onTarget,
   onInspect,
 }: {
   pick: SleeperPick;
   targeted: boolean;
+  /** Round where the draft plan currently proposes him, when it does. */
+  plannedRound: number | null;
   onTarget: () => void;
   onInspect: () => void;
 }) {
@@ -68,6 +71,14 @@ function SleeperCard({
             {TAG_LABELS[tag] ?? tag}
           </span>
         ))}
+        {plannedRound !== null && (
+          <span
+            className="mono rounded border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary"
+            data-testid={`chip-planned-${pick.playerId}`}
+          >
+            In the plan · R{plannedRound}
+          </span>
+        )}
       </div>
       <ul className="space-y-1">
         {pick.reasons.map((reason) => (
@@ -88,6 +99,7 @@ function SleeperCard({
 export default function SleepersPage() {
   const { data: sleepers } = useGetSleepers();
   const { data: players } = useGetPlayers();
+  const { data: plan } = useGetDraftPlan();
   const [, setLocation] = useLocation();
   const [filter, setFilter] = useState("all");
   const [position, setPosition] = useState("all");
@@ -97,6 +109,13 @@ export default function SleepersPage() {
     () => new Map((players ?? []).map((player) => [player.id, player])),
     [players],
   );
+  const plannedRoundById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const slot of plan?.slots ?? []) {
+      for (const option of slot.options) map.set(option.playerId, slot.round);
+    }
+    return map;
+  }, [plan]);
 
   const picks = sleepers ?? [];
   const byPosition = position === "all" ? picks : picks.filter((pick) => pick.position === position);
@@ -136,7 +155,9 @@ export default function SleepersPage() {
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">
             Late prices with real arguments: rookie landing spots, year-two leaps, handcuffs one
-            injury from a job, committees with live touches. Star one to put him on your sheet.
+            injury from a job, committees with live touches. Star one and the draft engine boosts
+            him and guarantees him a slot near his price — the chip shows where the current plan
+            already has him.
           </p>
         </div>
         <Flame size={20} className="shrink-0 text-accent" />
@@ -195,6 +216,7 @@ export default function SleepersPage() {
                 key={pick.playerId}
                 pick={pick}
                 targeted={targetState.targetedIds.has(pick.playerId)}
+                plannedRound={plannedRoundById.get(pick.playerId) ?? null}
                 onTarget={() => player && targetState.toggleTarget(player)}
                 onInspect={() => setLocation(`/players/${pick.playerId}`)}
               />

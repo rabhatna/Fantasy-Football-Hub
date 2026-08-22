@@ -1056,7 +1056,7 @@ components:
           description: Set when the slot proposes no ranked players — streaming rounds, or an exhausted board.
     PlanOption:
       type: object
-      required: [playerId, name, team, position, adp, availability, role]
+      required: [playerId, name, team, position, adp, availability, role, targeted, isRookie, signals]
       properties:
         playerId: { type: string }
         name: { type: string }
@@ -1071,6 +1071,17 @@ components:
         role:
           type: string
           description: What taking him does for the roster — "fills RB", "flex", or "depth".
+        targeted:
+          type: boolean
+          description: True when the user starred him — the engine boosts his score and guarantees him a slot near his price.
+        isRookie: { type: boolean }
+        signals:
+          type: array
+          description: |
+            Why the engine likes (or discounts) him beyond the market math —
+            "your guy", "rookie", "sleeper", "handcuff sleeper", "elite line",
+            "weak line", "TD rebound", "TD fade", "questionable".
+          items: { type: string }
     SleeperPick:
       type: object
       required: [playerId, name, team, position, adp, score, tags, reasons]

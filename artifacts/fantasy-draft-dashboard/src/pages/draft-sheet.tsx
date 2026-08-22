@@ -143,7 +143,10 @@ export default function DraftSheetPage() {
                     </span>
                     {primary ? (
                       <>
-                        <span className="font-bold">{primary.name}</span>
+                        <span className="font-bold">
+                          {primary.targeted && <span className="text-accent">★ </span>}
+                          {primary.name}
+                        </span>
                         <span className="mono text-[10px] text-muted-foreground">
                           {primary.position} · {primary.team} · ADP {fmt(primary.adp)} ·{" "}
                           {Math.round(primary.availability * 100)}% there · {primary.role}

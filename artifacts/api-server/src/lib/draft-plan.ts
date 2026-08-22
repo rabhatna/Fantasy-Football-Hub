@@ -26,8 +26,31 @@ export interface PlanPickSlot {
   overall: number;
 }
 
+/**
+ * The signal layer: everything else the app knows about a player, folded
+ * into the plan. All optional — the engine runs on market data alone — and
+ * every present signal both moves the score and names itself on the option,
+ * so the plan can say why it likes someone.
+ */
+export interface PlanSignals {
+  /** True when the user starred him onto the target list — his guys. */
+  targeted: boolean;
+  isRookie: boolean;
+  /** Sleeper-engine score and tags, when the sleeper engine flagged him. */
+  sleeperScore: number | null;
+  sleeperTags: readonly string[];
+  /** His team's O-line composite, 0-100. */
+  oLineScore: number | null;
+  /** Receiving usage — a back with real target volume is line-insulated. */
+  targetsPerGame: number | null;
+  /** Actual minus expected 2025 touchdowns — the regression signal. */
+  tdOverExpected: number | null;
+}
+
+export type PlanPlayer = RecommendablePlayer & Partial<PlanSignals>;
+
 export interface DraftPlanInput {
-  players: readonly RecommendablePlayer[];
+  players: readonly PlanPlayer[];
   /** Ids off the board: drafted players and every keeper, any owner. */
   unavailableIds: ReadonlySet<string>;
   /** The user's roster so far (keepers + picks), as positions. */
@@ -96,6 +119,11 @@ export interface PlanOption {
   availability: number;
   /** What taking him does for the roster: "fills RB", "flex", "depth". */
   role: string;
+  /** True when the user starred him — starred players are never bumped. */
+  targeted: boolean;
+  isRookie: boolean;
+  /** Why the engine likes (or discounts) him beyond the market math. */
+  signals: string[];
 }
 
 export interface DraftPlanSlot {
@@ -218,20 +246,82 @@ export function buildDraftPlan(input: DraftPlanInput): DraftPlanSlot[] {
         const reach = Math.max(0, mu - pick.overall);
         const value = clamp01(1 - reach / reachTolerance);
 
+        // ── The signal layer ─────────────────────────────────────────────
+        // Everything else the app knows, each nudge named so the option
+        // can explain itself. Individually small: signals tilt the plan,
+        // the market math still carries it.
+        const signals: string[] = [];
+        let signalBonus = 0;
+        if (player.targeted) {
+          signalBonus += 0.25;
+          signals.push("your guy");
+        }
+        if (player.isRookie) signals.push("rookie");
+        if (player.sleeperScore != null && player.sleeperScore > 0) {
+          signalBonus += Math.min(0.1, player.sleeperScore * 0.15);
+          signals.push(
+            player.sleeperTags?.includes("handcuff") ? "handcuff sleeper" : "sleeper",
+          );
+        }
+        // O-line shading, per the research: rushing value is line-leveraged,
+        // receiving value is not — a back with real target volume is insulated.
+        if (
+          player.position === "RB" &&
+          player.oLineScore != null &&
+          (player.targetsPerGame ?? 0) < 4
+        ) {
+          if (player.oLineScore >= 65) {
+            signalBonus += 0.05;
+            signals.push("elite line");
+          } else if (player.oLineScore < 45) {
+            signalBonus -= 0.05;
+            signals.push("weak line");
+          }
+        }
+        if (player.tdOverExpected != null) {
+          if (player.tdOverExpected <= -2.5) {
+            signalBonus += 0.05;
+            signals.push("TD rebound");
+          } else if (player.tdOverExpected >= 3) {
+            signalBonus -= 0.05;
+            signals.push("TD fade");
+          }
+        }
+        if (player.injuryStatus?.trim().toLowerCase() === "questionable") {
+          signalBonus -= 0.05;
+          signals.push("questionable");
+        }
+
         const score =
           (profile.value * value +
             profile.quality * quality +
             profile.need * need +
             profile.urgency * urgency +
-            profile.pNow * pNow) *
+            profile.pNow * pNow +
+            signalBonus) *
           bias(player.position);
 
-        return { player, pNow, role, score };
+        return { player, pNow, role, score, signals };
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
       .sort((a, b) => b.score - a.score);
 
-    const options = scored.slice(0, optionsPerSlot).map((entry) => ({
+    const chosen = scored.slice(0, optionsPerSlot);
+
+    // A starred player never silently misses his window: if one is viable
+    // at this pick but scored outside the options, he takes the last slot.
+    // Only force him in once the pick has reached his price neighborhood —
+    // earlier picks leave him for the rounds where he belongs.
+    const forced = scored.find(
+      (entry) =>
+        entry.player.targeted &&
+        !chosen.includes(entry) &&
+        (entry.player.adpConsensus ?? entry.player.adp) <= pick.overall + reachTolerance / 2,
+    );
+    if (forced && chosen.length >= optionsPerSlot) chosen[chosen.length - 1] = forced;
+    else if (forced) chosen.push(forced);
+
+    const options = chosen.map((entry) => ({
       playerId: entry.player.id,
       name: entry.player.name,
       team: entry.player.team,
@@ -239,6 +329,9 @@ export function buildDraftPlan(input: DraftPlanInput): DraftPlanSlot[] {
       adp: Number((entry.player.adpConsensus ?? entry.player.adp).toFixed(1)),
       availability: Number(entry.pNow.toFixed(2)),
       role: entry.role,
+      targeted: entry.player.targeted ?? false,
+      isRookie: entry.player.isRookie ?? false,
+      signals: entry.signals,
     }));
 
     // Every proposed name is consumed so it cannot resurface later — the

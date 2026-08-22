@@ -126,6 +126,20 @@ function RoundGate({
   );
 }
 
+// Positive signals read primary, cautions read destructive, identity reads
+// accent — the chip is the engine explaining itself, so tone is meaning.
+const SIGNAL_TONES: Record<string, string> = {
+  "your guy": "bg-accent/20 text-accent-foreground font-bold",
+  rookie: "bg-accent/12 text-accent-foreground",
+  sleeper: "bg-primary/12 text-primary",
+  "handcuff sleeper": "bg-primary/12 text-primary",
+  "elite line": "bg-primary/12 text-primary",
+  "TD rebound": "bg-primary/12 text-primary",
+  "weak line": "bg-destructive/12 text-destructive",
+  "TD fade": "bg-destructive/12 text-destructive",
+  questionable: "bg-destructive/12 text-destructive",
+};
+
 function OptionRow({
   option,
   primary,
@@ -143,9 +157,17 @@ function OptionRow({
       data-testid={`plan-option-${option.playerId}`}
     >
       <span className="mono w-7 shrink-0 text-[10px] text-muted-foreground">{option.position}</span>
-      <span className={`min-w-0 flex-1 truncate ${primary ? "text-[13px] font-bold" : "text-[12px] font-semibold"}`}>
-        {option.name}
+      <span className={`min-w-0 flex-1 ${primary ? "text-[13px] font-bold" : "text-[12px] font-semibold"}`}>
+        <span className="truncate">{option.name}</span>
         <span className="mono ml-1.5 text-[9px] font-normal text-muted-foreground">{option.team}</span>
+        {option.signals.map((signal) => (
+          <span
+            key={signal}
+            className={`mono ml-1.5 rounded px-1 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide ${SIGNAL_TONES[signal] ?? "bg-muted text-muted-foreground"}`}
+          >
+            {signal}
+          </span>
+        ))}
       </span>
       <span className="mono hidden text-[10px] text-muted-foreground sm:inline">
         ADP {num(option.adp)}
@@ -224,8 +246,10 @@ export default function DraftPlanPage() {
             Plan room
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            A target for every pick you still hold, rebuilt against the live board on every run.
-            Tune the strategy, rerun, and star what you like straight onto your sheet.
+            A target for every pick you still hold, rebuilt against the live board on every run —
+            and it reads everything: your stars are boosted and guaranteed a slot, the sleeper
+            engine's rookies and handcuffs score, O-line quality shades the runners, and TD
+            regression flags both ways. Tune, rerun, star what you like.
           </p>
         </div>
         <Compass size={20} className="shrink-0 text-accent" />
