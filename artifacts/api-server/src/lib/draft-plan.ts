@@ -91,6 +91,16 @@ export interface PlanTuning {
   qbFromRound?: number;
   /** Do not propose a TE before this round (1 = no gate). */
   teFromRound?: number;
+  /**
+   * Rookie appetite, 0.5-1.5: a score multiplier on rookie candidates.
+   * Above 1 chases the class; below 1 pays for proven track records.
+   */
+  rookieLean?: number;
+  /**
+   * How much the sleeper engine's reads count, 0-2: scales the sleeper
+   * signal bonus. 0 ignores the sleeper engine entirely.
+   */
+  sleeperLean?: number;
 }
 
 /** The score weights and availability floor each risk posture uses. */
@@ -166,6 +176,8 @@ export function buildDraftPlan(input: DraftPlanInput): DraftPlanSlot[] {
   const optionsPerSlot = Math.round(clampRange(tuning.optionsPerSlot ?? 4, 2, 6));
   const qbFromRound = Math.round(clampRange(tuning.qbFromRound ?? 1, 1, 20));
   const teFromRound = Math.round(clampRange(tuning.teFromRound ?? 1, 1, 20));
+  const rookieLean = clampRange(tuning.rookieLean ?? 1, 0.5, 1.5);
+  const sleeperLean = clampRange(tuning.sleeperLean ?? 1, 0, 2);
   const bias = (position: string): number => {
     const raw = tuning.positionBias?.[position as "QB" | "RB" | "WR" | "TE"];
     return raw === undefined ? 1 : clampRange(raw, 0.5, 1.5);
@@ -264,8 +276,8 @@ export function buildDraftPlan(input: DraftPlanInput): DraftPlanSlot[] {
         }
         if (longshot) signals.push("if he falls");
         if (player.isRookie) signals.push("rookie");
-        if (player.sleeperScore != null && player.sleeperScore > 0) {
-          signalBonus += Math.min(0.1, player.sleeperScore * 0.15);
+        if (player.sleeperScore != null && player.sleeperScore > 0 && sleeperLean > 0) {
+          signalBonus += Math.min(0.1, player.sleeperScore * 0.15) * sleeperLean;
           signals.push(
             player.sleeperTags?.includes("handcuff") ? "handcuff sleeper" : "sleeper",
           );
@@ -306,7 +318,8 @@ export function buildDraftPlan(input: DraftPlanInput): DraftPlanSlot[] {
             profile.urgency * urgency +
             profile.pNow * pNow +
             signalBonus) *
-          bias(player.position);
+          bias(player.position) *
+          (player.isRookie ? rookieLean : 1);
 
         return { player, pNow, role, score, signals, longshot };
       })

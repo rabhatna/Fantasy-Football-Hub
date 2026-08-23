@@ -928,6 +928,18 @@ qbFrom?: number;
  * @maximum 20
  */
 teFrom?: number;
+/**
+ * Rookie appetite — a score multiplier on rookie candidates. Above 1 chases the class.
+ * @minimum 0.5
+ * @maximum 1.5
+ */
+rookies?: number;
+/**
+ * How much the sleeper engine's reads count. 0 ignores them entirely.
+ * @minimum 0
+ * @maximum 2
+ */
+sleepers?: number;
 };
 
 export type GetDraftPlanRisk = typeof GetDraftPlanRisk[keyof typeof GetDraftPlanRisk];

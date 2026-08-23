@@ -365,6 +365,12 @@ export const getDraftPlanQueryQbFromMax = 20;
 
 export const getDraftPlanQueryTeFromMax = 20;
 
+export const getDraftPlanQueryRookiesMin = 0.5;
+export const getDraftPlanQueryRookiesMax = 1.5;
+
+export const getDraftPlanQuerySleepersMin = 0;
+export const getDraftPlanQuerySleepersMax = 2;
+
 
 
 export const GetDraftPlanQueryParams = zod.object({
@@ -376,7 +382,9 @@ export const GetDraftPlanQueryParams = zod.object({
   "biasWR": zod.coerce.number().min(getDraftPlanQueryBiasWRMin).max(getDraftPlanQueryBiasWRMax).optional(),
   "biasTE": zod.coerce.number().min(getDraftPlanQueryBiasTEMin).max(getDraftPlanQueryBiasTEMax).optional(),
   "qbFrom": zod.coerce.number().min(1).max(getDraftPlanQueryQbFromMax).optional().describe('Do not propose a QB before this round. 1 means no gate.'),
-  "teFrom": zod.coerce.number().min(1).max(getDraftPlanQueryTeFromMax).optional().describe('Do not propose a TE before this round. 1 means no gate.')
+  "teFrom": zod.coerce.number().min(1).max(getDraftPlanQueryTeFromMax).optional().describe('Do not propose a TE before this round. 1 means no gate.'),
+  "rookies": zod.coerce.number().min(getDraftPlanQueryRookiesMin).max(getDraftPlanQueryRookiesMax).optional().describe('Rookie appetite — a score multiplier on rookie candidates. Above 1 chases the class.'),
+  "sleepers": zod.coerce.number().min(getDraftPlanQuerySleepersMin).max(getDraftPlanQuerySleepersMax).optional().describe('How much the sleeper engine\'s reads count. 0 ignores them entirely.')
 })
 
 export const GetDraftPlanResponse = zod.object({

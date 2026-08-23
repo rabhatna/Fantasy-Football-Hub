@@ -288,6 +288,27 @@ test("an unstarred player below the availability floor still vanishes", () => {
   assert.ok(first.options.every((option) => !option.signals.includes("if he falls")));
 });
 
+test("rookie lean tilts rookies in and out of the plan", () => {
+  const players = board() as (ReturnType<typeof player> & { isRookie?: boolean })[];
+  // A rookie priced beside a veteran at every fourth pick.
+  for (const entry of players) if (entry.adp % 4 === 0) entry.isRookie = true;
+  const count = (lean: number) =>
+    run({ players, tuning: { rookieLean: lean } })
+      .flatMap((slot) => slot.options)
+      .filter((option) => option.isRookie).length;
+  assert.ok(count(1.5) >= count(1));
+  assert.ok(count(0.5) <= count(1));
+});
+
+test("sleeper lean at zero silences the sleeper engine's reads", () => {
+  const players = board() as (ReturnType<typeof player> & { sleeperScore?: number | null })[];
+  const flagged = players.find((entry) => entry.adp === 80)!;
+  flagged.sleeperScore = 0.6;
+  const options = run({ players, tuning: { sleeperLean: 0 } }).flatMap((slot) => slot.options);
+  const entry = options.find((option) => option.playerId === flagged.id);
+  assert.ok(!entry || !entry.signals.includes("sleeper"));
+});
+
 test("empty tuning reproduces the stock plan exactly", () => {
   // The factory's ids differ between boards, so compare the plan's shape:
   // same rounds, same positions, prices and odds in the same order.

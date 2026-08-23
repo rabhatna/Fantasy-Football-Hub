@@ -665,7 +665,8 @@ router.get("/draft/plan", async (req, res, next) => {
       res.status(400).json({ error: "Invalid plan tuning" });
       return;
     }
-    const { risk, reach, options, biasQB, biasRB, biasWR, biasTE, qbFrom, teFrom } = query.data;
+    const { risk, reach, options, biasQB, biasRB, biasWR, biasTE, qbFrom, teFrom, rookies, sleepers } =
+      query.data;
 
     const players = await enrichedPlayers();
     const [picks, keepers, settings, targets, vetoes, { teams }] = await Promise.all([
@@ -722,6 +723,8 @@ router.get("/draft/plan", async (req, res, next) => {
         positionBias: { QB: biasQB, RB: biasRB, WR: biasWR, TE: biasTE },
         qbFromRound: qbFrom,
         teFromRound: teFrom,
+        rookieLean: rookies,
+        sleeperLean: sleepers,
       },
     });
 

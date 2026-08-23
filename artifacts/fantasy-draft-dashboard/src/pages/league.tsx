@@ -610,7 +610,11 @@ export default function LeaguePage() {
       const label = keeper.ownerName || "Unnamed team";
       map.set(label, [...(map.get(label) ?? []), keeper]);
     }
-    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+    // Numeric-aware ordering: "Roster 2" belongs before "Roster 10", which
+    // plain string comparison gets wrong the moment a league numbers teams.
+    return [...map.entries()].sort(([a], [b]) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
+    );
   }, [others]);
 
   const views: { value: LeagueView; label: string }[] = [
