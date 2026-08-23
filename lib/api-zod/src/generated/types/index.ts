@@ -58,3 +58,4 @@ export * from './target';
 export * from './targetInput';
 export * from './team';
 export * from './teamLine';
+export * from './veto';

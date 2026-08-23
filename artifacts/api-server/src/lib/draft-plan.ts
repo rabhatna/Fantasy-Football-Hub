@@ -211,7 +211,13 @@ export function buildDraftPlan(input: DraftPlanInput): DraftPlanSlot[] {
         const mu = player.adpConsensus ?? player.adp;
         const sigma = Math.min(15, Math.max(3, player.adpConsensusStdev ?? 6));
         const pNow = phi((mu - pick.overall) / sigma);
-        if (pNow < profile.minAvailability) return null;
+        // Below the availability floor a player is realistically gone — but
+        // a STARRED player stays in the running as a longshot on the FIRST
+        // remaining pick: that is the only slot where "if he falls" can
+        // happen, and every faller belongs there together. Longshots never
+        // displace real options (they are appended below, beyond the cap).
+        const longshot = pNow < profile.minAvailability;
+        if (longshot && (!player.targeted || index !== 0)) return null;
 
         const pNext =
           index + 1 < playerSlots && nextPick !== null
@@ -256,6 +262,7 @@ export function buildDraftPlan(input: DraftPlanInput): DraftPlanSlot[] {
           signalBonus += 0.25;
           signals.push("your guy");
         }
+        if (longshot) signals.push("if he falls");
         if (player.isRookie) signals.push("rookie");
         if (player.sleeperScore != null && player.sleeperScore > 0) {
           signalBonus += Math.min(0.1, player.sleeperScore * 0.15);
@@ -301,25 +308,36 @@ export function buildDraftPlan(input: DraftPlanInput): DraftPlanSlot[] {
             signalBonus) *
           bias(player.position);
 
-        return { player, pNow, role, score, signals };
+        return { player, pNow, role, score, signals, longshot };
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
       .sort((a, b) => b.score - a.score);
 
-    const chosen = scored.slice(0, optionsPerSlot);
+    // Longshots (starred players priced before this pick's realistic
+    // window) never make the ranked options on merit and never displace
+    // the primary — they enter only through the forced star slot below.
+    const chosen = scored.filter((entry) => !entry.longshot).slice(0, optionsPerSlot);
 
     // A starred player never silently misses his window: if one is viable
     // at this pick but scored outside the options, he takes the last slot.
-    // Only force him in once the pick has reached his price neighborhood —
-    // earlier picks leave him for the rounds where he belongs.
+    // Only force him in once the pick has reached his price neighborhood.
     const forced = scored.find(
       (entry) =>
         entry.player.targeted &&
+        !entry.longshot &&
         !chosen.includes(entry) &&
         (entry.player.adpConsensus ?? entry.player.adp) <= pick.overall + reachTolerance / 2,
     );
     if (forced && chosen.length >= optionsPerSlot) chosen[chosen.length - 1] = forced;
     else if (forced) chosen.push(forced);
+
+    // Every starred faller rides the first pick, appended after the real
+    // options — flyers to circle in case the room lets one slide.
+    if (index === 0) {
+      for (const entry of scored) {
+        if (entry.longshot && !chosen.includes(entry)) chosen.push(entry);
+      }
+    }
 
     const options = chosen.map((entry) => ({
       playerId: entry.player.id,

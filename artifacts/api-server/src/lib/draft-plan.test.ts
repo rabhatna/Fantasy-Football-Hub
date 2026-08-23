@@ -238,6 +238,56 @@ test("regression flags and sleeper scores surface as signals", () => {
   assert.ok(sleeperOption?.isRookie);
 });
 
+test("a starred player priced before the first pick rides slot one as a faller", () => {
+  const players = board() as (ReturnType<typeof player> & { targeted?: boolean })[];
+  // Picks start at overall 12 (a late first-round slot): the board's very
+  // first player (ADP 1) is realistically gone — about 3% survival.
+  const faller = players[0];
+  faller.targeted = true;
+  const slots = run({
+    players,
+    myNextPicks: Array.from({ length: 15 }, (_, index) => ({
+      round: index + 1,
+      overall: index * 12 + 12,
+    })),
+  });
+  const first = slots[0];
+  const option = first.options.find((entry) => entry.playerId === faller.id);
+  assert.ok(option, "the faller is planned in the first slot");
+  assert.ok(option.signals.includes("if he falls"));
+  assert.ok(option.signals.includes("your guy"));
+  // ...but never as the primary: a 1-in-50 flyer must not displace the pick.
+  assert.notEqual(first.options[0]?.playerId, faller.id);
+  // And he appears exactly once across the plan.
+  const appearances = slots.flatMap((slot) =>
+    slot.options.filter((entry) => entry.playerId === faller.id),
+  );
+  assert.equal(appearances.length, 1);
+});
+
+test("two starred fallers both ride the first pick together", () => {
+  const players = board() as (ReturnType<typeof player> & { targeted?: boolean })[];
+  players[0].targeted = true; // ADP 1
+  players[1].targeted = true; // ADP 2
+  const slots = run({
+    players,
+    myNextPicks: Array.from({ length: 15 }, (_, index) => ({
+      round: index + 1,
+      overall: index * 12 + 12,
+    })),
+  });
+  const firstIds = slots[0].options.map((option) => option.playerId);
+  assert.ok(firstIds.includes(players[0].id));
+  assert.ok(firstIds.includes(players[1].id));
+});
+
+test("an unstarred player below the availability floor still vanishes", () => {
+  const slots = run();
+  const first = slots[0];
+  // Nobody in the first slot should carry the faller flag without a star.
+  assert.ok(first.options.every((option) => !option.signals.includes("if he falls")));
+});
+
 test("empty tuning reproduces the stock plan exactly", () => {
   // The factory's ids differ between boards, so compare the plan's shape:
   // same rounds, same positions, prices and odds in the same order.

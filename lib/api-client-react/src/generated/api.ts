@@ -45,7 +45,8 @@ import type {
   Target,
   TargetInput,
   Team,
-  TeamLine
+  TeamLine,
+  Veto
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1694,6 +1695,228 @@ export const useDeleteTarget = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteTargetMutationOptions(options));
+    }
+
+export const getGetVetoesUrl = () => {
+
+
+
+
+  return `/api/vetoes`
+}
+
+/**
+ * Players the user has struck from the plan — the opposite of the
+ * target list. The plan engine (and therefore the draft sheet) will
+ * not propose a vetoed player, whatever the market says about him.
+ * @summary List vetoed players
+ */
+export const getVetoes = async ( options?: Parameters<typeof customFetch>[1]): Promise<Veto[]> => {
+
+  return customFetch<Veto[]>(getGetVetoesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVetoesQueryKey = () => {
+    return [
+    `/api/vetoes`
+    ] as const;
+    }
+
+
+export const getGetVetoesQueryOptions = <TData = Awaited<ReturnType<typeof getVetoes>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVetoes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVetoesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVetoes>>> = ({ signal }) => getVetoes({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVetoes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVetoesQueryResult = NonNullable<Awaited<ReturnType<typeof getVetoes>>>
+export type GetVetoesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List vetoed players
+ */
+
+export function useGetVetoes<TData = Awaited<ReturnType<typeof getVetoes>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVetoes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVetoesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveVetoUrl = (playerId: string,) => {
+
+
+
+
+  return `/api/vetoes/${playerId}`
+}
+
+/**
+ * @summary Strike a player from the plan
+ */
+export const saveVeto = async (playerId: string, options?: Parameters<typeof customFetch>[1]): Promise<Veto> => {
+
+  return customFetch<Veto>(getSaveVetoUrl(playerId),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+
+export const getSaveVetoMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveVeto>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveVeto>>, TError,{playerId: string}, TContext> => {
+
+const mutationKey = ['saveVeto'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveVeto>>, {playerId: string}> = (props) => {
+          const {playerId} = props ?? {};
+
+          return  saveVeto(playerId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveVetoMutationResult = NonNullable<Awaited<ReturnType<typeof saveVeto>>>
+
+    export type SaveVetoMutationError = ErrorType<void>
+
+    /**
+ * @summary Strike a player from the plan
+ */
+export const useSaveVeto = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveVeto>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveVeto>>,
+        TError,
+        {playerId: string},
+        TContext
+      > => {
+      return useMutation(getSaveVetoMutationOptions(options));
+    }
+
+export const getDeleteVetoUrl = (playerId: string,) => {
+
+
+
+
+  return `/api/vetoes/${playerId}`
+}
+
+/**
+ * @summary Restore a vetoed player
+ */
+export const deleteVeto = async (playerId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteVetoUrl(playerId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteVetoMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVeto>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteVeto>>, TError,{playerId: string}, TContext> => {
+
+const mutationKey = ['deleteVeto'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteVeto>>, {playerId: string}> = (props) => {
+          const {playerId} = props ?? {};
+
+          return  deleteVeto(playerId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteVetoMutationResult = NonNullable<Awaited<ReturnType<typeof deleteVeto>>>
+
+    export type DeleteVetoMutationError = ErrorType<void>
+
+    /**
+ * @summary Restore a vetoed player
+ */
+export const useDeleteVeto = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVeto>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteVeto>>,
+        TError,
+        {playerId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteVetoMutationOptions(options));
     }
 
 export const getGetNotesUrl = () => {

@@ -40,6 +40,7 @@ import {
   GetTeamLineParams,
   GetTeamLineResponse,
   GetTeamsResponse,
+  GetVetoesResponse,
   ImportKeepersBody,
   ImportKeepersResponse,
   RefreshDataResponse,
@@ -50,6 +51,9 @@ import {
   SaveTargetBody,
   SaveTargetParams,
   SaveTargetResponse,
+  SaveVetoParams,
+  SaveVetoResponse,
+  DeleteVetoParams,
   SavePlayerNoteBody,
   SavePlayerNoteParams,
   SavePlayerNoteResponse,
@@ -664,18 +668,22 @@ router.get("/draft/plan", async (req, res, next) => {
     const { risk, reach, options, biasQB, biasRB, biasWR, biasTE, qbFrom, teFrom } = query.data;
 
     const players = await enrichedPlayers();
-    const [picks, keepers, settings, targets, { teams }] = await Promise.all([
+    const [picks, keepers, settings, targets, vetoes, { teams }] = await Promise.all([
       reconcilePicks(players),
       reconcileKeepers(players),
       store.leagueSettings.read(),
       store.targets.all(),
+      store.vetoes.all(),
       snapshot(),
     ]);
     const myKeepers = keepers.filter((keeper) => keeper.owner === "me");
 
+    // Vetoed players are off the plan's board entirely — the user struck
+    // them, and no market signal overrules that.
     const unavailableIds = new Set([
       ...picks.map((pick) => pick.playerId),
       ...keepers.map((keeper) => keeper.playerId),
+      ...vetoes.map((veto) => veto.playerId),
     ]);
 
     // The full signal layer: the user's starred targets, the sleeper
@@ -1130,6 +1138,62 @@ router.delete("/targets/:playerId", async (req, res, next) => {
       return;
     }
 
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/vetoes", async (_req, res, next) => {
+  try {
+    const vetoes = await store.vetoes.all();
+    vetoes.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    res.json(GetVetoesResponse.parse(vetoes));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/vetoes/:playerId", async (req, res, next) => {
+  try {
+    const params = SaveVetoParams.safeParse(req.params);
+    const { players } = await snapshot();
+    const player = params.success
+      ? players.find((candidate) => candidate.id === params.data.playerId)
+      : undefined;
+    if (!params.success || !player) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+
+    const veto = {
+      playerId: player.id,
+      playerName: player.name,
+      team: player.team,
+      position: player.position,
+      createdAt: new Date().toISOString(),
+    };
+    const saved = await store.vetoes.upsert(veto, (record) => record.playerId === player.id);
+    res.json(SaveVetoResponse.parse(saved));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/vetoes/:playerId", async (req, res, next) => {
+  try {
+    const params = DeleteVetoParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid player id" });
+      return;
+    }
+    const removed = await store.vetoes.remove(
+      (record) => record.playerId === params.data.playerId,
+    );
+    if (removed === 0) {
+      res.status(404).json({ error: "No veto for that player" });
+      return;
+    }
     res.status(204).end();
   } catch (error) {
     next(error);

@@ -1,7 +1,18 @@
 import { useMemo, useState } from "react";
-import { Compass, Play, RotateCcw, Star, X } from "lucide-react";
-import { useGetDraftPicks, useGetDraftPlan, useGetKeepers, useGetPlayers } from "@workspace/api-client-react";
-import type { GetDraftPlanParams, PlanOption, Player, Target } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Ban, Compass, Play, RotateCcw, Star, Undo2, X } from "lucide-react";
+import {
+  getGetDraftPlanQueryKey,
+  getGetVetoesQueryKey,
+  useDeleteVeto,
+  useGetDraftPicks,
+  useGetDraftPlan,
+  useGetKeepers,
+  useGetPlayers,
+  useGetVetoes,
+  useSaveVeto,
+} from "@workspace/api-client-react";
+import type { GetDraftPlanParams, PlanOption, Player, Target, Veto } from "@workspace/api-client-react";
 import { useTargets } from "@/hooks/use-targets";
 import { num } from "@/lib/format";
 
@@ -130,6 +141,7 @@ function RoundGate({
 // accent — the chip is the engine explaining itself, so tone is meaning.
 const SIGNAL_TONES: Record<string, string> = {
   "your guy": "bg-accent/20 text-accent-foreground font-bold",
+  "if he falls": "border border-accent/40 bg-transparent text-accent-foreground",
   rookie: "bg-accent/12 text-accent-foreground",
   sleeper: "bg-primary/12 text-primary",
   "handcuff sleeper": "bg-primary/12 text-primary",
@@ -145,11 +157,13 @@ function OptionRow({
   primary,
   targeted,
   onTarget,
+  onVeto,
 }: {
   option: PlanOption;
   primary: boolean;
   targeted: boolean;
   onTarget: () => void;
+  onVeto: () => void;
 }) {
   return (
     <div
@@ -195,6 +209,51 @@ function OptionRow({
       >
         <Star size={13} fill={targeted ? "currentColor" : "none"} />
       </button>
+      <button
+        type="button"
+        onClick={onVeto}
+        title="Strike him from the plan — the engine will never propose him"
+        data-testid={`button-plan-veto-${option.playerId}`}
+        className="shrink-0 rounded-md p-1 text-muted-foreground/40 transition hover:text-destructive"
+      >
+        <Ban size={12} />
+      </button>
+    </div>
+  );
+}
+
+/** Struck players: never proposed, restorable in one click. */
+function VetoPanel({ vetoes, onRestore }: { vetoes: Veto[]; onRestore: (playerId: string) => void }) {
+  if (vetoes.length === 0) return null;
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm" data-testid="panel-plan-vetoes">
+      <div className="flex items-center justify-between">
+        <Kicker>Struck from the plan</Kicker>
+        <span className="mono text-[10px] text-muted-foreground">{vetoes.length}</span>
+      </div>
+      <div className="mt-2.5 max-h-[220px] space-y-1.5 overflow-y-auto pr-1">
+        {vetoes.map((veto) => (
+          <div
+            key={veto.playerId}
+            className="group flex items-center gap-2 rounded-lg bg-destructive/5 px-2 py-1.5"
+            data-testid={`plan-veto-${veto.playerId}`}
+          >
+            <span className="mono w-7 shrink-0 text-[9px] text-muted-foreground">{veto.position}</span>
+            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold line-through decoration-destructive/50">
+              {veto.playerName}
+            </span>
+            <button
+              type="button"
+              onClick={() => onRestore(veto.playerId)}
+              title={`Restore ${veto.playerName} to the pool`}
+              data-testid={`button-restore-${veto.playerId}`}
+              className="shrink-0 rounded p-0.5 text-muted-foreground opacity-40 transition hover:text-primary group-hover:opacity-100"
+            >
+              <Undo2 size={11} />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -305,7 +364,20 @@ export default function DraftPlanPage() {
   const { data: players } = useGetPlayers();
   const { data: keepers } = useGetKeepers();
   const { data: picks } = useGetDraftPicks();
+  const { data: vetoes } = useGetVetoes();
+  const saveVeto = useSaveVeto();
+  const deleteVeto = useDeleteVeto();
+  const client = useQueryClient();
   const targetState = useTargets();
+
+  const refreshVetoes = () => {
+    void client.invalidateQueries({ queryKey: getGetVetoesQueryKey() });
+    void client.invalidateQueries({ queryKey: getGetDraftPlanQueryKey() });
+  };
+  const vetoPlayer = (playerId: string) =>
+    saveVeto.mutate({ playerId }, { onSuccess: refreshVetoes });
+  const restorePlayer = (playerId: string) =>
+    deleteVeto.mutate({ playerId }, { onSuccess: refreshVetoes });
 
   const playerById = useMemo(
     () => new Map((players ?? []).map((player) => [player.id, player])),
@@ -372,6 +444,7 @@ export default function DraftPlanPage() {
           draftedIds={draftedIds}
           onRemove={targetState.removeTarget}
         />
+        <VetoPanel vetoes={vetoes ?? []} onRestore={restorePlayer} />
         {/* ── The knobs ─────────────────────────────────────────────────── */}
         <div className="space-y-5 rounded-2xl border border-border bg-card p-5 shadow-sm" data-testid="panel-plan-tuning">
           <div>
@@ -540,6 +613,7 @@ export default function DraftPlanPage() {
                           primary={index === 0}
                           targeted={targetState.targetedIds.has(option.playerId)}
                           onTarget={() => player && targetState.toggleTarget(player)}
+                          onVeto={() => vetoPlayer(option.playerId)}
                         />
                       );
                     })}

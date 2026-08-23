@@ -69,6 +69,18 @@ export interface TargetRecord {
   createdAt: string;
 }
 
+/**
+ * A player the user has struck from the plan. The opposite of a target:
+ * the plan engine will not propose him, whatever the market says.
+ */
+export interface VetoRecord {
+  playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
+  createdAt: string;
+}
+
 /** A free-text note attached to a player. */
 export interface PlayerNoteRecord {
   playerId: string;
@@ -186,6 +198,29 @@ const targetSchema: TableSchema<TargetRecord> = {
   },
 };
 
+const vetoSchema: TableSchema<VetoRecord> = {
+  columns: ["player_id", "player_name", "team", "position", "created_at"],
+  encode: (record) => ({
+    player_id: record.playerId,
+    player_name: record.playerName,
+    team: record.team,
+    position: record.position,
+    created_at: record.createdAt,
+  }),
+  decode: (row) => {
+    const playerId = requireField(row, "player_id");
+    if (!playerId) return null;
+
+    return {
+      playerId,
+      playerName: row["player_name"] ?? "",
+      team: row["team"] ?? "",
+      position: row["position"] ?? "",
+      createdAt: row["created_at"] ?? "",
+    };
+  },
+};
+
 const playerNoteSchema: TableSchema<PlayerNoteRecord> = {
   columns: ["player_id", "player_name", "note", "updated_at"],
   encode: (record) => ({
@@ -220,6 +255,7 @@ export class Store {
   readonly playerNotes: CsvTable<PlayerNoteRecord>;
   readonly keepers: CsvTable<KeeperRecord>;
   readonly targets: CsvTable<TargetRecord>;
+  readonly vetoes: CsvTable<VetoRecord>;
   readonly leagueSettings: LeagueSettingsStore;
 
   constructor(dataDir: string) {
@@ -241,6 +277,7 @@ export class Store {
     );
     this.keepers = new CsvTable(path.join(userDir, "keepers.csv"), keeperSchema, backupDir);
     this.targets = new CsvTable(path.join(userDir, "target_list.csv"), targetSchema, backupDir);
+    this.vetoes = new CsvTable(path.join(userDir, "vetoes.csv"), vetoSchema, backupDir);
   }
 
   /** Force everything to re-read from disk (after an external edit). */
@@ -249,6 +286,7 @@ export class Store {
     this.playerNotes.invalidate();
     this.keepers.invalidate();
     this.targets.invalidate();
+    this.vetoes.invalidate();
     this.leagueSettings.invalidate();
   }
 }

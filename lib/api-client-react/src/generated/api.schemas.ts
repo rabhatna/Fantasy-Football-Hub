@@ -629,6 +629,14 @@ export interface KeeperImportResult {
   keepers: Keeper[];
 }
 
+export interface Veto {
+  playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
+  createdAt: string;
+}
+
 export interface PlanOption {
   playerId: string;
   name: string;

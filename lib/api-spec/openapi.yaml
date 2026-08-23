@@ -461,6 +461,57 @@ paths:
           description: Target removed
         "404":
           description: No target for that player
+  /vetoes:
+    get:
+      operationId: getVetoes
+      tags: [draft]
+      summary: List vetoed players
+      description: |
+        Players the user has struck from the plan — the opposite of the
+        target list. The plan engine (and therefore the draft sheet) will
+        not propose a vetoed player, whatever the market says about him.
+      responses:
+        "200":
+          description: The veto list, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Veto"
+  /vetoes/{playerId}:
+    put:
+      operationId: saveVeto
+      tags: [draft]
+      summary: Strike a player from the plan
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Saved veto
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Veto"
+        "404":
+          description: Player not found
+    delete:
+      operationId: deleteVeto
+      tags: [draft]
+      summary: Restore a vetoed player
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Veto removed
+        "404":
+          description: No veto for that player
   /notes:
     get:
       operationId: getNotes
@@ -1032,6 +1083,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Keeper"
+    Veto:
+      type: object
+      required: [playerId, playerName, team, position, createdAt]
+      properties:
+        playerId: { type: string }
+        playerName: { type: string }
+        team: { type: string }
+        position: { type: string }
+        createdAt: { type: string }
     DraftPlan:
       type: object
       required: [slots]

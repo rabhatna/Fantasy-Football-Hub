@@ -645,6 +645,48 @@ export const DeleteTargetResponse = zod.void()
 
 
 /**
+ * Players the user has struck from the plan — the opposite of the
+ * target list. The plan engine (and therefore the draft sheet) will
+ * not propose a vetoed player, whatever the market says about him.
+ * @summary List vetoed players
+ */
+export const GetVetoesResponseItem = zod.object({
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "createdAt": zod.string()
+})
+export const GetVetoesResponse = zod.array(GetVetoesResponseItem)
+
+
+/**
+ * @summary Strike a player from the plan
+ */
+export const SaveVetoParams = zod.object({
+  "playerId": zod.coerce.string()
+})
+
+export const SaveVetoResponse = zod.object({
+  "playerId": zod.string(),
+  "playerName": zod.string(),
+  "team": zod.string(),
+  "position": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Restore a vetoed player
+ */
+export const DeleteVetoParams = zod.object({
+  "playerId": zod.coerce.string()
+})
+
+export const DeleteVetoResponse = zod.void()
+
+
+/**
  * @summary List all player notes
  */
 export const GetNotesResponseItem = zod.object({
