@@ -80,7 +80,7 @@ export interface PlanTuning {
    * strict ADP discipline; large = happy to take your guys early.
    */
   reachTolerance?: number;
-  /** How many options each slot proposes, primary included (2-6). */
+  /** How many options each slot proposes, primary included (2-10). */
   optionsPerSlot?: number;
   /**
    * Per-position score multipliers, 0.5-1.5. Above 1 leans the plan toward
@@ -173,7 +173,7 @@ export function buildDraftPlan(input: DraftPlanInput): DraftPlanSlot[] {
   const tuning = input.tuning ?? {};
   const profile = RISK_PROFILES[tuning.risk ?? "balanced"];
   const reachTolerance = clampRange(tuning.reachTolerance ?? 24, 6, 72);
-  const optionsPerSlot = Math.round(clampRange(tuning.optionsPerSlot ?? 4, 2, 6));
+  const optionsPerSlot = Math.round(clampRange(tuning.optionsPerSlot ?? 4, 2, 10));
   const qbFromRound = Math.round(clampRange(tuning.qbFromRound ?? 1, 1, 20));
   const teFromRound = Math.round(clampRange(tuning.teFromRound ?? 1, 1, 20));
   const rookieLean = clampRange(tuning.rookieLean ?? 1, 0.5, 1.5);

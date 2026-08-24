@@ -1,20 +1,23 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Ban, Compass, Play, RotateCcw, Star, Undo2, X } from "lucide-react";
 import { useLocation } from "wouter";
 import {
   getGetDraftPlanQueryKey,
+  getGetPlanTuningQueryKey,
   getGetVetoesQueryKey,
   useDeleteVeto,
   useGetDraftPicks,
   useGetDraftPlan,
   useGetKeepers,
+  useGetPlanTuning,
   useGetPlayers,
   useGetSettings,
   useGetVetoes,
   useSaveVeto,
+  useUpdatePlanTuning,
 } from "@workspace/api-client-react";
-import type { GetDraftPlanParams, PlanOption, Player, Target, Veto } from "@workspace/api-client-react";
+import type { PlanOption, PlanTuning, Player, Target, Veto } from "@workspace/api-client-react";
 import { useTargets } from "@/hooks/use-targets";
 import { num } from "@/lib/format";
 
@@ -26,19 +29,7 @@ import { num } from "@/lib/format";
  * the whole spine of primaries in one click.
  */
 
-interface Tuning {
-  risk: "safe" | "balanced" | "upside";
-  reach: number;
-  options: number;
-  biasQB: number;
-  biasRB: number;
-  biasWR: number;
-  biasTE: number;
-  qbFrom: number;
-  teFrom: number;
-  rookies: number;
-  sleepers: number;
-}
+type Tuning = PlanTuning;
 
 const DEFAULTS: Tuning = {
   risk: "balanced",
@@ -53,23 +44,6 @@ const DEFAULTS: Tuning = {
   rookies: 1,
   sleepers: 1,
 };
-
-/** Only non-default knobs go on the wire, so the stock plan shares a cache key. */
-function toParams(tuning: Tuning): GetDraftPlanParams | undefined {
-  const params: GetDraftPlanParams = {};
-  if (tuning.risk !== DEFAULTS.risk) params.risk = tuning.risk;
-  if (tuning.reach !== DEFAULTS.reach) params.reach = tuning.reach;
-  if (tuning.options !== DEFAULTS.options) params.options = tuning.options;
-  if (tuning.biasQB !== 1) params.biasQB = tuning.biasQB;
-  if (tuning.biasRB !== 1) params.biasRB = tuning.biasRB;
-  if (tuning.biasWR !== 1) params.biasWR = tuning.biasWR;
-  if (tuning.biasTE !== 1) params.biasTE = tuning.biasTE;
-  if (tuning.qbFrom !== 1) params.qbFrom = tuning.qbFrom;
-  if (tuning.teFrom !== 1) params.teFrom = tuning.teFrom;
-  if (tuning.rookies !== 1) params.rookies = tuning.rookies;
-  if (tuning.sleepers !== 1) params.sleepers = tuning.sleepers;
-  return Object.keys(params).length > 0 ? params : undefined;
-}
 
 function Kicker({ children }: { children: React.ReactNode }) {
   return (
@@ -541,36 +515,51 @@ function StarsPanel({
           boosted in the engine and guaranteed a slot near their price.
         </p>
       ) : (
-        <div className="mt-2.5 max-h-[300px] space-y-1.5 overflow-y-auto pr-1">
-          {targets.map((target) => {
-            const read = status(target);
-            return (
-              <div
-                key={target.playerId}
-                className="group flex items-center gap-2 rounded-lg bg-muted/40 px-2 py-1.5"
-                data-testid={`plan-star-${target.playerId}`}
-              >
-                <span className="mono w-7 shrink-0 text-[9px] text-muted-foreground">
-                  {target.position}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold">
-                  {target.playerName}
-                </span>
-                <span className={`mono shrink-0 rounded px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide ${read.tone}`}>
-                  {read.label}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onRemove(target.playerId)}
-                  aria-label={`Unstar ${target.playerName}`}
-                  data-testid={`button-unstar-${target.playerId}`}
-                  className="shrink-0 rounded p-0.5 text-muted-foreground opacity-40 transition hover:text-destructive group-hover:opacity-100"
-                >
-                  <X size={11} />
-                </button>
+        <div className="mt-2.5 max-h-[340px] space-y-3 overflow-y-auto pr-1">
+          {(["QB", "RB", "WR", "TE"] as const)
+            .map((position) => ({
+              position,
+              group: targets.filter((target) => target.position === position),
+            }))
+            .filter(({ group }) => group.length > 0)
+            .map(({ position, group }) => (
+              <div key={position} data-testid={`stars-group-${position}`}>
+                <div className="flex items-baseline justify-between px-0.5">
+                  <span className="mono text-[9px] font-bold uppercase tracking-wide text-foreground">
+                    {position}
+                  </span>
+                  <span className="mono text-[9px] text-muted-foreground">{group.length}</span>
+                </div>
+                <div className="mt-1 space-y-1.5">
+                  {group.map((target) => {
+                    const read = status(target);
+                    return (
+                      <div
+                        key={target.playerId}
+                        className="group flex items-center gap-2 rounded-lg bg-muted/40 px-2 py-1.5"
+                        data-testid={`plan-star-${target.playerId}`}
+                      >
+                        <span className="min-w-0 flex-1 truncate text-[11px] font-semibold">
+                          {target.playerName}
+                        </span>
+                        <span className={`mono shrink-0 rounded px-1.5 py-0.5 text-[8.5px] font-semibold uppercase tracking-wide ${read.tone}`}>
+                          {read.label}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onRemove(target.playerId)}
+                          aria-label={`Unstar ${target.playerName}`}
+                          data-testid={`button-unstar-${target.playerId}`}
+                          className="shrink-0 rounded p-0.5 text-muted-foreground opacity-40 transition hover:text-destructive group-hover:opacity-100"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            );
-          })}
+            ))}
         </div>
       )}
     </div>
@@ -579,10 +568,23 @@ function StarsPanel({
 
 export default function DraftPlanPage() {
   // Draft state vs applied state: the knobs move freely, the engine only
-  // reruns when asked — a plan regenerating mid-drag would be noise.
+  // reruns when asked — and "applied" is the strategy saved on the server,
+  // so a tuned engine stays tuned between sessions and the printed sheet
+  // follows it.
   const [draft, setDraft] = useState<Tuning>(DEFAULTS);
   const [applied, setApplied] = useState<Tuning>(DEFAULTS);
-  const { data: plan, isFetching } = useGetDraftPlan(toParams(applied));
+  const { data: savedTuning } = useGetPlanTuning();
+  const updateTuning = useUpdatePlanTuning();
+  const [tuningLoaded, setTuningLoaded] = useState(false);
+  useEffect(() => {
+    if (savedTuning && !tuningLoaded) {
+      setDraft(savedTuning);
+      setApplied(savedTuning);
+      setTuningLoaded(true);
+    }
+  }, [savedTuning, tuningLoaded]);
+
+  const { data: plan, isFetching } = useGetDraftPlan();
   const { data: players } = useGetPlayers();
   const { data: keepers } = useGetKeepers();
   const { data: picks } = useGetDraftPicks();
@@ -656,6 +658,22 @@ export default function DraftPlanPage() {
 
   const set = <K extends keyof Tuning>(key: K, value: Tuning[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
+
+  // Rerun = persist the strategy, then rebuild. The saved tuning is what a
+  // bare plan request runs, so the sheet and the sleeper chips follow it.
+  const applyTuning = (tuning: Tuning) => {
+    updateTuning.mutate(
+      { data: tuning },
+      {
+        onSuccess: (saved) => {
+          setDraft(saved);
+          setApplied(saved);
+          void client.invalidateQueries({ queryKey: getGetPlanTuningQueryKey() });
+          void client.invalidateQueries({ queryKey: getGetDraftPlanQueryKey() });
+        },
+      },
+    );
+  };
 
   return (
     <div className="mx-auto max-w-[1250px]">
@@ -741,7 +759,7 @@ export default function DraftPlanPage() {
               data-testid="select-options"
               onChange={(event) => set("options", Number(event.target.value))}
             >
-              {[2, 3, 4, 5, 6].map((count) => (
+              {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((count) => (
                 <option key={count} value={count}>
                   {count} options
                 </option>
@@ -786,8 +804,8 @@ export default function DraftPlanPage() {
           <div className="flex gap-2 border-t border-border/60 pt-4">
             <button
               type="button"
-              onClick={() => setApplied(draft)}
-              disabled={!dirty && !isFetching}
+              onClick={() => applyTuning(draft)}
+              disabled={(!dirty && !isFetching) || updateTuning.isPending}
               data-testid="button-run-engine"
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground shadow-sm transition hover:-translate-y-0.5 disabled:opacity-50"
             >
@@ -796,10 +814,7 @@ export default function DraftPlanPage() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                setDraft(DEFAULTS);
-                setApplied(DEFAULTS);
-              }}
+              onClick={() => applyTuning(DEFAULTS)}
               title="Back to the balanced stock plan"
               data-testid="button-reset-tuning"
               className="rounded-xl border border-border p-2 text-muted-foreground hover:text-foreground"

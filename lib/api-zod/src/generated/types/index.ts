@@ -41,6 +41,8 @@ export * from './newsItem';
 export * from './oLImpactAnalysis';
 export * from './oLTeamScore';
 export * from './planOption';
+export * from './planTuning';
+export * from './planTuningRisk';
 export * from './player';
 export * from './playerAdpSourcesItem';
 export * from './playerAdvanced';

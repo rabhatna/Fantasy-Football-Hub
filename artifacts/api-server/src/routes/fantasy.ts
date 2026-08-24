@@ -7,6 +7,7 @@ import {
   type DraftPickRecord,
   type KeeperRecord,
   type LeagueSettingsRecord,
+  type PlanTuningRecord,
   type RosterSettings,
 } from "@workspace/store";
 import {
@@ -23,6 +24,9 @@ import {
   GetDraftPicksResponse,
   GetDraftPlanQueryParams,
   GetDraftPlanResponse,
+  GetPlanTuningResponse,
+  UpdatePlanTuningBody,
+  UpdatePlanTuningResponse,
   GetKeepersResponse,
   GetDraftSummaryResponse,
   GetLiveStatusResponse,
@@ -669,12 +673,13 @@ router.get("/draft/plan", async (req, res, next) => {
       query.data;
 
     const players = await enrichedPlayers();
-    const [picks, keepers, settings, targets, vetoes, { teams }] = await Promise.all([
+    const [picks, keepers, settings, targets, vetoes, savedTuning, { teams }] = await Promise.all([
       reconcilePicks(players),
       reconcileKeepers(players),
       store.leagueSettings.read(),
       store.targets.all(),
       store.vetoes.all(),
+      store.planTuning.read(),
       snapshot(),
     ]);
     const myKeepers = keepers.filter((keeper) => keeper.owner === "me");
@@ -716,19 +721,48 @@ router.get("/draft/plan", async (req, res, next) => {
       myRoster: [...myKeepers, ...picks].map((entry) => ({ position: entry.position })),
       roster: settings.roster,
       myNextPicks: myRemainingPicks(settings, myKeepers, picks.length),
+      // The saved strategy is the baseline; query params override per-field,
+      // so a bare call runs exactly what the user last dialed in.
       tuning: {
-        risk: risk as PlanRisk | undefined,
-        reachTolerance: reach,
-        optionsPerSlot: options,
-        positionBias: { QB: biasQB, RB: biasRB, WR: biasWR, TE: biasTE },
-        qbFromRound: qbFrom,
-        teFromRound: teFrom,
-        rookieLean: rookies,
-        sleeperLean: sleepers,
+        risk: (risk as PlanRisk | undefined) ?? savedTuning.risk,
+        reachTolerance: reach ?? savedTuning.reach,
+        optionsPerSlot: options ?? savedTuning.options,
+        positionBias: {
+          QB: biasQB ?? savedTuning.biasQB,
+          RB: biasRB ?? savedTuning.biasRB,
+          WR: biasWR ?? savedTuning.biasWR,
+          TE: biasTE ?? savedTuning.biasTE,
+        },
+        qbFromRound: qbFrom ?? savedTuning.qbFrom,
+        teFromRound: teFrom ?? savedTuning.teFrom,
+        rookieLean: rookies ?? savedTuning.rookies,
+        sleeperLean: sleepers ?? savedTuning.sleepers,
       },
     });
 
     res.json(GetDraftPlanResponse.parse({ slots }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/draft/plan/tuning", async (_req, res, next) => {
+  try {
+    res.json(GetPlanTuningResponse.parse(await store.planTuning.read()));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/draft/plan/tuning", async (req, res, next) => {
+  try {
+    const body = UpdatePlanTuningBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "Invalid plan tuning" });
+      return;
+    }
+    const saved = await store.planTuning.write(body.data as PlanTuningRecord);
+    res.json(UpdatePlanTuningResponse.parse(saved));
   } catch (error) {
     next(error);
   }

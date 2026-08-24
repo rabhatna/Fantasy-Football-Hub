@@ -129,6 +129,13 @@ export type PlayerAdvanced = {
   draftRound: number | null;
   /** @nullable */
   draftPick: number | null;
+  /** @nullable */
+  draftYear: number | null;
+  /**
+     * College program — prospect context for rookies.
+     * @nullable
+     */
+  college: string | null;
 };
 
 /**
@@ -629,6 +636,72 @@ export interface KeeperImportResult {
   keepers: Keeper[];
 }
 
+export type PlanTuningRisk = typeof PlanTuningRisk[keyof typeof PlanTuningRisk];
+
+
+export const PlanTuningRisk = {
+  safe: 'safe',
+  balanced: 'balanced',
+  upside: 'upside',
+} as const;
+
+/**
+ * The plan engine's strategy knobs. Out-of-range values are clamped on save, never rejected.
+ */
+export interface PlanTuning {
+  risk: PlanTuningRisk;
+  /**
+     * @minimum 6
+     * @maximum 72
+     */
+  reach: number;
+  /**
+     * @minimum 2
+     * @maximum 10
+     */
+  options: number;
+  /**
+     * @minimum 0.5
+     * @maximum 1.5
+     */
+  biasQB: number;
+  /**
+     * @minimum 0.5
+     * @maximum 1.5
+     */
+  biasRB: number;
+  /**
+     * @minimum 0.5
+     * @maximum 1.5
+     */
+  biasWR: number;
+  /**
+     * @minimum 0.5
+     * @maximum 1.5
+     */
+  biasTE: number;
+  /**
+     * @minimum 1
+     * @maximum 20
+     */
+  qbFrom: number;
+  /**
+     * @minimum 1
+     * @maximum 20
+     */
+  teFrom: number;
+  /**
+     * @minimum 0.5
+     * @maximum 1.5
+     */
+  rookies: number;
+  /**
+     * @minimum 0
+     * @maximum 2
+     */
+  sleepers: number;
+}
+
 export interface Veto {
   playerId: string;
   playerName: string;
@@ -892,7 +965,7 @@ reach?: number;
 /**
  * Options per slot, primary included. Default 4.
  * @minimum 2
- * @maximum 6
+ * @maximum 10
  */
 options?: number;
 /**

@@ -99,7 +99,9 @@ export const GetPlayersResponseItem = zod.object({
   "brokenTackles": zod.number().nullable().describe('Broken tackles across carries and receptions combined.'),
   "weeklyStdev": zod.number().nullable().describe('Standard deviation of weekly PPR scores.'),
   "draftRound": zod.number().nullable(),
-  "draftPick": zod.number().nullable()
+  "draftPick": zod.number().nullable(),
+  "draftYear": zod.number().nullable(),
+  "college": zod.string().nullable().describe('College program — prospect context for rookies.')
 }).describe('The advanced 2025 layer: usage shares, expected touchdowns,\nper-touch efficiency and situational volume, straight from the\nseason snapshot. Every field is nullable for the same reason as\nabove — a rookie or a player the tracking data does not cover has\nno number, not a zero.\n')
 }).describe('Nullable fields are nullable because the source data genuinely lacks\nthem, and a blank is not a zero. 33 of the 250 players took no 2025\nsnaps (rookies, or a missed season) so they have no production at all,\nand Next Gen Stats are only recorded for the positions they apply to —\nseparation and catch rate for receivers, rushing yards over expected\nand eight-plus-box rate for backs. Clients must render these as \"no\ndata\", never as 0.\n')
 export const GetPlayersResponse = zod.array(GetPlayersResponseItem)
@@ -183,7 +185,9 @@ export const GetPlayerResponse = zod.object({
   "brokenTackles": zod.number().nullable().describe('Broken tackles across carries and receptions combined.'),
   "weeklyStdev": zod.number().nullable().describe('Standard deviation of weekly PPR scores.'),
   "draftRound": zod.number().nullable(),
-  "draftPick": zod.number().nullable()
+  "draftPick": zod.number().nullable(),
+  "draftYear": zod.number().nullable(),
+  "college": zod.string().nullable().describe('College program — prospect context for rookies.')
 }).describe('The advanced 2025 layer: usage shares, expected touchdowns,\nper-touch efficiency and situational volume, straight from the\nseason snapshot. Every field is nullable for the same reason as\nabove — a rookie or a player the tracking data does not cover has\nno number, not a zero.\n')
 }).describe('Nullable fields are nullable because the source data genuinely lacks\nthem, and a blank is not a zero. 33 of the 250 players took no 2025\nsnaps (rookies, or a missed season) so they have no production at all,\nand Next Gen Stats are only recorded for the positions they apply to —\nseparation and catch rate for receivers, rushing yards over expected\nand eight-plus-box rate for backs. Clients must render these as \"no\ndata\", never as 0.\n')
 
@@ -347,7 +351,7 @@ export const getDraftPlanQueryReachMin = 6;
 export const getDraftPlanQueryReachMax = 72;
 
 export const getDraftPlanQueryOptionsMin = 2;
-export const getDraftPlanQueryOptionsMax = 6;
+export const getDraftPlanQueryOptionsMax = 10;
 
 export const getDraftPlanQueryBiasQBMin = 0.5;
 export const getDraftPlanQueryBiasQBMax = 1.5;
@@ -406,6 +410,149 @@ export const GetDraftPlanResponse = zod.object({
   "note": zod.string().nullable().describe('Set when the slot proposes no ranked players — streaming rounds, or an exhausted board.')
 }))
 })
+
+
+/**
+ * The Plan Room's knobs as last saved. A bare GET /draft/plan runs
+ * with exactly this tuning, so a strategy dialed in once persists
+ * between sessions — and the printed draft sheet follows it.
+ * @summary The saved plan-engine strategy
+ */
+export const getPlanTuningResponseReachMin = 6;
+export const getPlanTuningResponseReachMax = 72;
+
+export const getPlanTuningResponseOptionsMin = 2;
+export const getPlanTuningResponseOptionsMax = 10;
+
+export const getPlanTuningResponseBiasQBMin = 0.5;
+export const getPlanTuningResponseBiasQBMax = 1.5;
+
+export const getPlanTuningResponseBiasRBMin = 0.5;
+export const getPlanTuningResponseBiasRBMax = 1.5;
+
+export const getPlanTuningResponseBiasWRMin = 0.5;
+export const getPlanTuningResponseBiasWRMax = 1.5;
+
+export const getPlanTuningResponseBiasTEMin = 0.5;
+export const getPlanTuningResponseBiasTEMax = 1.5;
+
+export const getPlanTuningResponseQbFromMax = 20;
+
+export const getPlanTuningResponseTeFromMax = 20;
+
+export const getPlanTuningResponseRookiesMin = 0.5;
+export const getPlanTuningResponseRookiesMax = 1.5;
+
+export const getPlanTuningResponseSleepersMin = 0;
+export const getPlanTuningResponseSleepersMax = 2;
+
+
+
+export const GetPlanTuningResponse = zod.object({
+  "risk": zod.enum(['safe', 'balanced', 'upside']),
+  "reach": zod.number().min(getPlanTuningResponseReachMin).max(getPlanTuningResponseReachMax),
+  "options": zod.number().min(getPlanTuningResponseOptionsMin).max(getPlanTuningResponseOptionsMax),
+  "biasQB": zod.number().min(getPlanTuningResponseBiasQBMin).max(getPlanTuningResponseBiasQBMax),
+  "biasRB": zod.number().min(getPlanTuningResponseBiasRBMin).max(getPlanTuningResponseBiasRBMax),
+  "biasWR": zod.number().min(getPlanTuningResponseBiasWRMin).max(getPlanTuningResponseBiasWRMax),
+  "biasTE": zod.number().min(getPlanTuningResponseBiasTEMin).max(getPlanTuningResponseBiasTEMax),
+  "qbFrom": zod.number().min(1).max(getPlanTuningResponseQbFromMax),
+  "teFrom": zod.number().min(1).max(getPlanTuningResponseTeFromMax),
+  "rookies": zod.number().min(getPlanTuningResponseRookiesMin).max(getPlanTuningResponseRookiesMax),
+  "sleepers": zod.number().min(getPlanTuningResponseSleepersMin).max(getPlanTuningResponseSleepersMax)
+}).describe('The plan engine\'s strategy knobs. Out-of-range values are clamped on save, never rejected.')
+
+
+/**
+ * @summary Save the plan-engine strategy
+ */
+export const updatePlanTuningBodyReachMin = 6;
+export const updatePlanTuningBodyReachMax = 72;
+
+export const updatePlanTuningBodyOptionsMin = 2;
+export const updatePlanTuningBodyOptionsMax = 10;
+
+export const updatePlanTuningBodyBiasQBMin = 0.5;
+export const updatePlanTuningBodyBiasQBMax = 1.5;
+
+export const updatePlanTuningBodyBiasRBMin = 0.5;
+export const updatePlanTuningBodyBiasRBMax = 1.5;
+
+export const updatePlanTuningBodyBiasWRMin = 0.5;
+export const updatePlanTuningBodyBiasWRMax = 1.5;
+
+export const updatePlanTuningBodyBiasTEMin = 0.5;
+export const updatePlanTuningBodyBiasTEMax = 1.5;
+
+export const updatePlanTuningBodyQbFromMax = 20;
+
+export const updatePlanTuningBodyTeFromMax = 20;
+
+export const updatePlanTuningBodyRookiesMin = 0.5;
+export const updatePlanTuningBodyRookiesMax = 1.5;
+
+export const updatePlanTuningBodySleepersMin = 0;
+export const updatePlanTuningBodySleepersMax = 2;
+
+
+
+export const UpdatePlanTuningBody = zod.object({
+  "risk": zod.enum(['safe', 'balanced', 'upside']),
+  "reach": zod.number().min(updatePlanTuningBodyReachMin).max(updatePlanTuningBodyReachMax),
+  "options": zod.number().min(updatePlanTuningBodyOptionsMin).max(updatePlanTuningBodyOptionsMax),
+  "biasQB": zod.number().min(updatePlanTuningBodyBiasQBMin).max(updatePlanTuningBodyBiasQBMax),
+  "biasRB": zod.number().min(updatePlanTuningBodyBiasRBMin).max(updatePlanTuningBodyBiasRBMax),
+  "biasWR": zod.number().min(updatePlanTuningBodyBiasWRMin).max(updatePlanTuningBodyBiasWRMax),
+  "biasTE": zod.number().min(updatePlanTuningBodyBiasTEMin).max(updatePlanTuningBodyBiasTEMax),
+  "qbFrom": zod.number().min(1).max(updatePlanTuningBodyQbFromMax),
+  "teFrom": zod.number().min(1).max(updatePlanTuningBodyTeFromMax),
+  "rookies": zod.number().min(updatePlanTuningBodyRookiesMin).max(updatePlanTuningBodyRookiesMax),
+  "sleepers": zod.number().min(updatePlanTuningBodySleepersMin).max(updatePlanTuningBodySleepersMax)
+}).describe('The plan engine\'s strategy knobs. Out-of-range values are clamped on save, never rejected.')
+
+export const updatePlanTuningResponseReachMin = 6;
+export const updatePlanTuningResponseReachMax = 72;
+
+export const updatePlanTuningResponseOptionsMin = 2;
+export const updatePlanTuningResponseOptionsMax = 10;
+
+export const updatePlanTuningResponseBiasQBMin = 0.5;
+export const updatePlanTuningResponseBiasQBMax = 1.5;
+
+export const updatePlanTuningResponseBiasRBMin = 0.5;
+export const updatePlanTuningResponseBiasRBMax = 1.5;
+
+export const updatePlanTuningResponseBiasWRMin = 0.5;
+export const updatePlanTuningResponseBiasWRMax = 1.5;
+
+export const updatePlanTuningResponseBiasTEMin = 0.5;
+export const updatePlanTuningResponseBiasTEMax = 1.5;
+
+export const updatePlanTuningResponseQbFromMax = 20;
+
+export const updatePlanTuningResponseTeFromMax = 20;
+
+export const updatePlanTuningResponseRookiesMin = 0.5;
+export const updatePlanTuningResponseRookiesMax = 1.5;
+
+export const updatePlanTuningResponseSleepersMin = 0;
+export const updatePlanTuningResponseSleepersMax = 2;
+
+
+
+export const UpdatePlanTuningResponse = zod.object({
+  "risk": zod.enum(['safe', 'balanced', 'upside']),
+  "reach": zod.number().min(updatePlanTuningResponseReachMin).max(updatePlanTuningResponseReachMax),
+  "options": zod.number().min(updatePlanTuningResponseOptionsMin).max(updatePlanTuningResponseOptionsMax),
+  "biasQB": zod.number().min(updatePlanTuningResponseBiasQBMin).max(updatePlanTuningResponseBiasQBMax),
+  "biasRB": zod.number().min(updatePlanTuningResponseBiasRBMin).max(updatePlanTuningResponseBiasRBMax),
+  "biasWR": zod.number().min(updatePlanTuningResponseBiasWRMin).max(updatePlanTuningResponseBiasWRMax),
+  "biasTE": zod.number().min(updatePlanTuningResponseBiasTEMin).max(updatePlanTuningResponseBiasTEMax),
+  "qbFrom": zod.number().min(1).max(updatePlanTuningResponseQbFromMax),
+  "teFrom": zod.number().min(1).max(updatePlanTuningResponseTeFromMax),
+  "rookies": zod.number().min(updatePlanTuningResponseRookiesMin).max(updatePlanTuningResponseRookiesMax),
+  "sleepers": zod.number().min(updatePlanTuningResponseSleepersMin).max(updatePlanTuningResponseSleepersMax)
+}).describe('The plan engine\'s strategy knobs. Out-of-range values are clamped on save, never rejected.')
 
 
 /**

@@ -31,6 +31,7 @@ import { SuggestedPicks } from "@/components/suggested-picks";
 import { TeamLineFive } from "@/components/team-line";
 import { useDraftBoard, usePlayerNote } from "@/hooks/use-draft-state";
 import { NO_DATA, VALUE_TARGET_SD, barWidth, finish, hasValue, int, num, pct, valueScore as fmtValueScore, valueScoreBar, valueTone } from "@/lib/format";
+import { prospectIntel } from "@/lib/prospect";
 import ControlPanelPage from "@/pages/control-panel";
 import SleepersPage from "@/pages/sleepers";
 import SourcesPage from "@/pages/sources";
@@ -390,7 +391,7 @@ function ProductionProfile({ player }: { player: Player }) {
   </div>;
 }
 
-function PlayerDetail({ player, close, olImpact }: { player: Player; close: () => void; olImpact?: RBOLImpact }) {
+function PlayerDetail({ player, close, olImpact, intel }: { player: Player; close: () => void; olImpact?: RBOLImpact; intel?: ReactNode }) {
   const { note, updateNote, status: noteStatus } = usePlayerNote(player);
 
   return <div className="mx-auto max-w-[1250px]">
@@ -401,11 +402,45 @@ function PlayerDetail({ player, close, olImpact }: { player: Player; close: () =
         <div className="grid gap-6 lg:grid-cols-[1fr_1fr]"><Surface className="p-5"><div className="flex items-start justify-between"><div><Kicker>Production profile</Kicker><h2 className="mt-1 text-sm font-bold">2025 actuals</h2></div><LineChart size={16} className="text-primary" /></div><div className="mt-6"><ProductionProfile player={player} /></div><p className="mt-5 text-[9px] leading-4 text-muted-foreground">Measured 2025 production. The dataset carries no 2026 projections, so nothing here is forecast.</p></Surface><Surface className="p-5"><div className="flex items-start justify-between"><div><Kicker>Next-gen profile</Kicker><h2 className="mt-1 text-sm font-bold">Trait radar</h2></div><BarChart3 size={16} className="text-accent-foreground" /></div><Radar player={player} /><p className="mx-auto max-w-[230px] text-center text-[10px] leading-4 text-muted-foreground">Separation, route efficiency, rushing value, and box-count context normalized to position.</p></Surface></div>
         <Surface className="p-5"><div className="flex items-start justify-between"><div><Kicker>Volatility log</Kicker><h2 className="mt-1 text-sm font-bold">Weekly consistency</h2></div><div className="flex gap-3 mono text-[10px]"><span className="text-primary">FLOOR {num(player.consistency.floor)}</span><span className="text-accent-foreground">CEILING {num(player.consistency.ceiling)}</span></div></div><ConsistencyProfile player={player} /><div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-4 sm:grid-cols-4"><div><Kicker>Boom rate</Kicker><span className="mono mt-1 block text-sm">{pct(player.consistency.boomRate)}</span></div><div><Kicker>Bust rate</Kicker><span className="mono mt-1 block text-sm">{pct(player.consistency.bustRate)}</span></div><div><Kicker>Durability</Kicker><span className="mono mt-1 block text-sm">{int(player.durabilityScore)}</span></div><div><Kicker>Games</Kicker><span className="mono mt-1 block text-sm">{int(player.gamesPlayed)}</span></div></div></Surface>
       </div>
-      <div className="space-y-6"><Surface className="border-primary/25 bg-primary/[0.045] p-5"><div className="flex items-center gap-2 text-primary"><Zap size={15} /><Kicker>Analyst read</Kicker></div><p className="display mt-4 text-xl font-semibold leading-tight">The room is pricing the name at {bestAdp(player).toFixed(1)}. Your model wants him at {player.rank}.</p><div className="mt-5 flex items-center justify-between border-t border-primary/15 pt-4"><span className="text-[10px] text-muted-foreground">market edge</span><span className={`mono text-lg font-medium ${bestAdp(player) - player.rank > 0 ? "text-primary" : "text-destructive"}`}>{bestAdp(player) - player.rank > 0 ? "+" : ""}{(bestAdp(player) - player.rank).toFixed(1)} picks</span></div></Surface><Surface className="p-5"><div className="flex items-center justify-between"><div><Kicker>Private notes</Kicker><h2 className="mt-1 text-sm font-bold">Keep your read</h2></div><BookOpen size={15} className="text-muted-foreground" /></div><textarea value={note} onChange={(event) => updateNote(event.target.value)} placeholder="What are you seeing that the market is not?" data-testid={`textarea-notes-${player.id}`} className="mt-4 min-h-[150px] w-full resize-none rounded-xl border border-input bg-background p-3 text-xs leading-5 outline-none focus:border-primary focus:ring-4 focus:ring-primary/10" /><div className="mt-2 flex items-center justify-between"><span className="mono text-[9px] text-muted-foreground">{note.length}/500</span><span className={`flex items-center gap-1 text-[9px] ${noteStatus === "error" ? "text-destructive" : "text-primary"}`} data-testid="status-note-save">{noteStatus === "saving" ? <><Loader2 size={11} className="animate-spin" /> saving…</> : noteStatus === "error" ? <><ShieldAlert size={11} /> not saved</> : <><Check size={11} /> saved to disk</>}</span></div></Surface><Surface className="p-5"><Kicker>Draft context</Kicker><div className="mt-4 space-y-3 text-[11px]"><div className="flex justify-between"><span className="text-muted-foreground">Team offense</span><span className="mono">{player.team}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Production finish</span><span className="mono">{finish(player.productionFinish)}</span></div><div className="flex justify-between"><span className="text-muted-foreground">O-line grade</span><span className="mono">{num(player.oLineGrade)}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Market verdict</span><span className="mono">{player.marketVerdict ?? NO_DATA}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Projected 2026</span><span className="mono">{player.projectedPoints === null ? NO_DATA : `${Math.round(player.projectedPoints)} pts`}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Avg auction value</span><span className="mono">{player.aav === null ? NO_DATA : `$${player.aav.toFixed(0)}`}</span></div></div><Link href="/teams" data-testid="link-team-context" className="mt-5 flex items-center justify-between rounded-xl border border-border px-3 py-2.5 text-[10px] font-semibold hover:border-primary/40 hover:text-primary">Inspect team context <ExternalLink size={13} /></Link></Surface><AdpSources player={player} />
+      <div className="space-y-6">{intel}<Surface className="border-primary/25 bg-primary/[0.045] p-5"><div className="flex items-center gap-2 text-primary"><Zap size={15} /><Kicker>Analyst read</Kicker></div><p className="display mt-4 text-xl font-semibold leading-tight">The room is pricing the name at {bestAdp(player).toFixed(1)}. Your model wants him at {player.rank}.</p><div className="mt-5 flex items-center justify-between border-t border-primary/15 pt-4"><span className="text-[10px] text-muted-foreground">market edge</span><span className={`mono text-lg font-medium ${bestAdp(player) - player.rank > 0 ? "text-primary" : "text-destructive"}`}>{bestAdp(player) - player.rank > 0 ? "+" : ""}{(bestAdp(player) - player.rank).toFixed(1)} picks</span></div></Surface><Surface className="p-5"><div className="flex items-center justify-between"><div><Kicker>Private notes</Kicker><h2 className="mt-1 text-sm font-bold">Keep your read</h2></div><BookOpen size={15} className="text-muted-foreground" /></div><textarea value={note} onChange={(event) => updateNote(event.target.value)} placeholder="What are you seeing that the market is not?" data-testid={`textarea-notes-${player.id}`} className="mt-4 min-h-[150px] w-full resize-none rounded-xl border border-input bg-background p-3 text-xs leading-5 outline-none focus:border-primary focus:ring-4 focus:ring-primary/10" /><div className="mt-2 flex items-center justify-between"><span className="mono text-[9px] text-muted-foreground">{note.length}/500</span><span className={`flex items-center gap-1 text-[9px] ${noteStatus === "error" ? "text-destructive" : "text-primary"}`} data-testid="status-note-save">{noteStatus === "saving" ? <><Loader2 size={11} className="animate-spin" /> saving…</> : noteStatus === "error" ? <><ShieldAlert size={11} /> not saved</> : <><Check size={11} /> saved to disk</>}</span></div></Surface><Surface className="p-5"><Kicker>Draft context</Kicker><div className="mt-4 space-y-3 text-[11px]"><div className="flex justify-between"><span className="text-muted-foreground">Team offense</span><span className="mono">{player.team}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Production finish</span><span className="mono">{finish(player.productionFinish)}</span></div><div className="flex justify-between"><span className="text-muted-foreground">O-line grade</span><span className="mono">{num(player.oLineGrade)}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Market verdict</span><span className="mono">{player.marketVerdict ?? NO_DATA}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Projected 2026</span><span className="mono">{player.projectedPoints === null ? NO_DATA : `${Math.round(player.projectedPoints)} pts`}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Avg auction value</span><span className="mono">{player.aav === null ? NO_DATA : `$${player.aav.toFixed(0)}`}</span></div></div><Link href="/teams" data-testid="link-team-context" className="mt-5 flex items-center justify-between rounded-xl border border-border px-3 py-2.5 text-[10px] font-semibold hover:border-primary/40 hover:text-primary">Inspect team context <ExternalLink size={13} /></Link></Surface><AdpSources player={player} />
         {olImpact && <Surface className="p-5"><div className="flex items-center gap-2"><Activity size={15} className="text-accent-foreground" /><Kicker>OL Impact analysis</Kicker></div><div className="mt-3 flex items-center gap-2"><span className={`inline-flex items-center rounded-md border px-2 py-0.5 mono text-[10px] font-medium ${olImpact.impactLabel === "Favorable" ? "border-primary/30 bg-primary/10 text-primary" : olImpact.impactLabel === "Buy Low" ? "border-accent/30 bg-accent/10 text-accent-foreground" : olImpact.impactLabel === "Landmine" ? "border-chart-3/30 bg-chart-3/10 text-chart-3" : "border-destructive/30 bg-destructive/10 text-destructive"}`}>{olImpact.impactLabel}</span><span className="mono text-[10px] text-muted-foreground">OL {int(olImpact.olCompositeScore)}/100 · {olImpact.olTier}</span></div><p className="mt-3 text-[11px] leading-5 text-muted-foreground">{olImpact.blurb}</p><Link href="/ol-impact" data-testid="link-ol-impact" className="mt-4 flex items-center justify-between rounded-xl border border-border px-3 py-2.5 text-[10px] font-semibold hover:border-primary/40 hover:text-primary">Full OL Impact board <ExternalLink size={13} /></Link></Surface>}
       </div>
     </div>
   </div>;
+}
+
+/**
+ * Prospect intel for rookies: draft capital and college, the opportunity
+ * vacuum on his team, and any headline that names him — the read that
+ * exists before an NFL snap does.
+ */
+function ProspectIntel({ player, team, mentions }: { player: Player; team?: Team; mentions: NewsItem[] }) {
+  if (!player.isRookie) return null;
+  const line = prospectIntel(player);
+  return <Surface className="p-5" data-testid="panel-prospect-intel">
+    <Kicker>Prospect intel</Kicker>
+    {line && <p className="mono mt-2 text-[12px] font-semibold">{line}</p>}
+    {team && (
+      <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
+        The {team.team} opening: {pct(team.vacatedTargets)} of targets and {pct(team.vacatedCarries)} of carries
+        vacated{team.vacatedRzPct !== null ? `, ${pct(team.vacatedRzPct)} of red-zone touches` : ""} —
+        {" "}{team.rzTripsPerGame !== null ? `${num(team.rzTripsPerGame, 1)} red-zone trips a game` : "red-zone pace unknown"} on an
+        O-line graded {num(team.olGrade)}.
+      </p>
+    )}
+    {mentions.length > 0 ? (
+      <div className="mt-3 space-y-1.5 border-t border-border/60 pt-2.5">
+        {mentions.slice(0, 3).map((item) => (
+          <a key={item.id} href={item.url ?? undefined} target="_blank" rel="noreferrer" className="block text-[11px] font-semibold leading-4 hover:text-primary" data-testid={`mention-${item.id}`}>
+            {item.headline}
+            <span className="mono ml-1.5 text-[9px] font-normal text-muted-foreground">{item.source}</span>
+          </a>
+        ))}
+      </div>
+    ) : (
+      <p className="mono mt-2 text-[10px] text-muted-foreground">No headlines naming him in the cached feeds — hit Refresh for the latest.</p>
+    )}
+  </Surface>;
 }
 
 function PlayerPage() {
@@ -413,12 +448,16 @@ function PlayerPage() {
   const [, setLocation] = useLocation();
   const { data: player, isLoading, isError, refetch } = useGetPlayer(params.id, { query: { enabled: Boolean(params.id), queryKey: getGetPlayerQueryKey(params.id) } });
   const { data: olData } = useGetOLImpact({ query: { queryKey: getGetOLImpactQueryKey() } });
+  const { data: teams } = useGetTeams();
+  const { data: news } = useGetNews();
   const olImpact = player?.position === "RB" ? olData?.rbImpacts.find((r) => r.playerId === player.id) : undefined;
   if (isLoading) return <div className="mx-auto max-w-[1250px]"><div className="h-8 w-48 animate-pulse rounded bg-muted" /><div className="mt-6 h-[600px] animate-pulse rounded-[18px] bg-card" /></div>;
   if (isError || !player) return <div className="mx-auto max-w-[650px] pt-12"><Surface><ErrorState label="This player profile could not be retrieved." onRetry={() => void refetch()} /></Surface></div>;
+  const team = (teams ?? []).find((entry) => entry.team === player.team);
+  const mentions = (news ?? []).filter((item) => item.playerId === player.id);
   // Players are reachable from the board, the plan room, the sleepers and
   // the Stat Lab — back returns to whichever sent you, not always the board.
-  return <PlayerDetail player={player} close={() => (window.history.length > 1 ? window.history.back() : setLocation("/"))} olImpact={olImpact} />;
+  return <PlayerDetail player={player} close={() => (window.history.length > 1 ? window.history.back() : setLocation("/"))} olImpact={olImpact} intel={<ProspectIntel player={player} team={team} mentions={mentions} />} />;
 }
 
 const IMPACT_COLORS: Record<string, { dot: string; badge: string; label: string }> = {

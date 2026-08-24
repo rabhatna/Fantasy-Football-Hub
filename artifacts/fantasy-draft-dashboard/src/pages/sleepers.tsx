@@ -4,6 +4,7 @@ import { Flame, Star } from "lucide-react";
 import { useGetDraftPlan, useGetPlayers, useGetSleepers } from "@workspace/api-client-react";
 import type { SleeperPick } from "@workspace/api-client-react";
 import { useTargets } from "@/hooks/use-targets";
+import { prospectIntel } from "@/lib/prospect";
 
 const TAG_LABELS: Record<string, string> = {
   all: "All",
@@ -28,6 +29,7 @@ function SleeperCard({
   pick,
   targeted,
   plannedRound,
+  intel,
   onTarget,
   onInspect,
 }: {
@@ -35,6 +37,8 @@ function SleeperCard({
   targeted: boolean;
   /** Round where the draft plan currently proposes him, when it does. */
   plannedRound: number | null;
+  /** Prospect line for rookies: draft capital, college, age, depth. */
+  intel: string | null;
   onTarget: () => void;
   onInspect: () => void;
 }) {
@@ -51,6 +55,11 @@ function SleeperCard({
           <span className="mono text-[11px] text-muted-foreground">
             {pick.position} · {pick.team} · ADP {pick.adp.toFixed(1)}
           </span>
+          {intel && (
+            <span className="mono mt-0.5 block text-[10px] text-accent-foreground" data-testid={`intel-${pick.playerId}`}>
+              {intel}
+            </span>
+          )}
         </button>
         <button
           type="button"
@@ -217,6 +226,7 @@ export default function SleepersPage() {
                 pick={pick}
                 targeted={targetState.targetedIds.has(pick.playerId)}
                 plannedRound={plannedRoundById.get(pick.playerId) ?? null}
+                intel={player ? prospectIntel(player) : null}
                 onTarget={() => player && targetState.toggleTarget(player)}
                 onInspect={() => setLocation(`/players/${pick.playerId}`)}
               />

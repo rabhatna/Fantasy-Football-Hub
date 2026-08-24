@@ -36,6 +36,7 @@ import type {
   LiveStatus,
   NewsItem,
   OLImpactAnalysis,
+  PlanTuning,
   Player,
   PlayerNote,
   PlayerNoteInput,
@@ -803,6 +804,157 @@ export function useGetDraftPlan<TData = Awaited<ReturnType<typeof getDraftPlan>>
 
 
 
+
+export const getGetPlanTuningUrl = () => {
+
+
+
+
+  return `/api/draft/plan/tuning`
+}
+
+/**
+ * The Plan Room's knobs as last saved. A bare GET /draft/plan runs
+ * with exactly this tuning, so a strategy dialed in once persists
+ * between sessions — and the printed draft sheet follows it.
+ * @summary The saved plan-engine strategy
+ */
+export const getPlanTuning = async ( options?: Parameters<typeof customFetch>[1]): Promise<PlanTuning> => {
+
+  return customFetch<PlanTuning>(getGetPlanTuningUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlanTuningQueryKey = () => {
+    return [
+    `/api/draft/plan/tuning`
+    ] as const;
+    }
+
+
+export const getGetPlanTuningQueryOptions = <TData = Awaited<ReturnType<typeof getPlanTuning>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlanTuning>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlanTuningQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlanTuning>>> = ({ signal }) => getPlanTuning({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlanTuning>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPlanTuningQueryResult = NonNullable<Awaited<ReturnType<typeof getPlanTuning>>>
+export type GetPlanTuningQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The saved plan-engine strategy
+ */
+
+export function useGetPlanTuning<TData = Awaited<ReturnType<typeof getPlanTuning>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlanTuning>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPlanTuningQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdatePlanTuningUrl = () => {
+
+
+
+
+  return `/api/draft/plan/tuning`
+}
+
+/**
+ * @summary Save the plan-engine strategy
+ */
+export const updatePlanTuning = async (planTuning: PlanTuning, options?: Parameters<typeof customFetch>[1]): Promise<PlanTuning> => {
+
+  return customFetch<PlanTuning>(getUpdatePlanTuningUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(planTuning)
+  }
+);}
+
+
+
+
+
+export const getUpdatePlanTuningMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlanTuning>>, TError,{data: BodyType<PlanTuning>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePlanTuning>>, TError,{data: BodyType<PlanTuning>}, TContext> => {
+
+const mutationKey = ['updatePlanTuning'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePlanTuning>>, {data: BodyType<PlanTuning>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updatePlanTuning(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePlanTuningMutationResult = NonNullable<Awaited<ReturnType<typeof updatePlanTuning>>>
+    export type UpdatePlanTuningMutationBody = BodyType<PlanTuning>
+    export type UpdatePlanTuningMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save the plan-engine strategy
+ */
+export const useUpdatePlanTuning = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlanTuning>>, TError,{data: BodyType<PlanTuning>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePlanTuning>>,
+        TError,
+        {data: BodyType<PlanTuning>},
+        TContext
+      > => {
+      return useMutation(getUpdatePlanTuningMutationOptions(options));
+    }
 
 export const getGetSleepersUrl = () => {
 

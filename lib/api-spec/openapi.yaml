@@ -202,7 +202,7 @@ paths:
         - name: options
           in: query
           required: false
-          schema: { type: number, minimum: 2, maximum: 6 }
+          schema: { type: number, minimum: 2, maximum: 10 }
           description: Options per slot, primary included. Default 4.
         - name: biasQB
           in: query
@@ -248,6 +248,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DraftPlan"
+  /draft/plan/tuning:
+    get:
+      operationId: getPlanTuning
+      tags: [draft]
+      summary: The saved plan-engine strategy
+      description: |
+        The Plan Room's knobs as last saved. A bare GET /draft/plan runs
+        with exactly this tuning, so a strategy dialed in once persists
+        between sessions — and the printed draft sheet follows it.
+      responses:
+        "200":
+          description: The saved tuning (defaults when never saved)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanTuning"
+    put:
+      operationId: updatePlanTuning
+      tags: [draft]
+      summary: Save the plan-engine strategy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanTuning"
+      responses:
+        "200":
+          description: The saved tuning, sanitized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanTuning"
   /draft/sleepers:
     get:
       operationId: getSleepers
@@ -782,7 +815,8 @@ components:
               rzOpportunities, inside10Touches, inside5Touches, expectedTds,
               tdOverExpected, pointsPerOpportunity, rushEpaPerAtt,
               recEpaPerTarget, ryoePerAtt, yacOverExpected, dropPct,
-              brokenTackles, weeklyStdev, draftRound, draftPick,
+              brokenTackles, weeklyStdev, draftRound, draftPick, draftYear,
+              college,
             ]
           properties:
             wopr:
@@ -832,6 +866,10 @@ components:
               description: Standard deviation of weekly PPR scores.
             draftRound: { type: [number, "null"] }
             draftPick: { type: [number, "null"] }
+            draftYear: { type: [number, "null"] }
+            college:
+              type: [string, "null"]
+              description: College program — prospect context for rookies.
     Team:
       type: object
       required: [team, fullName, tier, trend, olHealthStatus]
@@ -1093,6 +1131,24 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Keeper"
+    PlanTuning:
+      type: object
+      description: The plan engine's strategy knobs. Out-of-range values are clamped on save, never rejected.
+      required: [risk, reach, options, biasQB, biasRB, biasWR, biasTE, qbFrom, teFrom, rookies, sleepers]
+      properties:
+        risk:
+          type: string
+          enum: [safe, balanced, upside]
+        reach: { type: number, minimum: 6, maximum: 72 }
+        options: { type: number, minimum: 2, maximum: 10 }
+        biasQB: { type: number, minimum: 0.5, maximum: 1.5 }
+        biasRB: { type: number, minimum: 0.5, maximum: 1.5 }
+        biasWR: { type: number, minimum: 0.5, maximum: 1.5 }
+        biasTE: { type: number, minimum: 0.5, maximum: 1.5 }
+        qbFrom: { type: number, minimum: 1, maximum: 20 }
+        teFrom: { type: number, minimum: 1, maximum: 20 }
+        rookies: { type: number, minimum: 0.5, maximum: 1.5 }
+        sleepers: { type: number, minimum: 0, maximum: 2 }
     Veto:
       type: object
       required: [playerId, playerName, team, position, createdAt]

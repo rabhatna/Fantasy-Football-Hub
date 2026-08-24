@@ -21,7 +21,7 @@ reach?: number;
 /**
  * Options per slot, primary included. Default 4.
  * @minimum 2
- * @maximum 6
+ * @maximum 10
  */
 options?: number;
 /**

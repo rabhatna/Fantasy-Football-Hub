@@ -156,7 +156,9 @@ test("options per slot is respected and clamped", () => {
   const two = run({ tuning: { optionsPerSlot: 2 } });
   assert.ok(two.filter((slot) => slot.note === null).every((slot) => slot.options.length <= 2));
   const clamped = run({ tuning: { optionsPerSlot: 99 } });
-  assert.ok(clamped.every((slot) => slot.options.length <= 6));
+  assert.ok(clamped.every((slot) => slot.options.length <= 10));
+  const ten = run({ tuning: { optionsPerSlot: 10 } });
+  assert.ok(ten.some((slot) => slot.options.length >= 8), "deep slots carry near ten options");
 });
 
 test("a starred player beats his identical twin and says why", () => {

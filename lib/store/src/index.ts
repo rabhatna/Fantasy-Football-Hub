@@ -1,6 +1,15 @@
 import path from "node:path";
 import { CsvTable, type TableSchema } from "./table.ts";
 import { LeagueSettingsStore } from "./settings.ts";
+import { PlanTuningStore } from "./plan-tuning.ts";
+
+export {
+  DEFAULT_PLAN_TUNING,
+  PlanTuningStore,
+  sanitizePlanTuning,
+  type PlanRiskSetting,
+  type PlanTuningRecord,
+} from "./plan-tuning.ts";
 
 export { CsvTable, type TableSchema } from "./table.ts";
 export { parseCsv, stringifyCsv, type CsvRow } from "./csv.ts";
@@ -257,6 +266,7 @@ export class Store {
   readonly targets: CsvTable<TargetRecord>;
   readonly vetoes: CsvTable<VetoRecord>;
   readonly leagueSettings: LeagueSettingsStore;
+  readonly planTuning: PlanTuningStore;
 
   constructor(dataDir: string) {
     this.dataDir = dataDir;
@@ -264,6 +274,7 @@ export class Store {
     const backupDir = path.join(userDir, "backups");
 
     this.leagueSettings = new LeagueSettingsStore(path.join(userDir, "league-settings.json"));
+    this.planTuning = new PlanTuningStore(path.join(userDir, "plan-tuning.json"));
 
     this.draftPicks = new CsvTable(
       path.join(userDir, "draft_picks.csv"),
@@ -288,6 +299,7 @@ export class Store {
     this.targets.invalidate();
     this.vetoes.invalidate();
     this.leagueSettings.invalidate();
+    this.planTuning.invalidate();
   }
 }
 
