@@ -24,6 +24,7 @@ import type {
   DraftPickInput,
   DraftPlan,
   DraftSummary,
+  GetDraftPlanParams,
   GetPlayersParams,
   HealthStatus,
   Keeper,
@@ -35,6 +36,7 @@ import type {
   LiveStatus,
   NewsItem,
   OLImpactAnalysis,
+  PlanTuning,
   Player,
   PlayerNote,
   PlayerNoteInput,
@@ -44,7 +46,8 @@ import type {
   Target,
   TargetInput,
   Team,
-  TeamLine
+  TeamLine,
+  Veto
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -707,12 +710,19 @@ export function useGetRecommendations<TData = Awaited<ReturnType<typeof getRecom
 
 
 
-export const getGetDraftPlanUrl = () => {
+export const getGetDraftPlanUrl = (params?: GetDraftPlanParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/draft/plan`
+  return stringifiedParams.length > 0 ? `/api/draft/plan?${stringifiedParams}` : `/api/draft/plan`
 }
 
 /**
@@ -724,11 +734,14 @@ export const getGetDraftPlanUrl = () => {
  * starting lineup before it drafts depth; kicker and defense rounds are
  * planned as streaming notes on the final picks, since the ranked board
  * does not cover them.
+ *
+ * Strategy is tunable per request; every knob has a neutral default,
+ * so a bare call returns the balanced stock plan.
  * @summary Proposed round-by-round draft plan
  */
-export const getDraftPlan = async ( options?: Parameters<typeof customFetch>[1]): Promise<DraftPlan> => {
+export const getDraftPlan = async (params?: GetDraftPlanParams, options?: Parameters<typeof customFetch>[1]): Promise<DraftPlan> => {
 
-  return customFetch<DraftPlan>(getGetDraftPlanUrl(),
+  return customFetch<DraftPlan>(getGetDraftPlanUrl(params),
   {
     ...options,
     method: 'GET'
@@ -741,23 +754,23 @@ export const getDraftPlan = async ( options?: Parameters<typeof customFetch>[1])
 
 
 
-export const getGetDraftPlanQueryKey = () => {
+export const getGetDraftPlanQueryKey = (params?: GetDraftPlanParams,) => {
     return [
-    `/api/draft/plan`
+    `/api/draft/plan`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetDraftPlanQueryOptions = <TData = Awaited<ReturnType<typeof getDraftPlan>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetDraftPlanQueryOptions = <TData = Awaited<ReturnType<typeof getDraftPlan>>, TError = ErrorType<unknown>>(params?: GetDraftPlanParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetDraftPlanQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetDraftPlanQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDraftPlan>>> = ({ signal }) => getDraftPlan({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDraftPlan>>> = ({ signal }) => getDraftPlan(params, { signal, ...requestOptions });
 
 
 
@@ -775,11 +788,11 @@ export type GetDraftPlanQueryError = ErrorType<unknown>
  */
 
 export function useGetDraftPlan<TData = Awaited<ReturnType<typeof getDraftPlan>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: GetDraftPlanParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetDraftPlanQueryOptions(options)
+  const queryOptions = getGetDraftPlanQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -791,6 +804,157 @@ export function useGetDraftPlan<TData = Awaited<ReturnType<typeof getDraftPlan>>
 
 
 
+
+export const getGetPlanTuningUrl = () => {
+
+
+
+
+  return `/api/draft/plan/tuning`
+}
+
+/**
+ * The Plan Room's knobs as last saved. A bare GET /draft/plan runs
+ * with exactly this tuning, so a strategy dialed in once persists
+ * between sessions — and the printed draft sheet follows it.
+ * @summary The saved plan-engine strategy
+ */
+export const getPlanTuning = async ( options?: Parameters<typeof customFetch>[1]): Promise<PlanTuning> => {
+
+  return customFetch<PlanTuning>(getGetPlanTuningUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlanTuningQueryKey = () => {
+    return [
+    `/api/draft/plan/tuning`
+    ] as const;
+    }
+
+
+export const getGetPlanTuningQueryOptions = <TData = Awaited<ReturnType<typeof getPlanTuning>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlanTuning>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlanTuningQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlanTuning>>> = ({ signal }) => getPlanTuning({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlanTuning>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPlanTuningQueryResult = NonNullable<Awaited<ReturnType<typeof getPlanTuning>>>
+export type GetPlanTuningQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The saved plan-engine strategy
+ */
+
+export function useGetPlanTuning<TData = Awaited<ReturnType<typeof getPlanTuning>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlanTuning>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPlanTuningQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdatePlanTuningUrl = () => {
+
+
+
+
+  return `/api/draft/plan/tuning`
+}
+
+/**
+ * @summary Save the plan-engine strategy
+ */
+export const updatePlanTuning = async (planTuning: PlanTuning, options?: Parameters<typeof customFetch>[1]): Promise<PlanTuning> => {
+
+  return customFetch<PlanTuning>(getUpdatePlanTuningUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(planTuning)
+  }
+);}
+
+
+
+
+
+export const getUpdatePlanTuningMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlanTuning>>, TError,{data: BodyType<PlanTuning>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePlanTuning>>, TError,{data: BodyType<PlanTuning>}, TContext> => {
+
+const mutationKey = ['updatePlanTuning'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePlanTuning>>, {data: BodyType<PlanTuning>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updatePlanTuning(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePlanTuningMutationResult = NonNullable<Awaited<ReturnType<typeof updatePlanTuning>>>
+    export type UpdatePlanTuningMutationBody = BodyType<PlanTuning>
+    export type UpdatePlanTuningMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save the plan-engine strategy
+ */
+export const useUpdatePlanTuning = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlanTuning>>, TError,{data: BodyType<PlanTuning>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updatePlanTuning>>,
+        TError,
+        {data: BodyType<PlanTuning>},
+        TContext
+      > => {
+      return useMutation(getUpdatePlanTuningMutationOptions(options));
+    }
 
 export const getGetSleepersUrl = () => {
 
@@ -1683,6 +1847,228 @@ export const useDeleteTarget = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteTargetMutationOptions(options));
+    }
+
+export const getGetVetoesUrl = () => {
+
+
+
+
+  return `/api/vetoes`
+}
+
+/**
+ * Players the user has struck from the plan — the opposite of the
+ * target list. The plan engine (and therefore the draft sheet) will
+ * not propose a vetoed player, whatever the market says about him.
+ * @summary List vetoed players
+ */
+export const getVetoes = async ( options?: Parameters<typeof customFetch>[1]): Promise<Veto[]> => {
+
+  return customFetch<Veto[]>(getGetVetoesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVetoesQueryKey = () => {
+    return [
+    `/api/vetoes`
+    ] as const;
+    }
+
+
+export const getGetVetoesQueryOptions = <TData = Awaited<ReturnType<typeof getVetoes>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVetoes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVetoesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVetoes>>> = ({ signal }) => getVetoes({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVetoes>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVetoesQueryResult = NonNullable<Awaited<ReturnType<typeof getVetoes>>>
+export type GetVetoesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List vetoed players
+ */
+
+export function useGetVetoes<TData = Awaited<ReturnType<typeof getVetoes>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVetoes>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVetoesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveVetoUrl = (playerId: string,) => {
+
+
+
+
+  return `/api/vetoes/${playerId}`
+}
+
+/**
+ * @summary Strike a player from the plan
+ */
+export const saveVeto = async (playerId: string, options?: Parameters<typeof customFetch>[1]): Promise<Veto> => {
+
+  return customFetch<Veto>(getSaveVetoUrl(playerId),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+
+export const getSaveVetoMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveVeto>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveVeto>>, TError,{playerId: string}, TContext> => {
+
+const mutationKey = ['saveVeto'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveVeto>>, {playerId: string}> = (props) => {
+          const {playerId} = props ?? {};
+
+          return  saveVeto(playerId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveVetoMutationResult = NonNullable<Awaited<ReturnType<typeof saveVeto>>>
+
+    export type SaveVetoMutationError = ErrorType<void>
+
+    /**
+ * @summary Strike a player from the plan
+ */
+export const useSaveVeto = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveVeto>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveVeto>>,
+        TError,
+        {playerId: string},
+        TContext
+      > => {
+      return useMutation(getSaveVetoMutationOptions(options));
+    }
+
+export const getDeleteVetoUrl = (playerId: string,) => {
+
+
+
+
+  return `/api/vetoes/${playerId}`
+}
+
+/**
+ * @summary Restore a vetoed player
+ */
+export const deleteVeto = async (playerId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteVetoUrl(playerId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteVetoMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVeto>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteVeto>>, TError,{playerId: string}, TContext> => {
+
+const mutationKey = ['deleteVeto'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteVeto>>, {playerId: string}> = (props) => {
+          const {playerId} = props ?? {};
+
+          return  deleteVeto(playerId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteVetoMutationResult = NonNullable<Awaited<ReturnType<typeof deleteVeto>>>
+
+    export type DeleteVetoMutationError = ErrorType<void>
+
+    /**
+ * @summary Restore a vetoed player
+ */
+export const useDeleteVeto = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVeto>>, TError,{playerId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteVeto>>,
+        TError,
+        {playerId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteVetoMutationOptions(options));
     }
 
 export const getGetNotesUrl = () => {

@@ -129,6 +129,13 @@ export type PlayerAdvanced = {
   draftRound: number | null;
   /** @nullable */
   draftPick: number | null;
+  /** @nullable */
+  draftYear: number | null;
+  /**
+     * College program — prospect context for rookies.
+     * @nullable
+     */
+  college: string | null;
 };
 
 /**
@@ -629,6 +636,80 @@ export interface KeeperImportResult {
   keepers: Keeper[];
 }
 
+export type PlanTuningRisk = typeof PlanTuningRisk[keyof typeof PlanTuningRisk];
+
+
+export const PlanTuningRisk = {
+  safe: 'safe',
+  balanced: 'balanced',
+  upside: 'upside',
+} as const;
+
+/**
+ * The plan engine's strategy knobs. Out-of-range values are clamped on save, never rejected.
+ */
+export interface PlanTuning {
+  risk: PlanTuningRisk;
+  /**
+     * @minimum 6
+     * @maximum 72
+     */
+  reach: number;
+  /**
+     * @minimum 2
+     * @maximum 10
+     */
+  options: number;
+  /**
+     * @minimum 0.5
+     * @maximum 1.5
+     */
+  biasQB: number;
+  /**
+     * @minimum 0.5
+     * @maximum 1.5
+     */
+  biasRB: number;
+  /**
+     * @minimum 0.5
+     * @maximum 1.5
+     */
+  biasWR: number;
+  /**
+     * @minimum 0.5
+     * @maximum 1.5
+     */
+  biasTE: number;
+  /**
+     * @minimum 1
+     * @maximum 20
+     */
+  qbFrom: number;
+  /**
+     * @minimum 1
+     * @maximum 20
+     */
+  teFrom: number;
+  /**
+     * @minimum 0.5
+     * @maximum 1.5
+     */
+  rookies: number;
+  /**
+     * @minimum 0
+     * @maximum 2
+     */
+  sleepers: number;
+}
+
+export interface Veto {
+  playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
+  createdAt: string;
+}
+
 export interface PlanOption {
   playerId: string;
   name: string;
@@ -640,6 +721,15 @@ export interface PlanOption {
   availability: number;
   /** What taking him does for the roster — "fills RB", "flex", or "depth". */
   role: string;
+  /** True when the user starred him — the engine boosts his score and guarantees him a slot near his price. */
+  targeted: boolean;
+  isRookie: boolean;
+  /**
+     * Why the engine likes (or discounts) him beyond the market math —
+     * "your guy", "rookie", "sleeper", "handcuff sleeper", "elite line",
+     * "weak line", "TD rebound", "TD fade", "questionable".
+     */
+  signals: string[];
 }
 
 export interface DraftPlanSlot {
@@ -860,4 +950,77 @@ maxAdp?: number;
 minShare?: number;
 excludeUnhealthy?: boolean;
 };
+
+export type GetDraftPlanParams = {
+/**
+ * Appetite for boundary players. Safe raises the availability floor and leans on survival odds; upside chases talent it might miss.
+ */
+risk?: GetDraftPlanRisk;
+/**
+ * Picks of reach before a player's price stops fitting the pick. Small = strict ADP discipline. Default 24.
+ * @minimum 6
+ * @maximum 72
+ */
+reach?: number;
+/**
+ * Options per slot, primary included. Default 4.
+ * @minimum 2
+ * @maximum 10
+ */
+options?: number;
+/**
+ * Score multiplier for quarterbacks. Above 1 leans toward them.
+ * @minimum 0.5
+ * @maximum 1.5
+ */
+biasQB?: number;
+/**
+ * @minimum 0.5
+ * @maximum 1.5
+ */
+biasRB?: number;
+/**
+ * @minimum 0.5
+ * @maximum 1.5
+ */
+biasWR?: number;
+/**
+ * @minimum 0.5
+ * @maximum 1.5
+ */
+biasTE?: number;
+/**
+ * Do not propose a QB before this round. 1 means no gate.
+ * @minimum 1
+ * @maximum 20
+ */
+qbFrom?: number;
+/**
+ * Do not propose a TE before this round. 1 means no gate.
+ * @minimum 1
+ * @maximum 20
+ */
+teFrom?: number;
+/**
+ * Rookie appetite — a score multiplier on rookie candidates. Above 1 chases the class.
+ * @minimum 0.5
+ * @maximum 1.5
+ */
+rookies?: number;
+/**
+ * How much the sleeper engine's reads count. 0 ignores them entirely.
+ * @minimum 0
+ * @maximum 2
+ */
+sleepers?: number;
+};
+
+export type GetDraftPlanRisk = typeof GetDraftPlanRisk[keyof typeof GetDraftPlanRisk];
+
+
+export const GetDraftPlanRisk = {
+  safe: 'safe',
+  balanced: 'balanced',
+  upside: 'upside',
+} as const;
 

@@ -113,6 +113,9 @@ export interface DatasetPlayer {
     weeklyStdev: number | null;
     draftRound: number | null;
     draftPick: number | null;
+    draftYear: number | null;
+    /** College program — prospect context for rookies. */
+    college: string | null;
   };
 }
 
@@ -245,6 +248,8 @@ export function toPlayer(row: Row): DatasetPlayer {
       weeklyStdev: rounded(row, "y25_weekly_stdev", 1),
       draftRound: integer(row, "draft_round"),
       draftPick: integer(row, "draft_pick"),
+      draftYear: integer(row, "draft_year"),
+      college: text(row, "college_name"),
     },
   };
 }

@@ -17,4 +17,13 @@ export interface PlanOption {
   availability: number;
   /** What taking him does for the roster — "fills RB", "flex", or "depth". */
   role: string;
+  /** True when the user starred him — the engine boosts his score and guarantees him a slot near his price. */
+  targeted: boolean;
+  isRookie: boolean;
+  /**
+     * Why the engine likes (or discounts) him beyond the market math —
+     * "your guy", "rookie", "sleeper", "handcuff sleeper", "elite line",
+     * "weak line", "TD rebound", "TD fade", "questionable".
+     */
+  signals: string[];
 }

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  getGetDraftPlanQueryKey,
   getGetTargetsQueryKey,
   useDeleteTarget,
   useGetSettings,
@@ -29,6 +30,9 @@ export function useTargets() {
 
   const refresh = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: getGetTargetsQueryKey() });
+    // Starred players are a plan signal: the engine boosts them and
+    // guarantees them a slot, so every star reshapes the plan.
+    void queryClient.invalidateQueries({ queryKey: getGetDraftPlanQueryKey() });
   }, [queryClient]);
 
   const toggleTarget = useCallback(

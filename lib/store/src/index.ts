@@ -1,6 +1,15 @@
 import path from "node:path";
 import { CsvTable, type TableSchema } from "./table.ts";
 import { LeagueSettingsStore } from "./settings.ts";
+import { PlanTuningStore } from "./plan-tuning.ts";
+
+export {
+  DEFAULT_PLAN_TUNING,
+  PlanTuningStore,
+  sanitizePlanTuning,
+  type PlanRiskSetting,
+  type PlanTuningRecord,
+} from "./plan-tuning.ts";
 
 export { CsvTable, type TableSchema } from "./table.ts";
 export { parseCsv, stringifyCsv, type CsvRow } from "./csv.ts";
@@ -66,6 +75,18 @@ export interface TargetRecord {
   position: string;
   targetRound: number;
   note: string;
+  createdAt: string;
+}
+
+/**
+ * A player the user has struck from the plan. The opposite of a target:
+ * the plan engine will not propose him, whatever the market says.
+ */
+export interface VetoRecord {
+  playerId: string;
+  playerName: string;
+  team: string;
+  position: string;
   createdAt: string;
 }
 
@@ -186,6 +207,29 @@ const targetSchema: TableSchema<TargetRecord> = {
   },
 };
 
+const vetoSchema: TableSchema<VetoRecord> = {
+  columns: ["player_id", "player_name", "team", "position", "created_at"],
+  encode: (record) => ({
+    player_id: record.playerId,
+    player_name: record.playerName,
+    team: record.team,
+    position: record.position,
+    created_at: record.createdAt,
+  }),
+  decode: (row) => {
+    const playerId = requireField(row, "player_id");
+    if (!playerId) return null;
+
+    return {
+      playerId,
+      playerName: row["player_name"] ?? "",
+      team: row["team"] ?? "",
+      position: row["position"] ?? "",
+      createdAt: row["created_at"] ?? "",
+    };
+  },
+};
+
 const playerNoteSchema: TableSchema<PlayerNoteRecord> = {
   columns: ["player_id", "player_name", "note", "updated_at"],
   encode: (record) => ({
@@ -220,7 +264,9 @@ export class Store {
   readonly playerNotes: CsvTable<PlayerNoteRecord>;
   readonly keepers: CsvTable<KeeperRecord>;
   readonly targets: CsvTable<TargetRecord>;
+  readonly vetoes: CsvTable<VetoRecord>;
   readonly leagueSettings: LeagueSettingsStore;
+  readonly planTuning: PlanTuningStore;
 
   constructor(dataDir: string) {
     this.dataDir = dataDir;
@@ -228,6 +274,7 @@ export class Store {
     const backupDir = path.join(userDir, "backups");
 
     this.leagueSettings = new LeagueSettingsStore(path.join(userDir, "league-settings.json"));
+    this.planTuning = new PlanTuningStore(path.join(userDir, "plan-tuning.json"));
 
     this.draftPicks = new CsvTable(
       path.join(userDir, "draft_picks.csv"),
@@ -241,6 +288,7 @@ export class Store {
     );
     this.keepers = new CsvTable(path.join(userDir, "keepers.csv"), keeperSchema, backupDir);
     this.targets = new CsvTable(path.join(userDir, "target_list.csv"), targetSchema, backupDir);
+    this.vetoes = new CsvTable(path.join(userDir, "vetoes.csv"), vetoSchema, backupDir);
   }
 
   /** Force everything to re-read from disk (after an external edit). */
@@ -249,7 +297,9 @@ export class Store {
     this.playerNotes.invalidate();
     this.keepers.invalidate();
     this.targets.invalidate();
+    this.vetoes.invalidate();
     this.leagueSettings.invalidate();
+    this.planTuning.invalidate();
   }
 }
 

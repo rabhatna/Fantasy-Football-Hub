@@ -185,6 +185,62 @@ paths:
         starting lineup before it drafts depth; kicker and defense rounds are
         planned as streaming notes on the final picks, since the ranked board
         does not cover them.
+
+        Strategy is tunable per request; every knob has a neutral default,
+        so a bare call returns the balanced stock plan.
+      parameters:
+        - name: risk
+          in: query
+          required: false
+          schema: { type: string, enum: [safe, balanced, upside] }
+          description: Appetite for boundary players. Safe raises the availability floor and leans on survival odds; upside chases talent it might miss.
+        - name: reach
+          in: query
+          required: false
+          schema: { type: number, minimum: 6, maximum: 72 }
+          description: Picks of reach before a player's price stops fitting the pick. Small = strict ADP discipline. Default 24.
+        - name: options
+          in: query
+          required: false
+          schema: { type: number, minimum: 2, maximum: 10 }
+          description: Options per slot, primary included. Default 4.
+        - name: biasQB
+          in: query
+          required: false
+          schema: { type: number, minimum: 0.5, maximum: 1.5 }
+          description: Score multiplier for quarterbacks. Above 1 leans toward them.
+        - name: biasRB
+          in: query
+          required: false
+          schema: { type: number, minimum: 0.5, maximum: 1.5 }
+        - name: biasWR
+          in: query
+          required: false
+          schema: { type: number, minimum: 0.5, maximum: 1.5 }
+        - name: biasTE
+          in: query
+          required: false
+          schema: { type: number, minimum: 0.5, maximum: 1.5 }
+        - name: qbFrom
+          in: query
+          required: false
+          schema: { type: number, minimum: 1, maximum: 20 }
+          description: Do not propose a QB before this round. 1 means no gate.
+        - name: teFrom
+          in: query
+          required: false
+          schema: { type: number, minimum: 1, maximum: 20 }
+          description: Do not propose a TE before this round. 1 means no gate.
+        - name: rookies
+          in: query
+          required: false
+          schema: { type: number, minimum: 0.5, maximum: 1.5 }
+          description: Rookie appetite — a score multiplier on rookie candidates. Above 1 chases the class.
+        - name: sleepers
+          in: query
+          required: false
+          schema: { type: number, minimum: 0, maximum: 2 }
+          description: How much the sleeper engine's reads count. 0 ignores them entirely.
       responses:
         "200":
           description: The plan, one slot per remaining pick, in draft order
@@ -192,6 +248,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DraftPlan"
+  /draft/plan/tuning:
+    get:
+      operationId: getPlanTuning
+      tags: [draft]
+      summary: The saved plan-engine strategy
+      description: |
+        The Plan Room's knobs as last saved. A bare GET /draft/plan runs
+        with exactly this tuning, so a strategy dialed in once persists
+        between sessions — and the printed draft sheet follows it.
+      responses:
+        "200":
+          description: The saved tuning (defaults when never saved)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanTuning"
+    put:
+      operationId: updatePlanTuning
+      tags: [draft]
+      summary: Save the plan-engine strategy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanTuning"
+      responses:
+        "200":
+          description: The saved tuning, sanitized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanTuning"
   /draft/sleepers:
     get:
       operationId: getSleepers
@@ -415,6 +504,57 @@ paths:
           description: Target removed
         "404":
           description: No target for that player
+  /vetoes:
+    get:
+      operationId: getVetoes
+      tags: [draft]
+      summary: List vetoed players
+      description: |
+        Players the user has struck from the plan — the opposite of the
+        target list. The plan engine (and therefore the draft sheet) will
+        not propose a vetoed player, whatever the market says about him.
+      responses:
+        "200":
+          description: The veto list, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Veto"
+  /vetoes/{playerId}:
+    put:
+      operationId: saveVeto
+      tags: [draft]
+      summary: Strike a player from the plan
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Saved veto
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Veto"
+        "404":
+          description: Player not found
+    delete:
+      operationId: deleteVeto
+      tags: [draft]
+      summary: Restore a vetoed player
+      parameters:
+        - name: playerId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Veto removed
+        "404":
+          description: No veto for that player
   /notes:
     get:
       operationId: getNotes
@@ -675,7 +815,8 @@ components:
               rzOpportunities, inside10Touches, inside5Touches, expectedTds,
               tdOverExpected, pointsPerOpportunity, rushEpaPerAtt,
               recEpaPerTarget, ryoePerAtt, yacOverExpected, dropPct,
-              brokenTackles, weeklyStdev, draftRound, draftPick,
+              brokenTackles, weeklyStdev, draftRound, draftPick, draftYear,
+              college,
             ]
           properties:
             wopr:
@@ -725,6 +866,10 @@ components:
               description: Standard deviation of weekly PPR scores.
             draftRound: { type: [number, "null"] }
             draftPick: { type: [number, "null"] }
+            draftYear: { type: [number, "null"] }
+            college:
+              type: [string, "null"]
+              description: College program — prospect context for rookies.
     Team:
       type: object
       required: [team, fullName, tier, trend, olHealthStatus]
@@ -986,6 +1131,33 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Keeper"
+    PlanTuning:
+      type: object
+      description: The plan engine's strategy knobs. Out-of-range values are clamped on save, never rejected.
+      required: [risk, reach, options, biasQB, biasRB, biasWR, biasTE, qbFrom, teFrom, rookies, sleepers]
+      properties:
+        risk:
+          type: string
+          enum: [safe, balanced, upside]
+        reach: { type: number, minimum: 6, maximum: 72 }
+        options: { type: number, minimum: 2, maximum: 10 }
+        biasQB: { type: number, minimum: 0.5, maximum: 1.5 }
+        biasRB: { type: number, minimum: 0.5, maximum: 1.5 }
+        biasWR: { type: number, minimum: 0.5, maximum: 1.5 }
+        biasTE: { type: number, minimum: 0.5, maximum: 1.5 }
+        qbFrom: { type: number, minimum: 1, maximum: 20 }
+        teFrom: { type: number, minimum: 1, maximum: 20 }
+        rookies: { type: number, minimum: 0.5, maximum: 1.5 }
+        sleepers: { type: number, minimum: 0, maximum: 2 }
+    Veto:
+      type: object
+      required: [playerId, playerName, team, position, createdAt]
+      properties:
+        playerId: { type: string }
+        playerName: { type: string }
+        team: { type: string }
+        position: { type: string }
+        createdAt: { type: string }
     DraftPlan:
       type: object
       required: [slots]
@@ -1010,7 +1182,7 @@ components:
           description: Set when the slot proposes no ranked players — streaming rounds, or an exhausted board.
     PlanOption:
       type: object
-      required: [playerId, name, team, position, adp, availability, role]
+      required: [playerId, name, team, position, adp, availability, role, targeted, isRookie, signals]
       properties:
         playerId: { type: string }
         name: { type: string }
@@ -1025,6 +1197,17 @@ components:
         role:
           type: string
           description: What taking him does for the roster — "fills RB", "flex", or "depth".
+        targeted:
+          type: boolean
+          description: True when the user starred him — the engine boosts his score and guarantees him a slot near his price.
+        isRookie: { type: boolean }
+        signals:
+          type: array
+          description: |
+            Why the engine likes (or discounts) him beyond the market math —
+            "your guy", "rookie", "sleeper", "handcuff sleeper", "elite line",
+            "weak line", "TD rebound", "TD fade", "questionable".
+          items: { type: string }
     SleeperPick:
       type: object
       required: [playerId, name, team, position, adp, score, tags, reasons]

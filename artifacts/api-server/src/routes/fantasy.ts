@@ -7,6 +7,7 @@ import {
   type DraftPickRecord,
   type KeeperRecord,
   type LeagueSettingsRecord,
+  type PlanTuningRecord,
   type RosterSettings,
 } from "@workspace/store";
 import {
@@ -21,7 +22,11 @@ import {
   DeleteKeeperParams,
   DeleteTargetParams,
   GetDraftPicksResponse,
+  GetDraftPlanQueryParams,
   GetDraftPlanResponse,
+  GetPlanTuningResponse,
+  UpdatePlanTuningBody,
+  UpdatePlanTuningResponse,
   GetKeepersResponse,
   GetDraftSummaryResponse,
   GetLiveStatusResponse,
@@ -39,6 +44,7 @@ import {
   GetTeamLineParams,
   GetTeamLineResponse,
   GetTeamsResponse,
+  GetVetoesResponse,
   ImportKeepersBody,
   ImportKeepersResponse,
   RefreshDataResponse,
@@ -49,6 +55,9 @@ import {
   SaveTargetBody,
   SaveTargetParams,
   SaveTargetResponse,
+  SaveVetoParams,
+  SaveVetoResponse,
+  DeleteVetoParams,
   SavePlayerNoteBody,
   SavePlayerNoteParams,
   SavePlayerNoteResponse,
@@ -80,7 +89,7 @@ import {
 import { VALUE_TARGET_SD, isUnavailableStatus } from "@workspace/shared";
 import { logger } from "../lib/logger";
 import { remainingPicks } from "../lib/draft-math";
-import { buildDraftPlan } from "../lib/draft-plan";
+import { buildDraftPlan, type PlanRisk } from "../lib/draft-plan";
 import { positionalNeeds, recommend } from "../lib/recommend";
 import { findSleepers } from "../lib/sleepers";
 import { consensusValueScores } from "../lib/value";
@@ -653,28 +662,107 @@ router.get("/draft/recommendations", async (_req, res, next) => {
   }
 });
 
-router.get("/draft/plan", async (_req, res, next) => {
+router.get("/draft/plan", async (req, res, next) => {
   try {
+    const query = GetDraftPlanQueryParams.safeParse(req.query);
+    if (!query.success) {
+      res.status(400).json({ error: "Invalid plan tuning" });
+      return;
+    }
+    const { risk, reach, options, biasQB, biasRB, biasWR, biasTE, qbFrom, teFrom, rookies, sleepers } =
+      query.data;
+
     const players = await enrichedPlayers();
-    const [picks, keepers, settings] = await Promise.all([
+    const [picks, keepers, settings, targets, vetoes, savedTuning, { teams }] = await Promise.all([
       reconcilePicks(players),
       reconcileKeepers(players),
       store.leagueSettings.read(),
+      store.targets.all(),
+      store.vetoes.all(),
+      store.planTuning.read(),
+      snapshot(),
     ]);
     const myKeepers = keepers.filter((keeper) => keeper.owner === "me");
 
+    // Vetoed players are off the plan's board entirely — the user struck
+    // them, and no market signal overrules that.
+    const unavailableIds = new Set([
+      ...picks.map((pick) => pick.playerId),
+      ...keepers.map((keeper) => keeper.playerId),
+      ...vetoes.map((veto) => veto.playerId),
+    ]);
+
+    // The full signal layer: the user's starred targets, the sleeper
+    // engine's reads (a high limit so late-round flags are all present),
+    // and each team's O-line composite. The player rows already carry the
+    // advanced snapshot fields (receiving usage, TD regression).
+    const targetIds = new Set(targets.map((target) => target.playerId));
+    const sleeperById = new Map(
+      findSleepers(
+        { players, unavailableIds, teamCount: settings.teamCount },
+        players.length,
+      ).map((pick) => [pick.playerId, pick]),
+    );
+    const lineByTeam = new Map(teams.map((team) => [team.team, team.compositeScore]));
+
+    const planPlayers = players.map((player) => ({
+      ...player,
+      targeted: targetIds.has(player.id),
+      sleeperScore: sleeperById.get(player.id)?.score ?? null,
+      sleeperTags: sleeperById.get(player.id)?.tags ?? [],
+      oLineScore: lineByTeam.get(player.team) ?? null,
+      targetsPerGame: player.advanced.targetsPerGame,
+      tdOverExpected: player.advanced.tdOverExpected,
+    }));
+
     const slots = buildDraftPlan({
-      players,
-      unavailableIds: new Set([
-        ...picks.map((pick) => pick.playerId),
-        ...keepers.map((keeper) => keeper.playerId),
-      ]),
+      players: planPlayers,
+      unavailableIds,
       myRoster: [...myKeepers, ...picks].map((entry) => ({ position: entry.position })),
       roster: settings.roster,
       myNextPicks: myRemainingPicks(settings, myKeepers, picks.length),
+      // The saved strategy is the baseline; query params override per-field,
+      // so a bare call runs exactly what the user last dialed in.
+      tuning: {
+        risk: (risk as PlanRisk | undefined) ?? savedTuning.risk,
+        reachTolerance: reach ?? savedTuning.reach,
+        optionsPerSlot: options ?? savedTuning.options,
+        positionBias: {
+          QB: biasQB ?? savedTuning.biasQB,
+          RB: biasRB ?? savedTuning.biasRB,
+          WR: biasWR ?? savedTuning.biasWR,
+          TE: biasTE ?? savedTuning.biasTE,
+        },
+        qbFromRound: qbFrom ?? savedTuning.qbFrom,
+        teFromRound: teFrom ?? savedTuning.teFrom,
+        rookieLean: rookies ?? savedTuning.rookies,
+        sleeperLean: sleepers ?? savedTuning.sleepers,
+      },
     });
 
     res.json(GetDraftPlanResponse.parse({ slots }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/draft/plan/tuning", async (_req, res, next) => {
+  try {
+    res.json(GetPlanTuningResponse.parse(await store.planTuning.read()));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/draft/plan/tuning", async (req, res, next) => {
+  try {
+    const body = UpdatePlanTuningBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "Invalid plan tuning" });
+      return;
+    }
+    const saved = await store.planTuning.write(body.data as PlanTuningRecord);
+    res.json(UpdatePlanTuningResponse.parse(saved));
   } catch (error) {
     next(error);
   }
@@ -1087,6 +1175,62 @@ router.delete("/targets/:playerId", async (req, res, next) => {
       return;
     }
 
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/vetoes", async (_req, res, next) => {
+  try {
+    const vetoes = await store.vetoes.all();
+    vetoes.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    res.json(GetVetoesResponse.parse(vetoes));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/vetoes/:playerId", async (req, res, next) => {
+  try {
+    const params = SaveVetoParams.safeParse(req.params);
+    const { players } = await snapshot();
+    const player = params.success
+      ? players.find((candidate) => candidate.id === params.data.playerId)
+      : undefined;
+    if (!params.success || !player) {
+      res.status(404).json({ error: "Player not found" });
+      return;
+    }
+
+    const veto = {
+      playerId: player.id,
+      playerName: player.name,
+      team: player.team,
+      position: player.position,
+      createdAt: new Date().toISOString(),
+    };
+    const saved = await store.vetoes.upsert(veto, (record) => record.playerId === player.id);
+    res.json(SaveVetoResponse.parse(saved));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/vetoes/:playerId", async (req, res, next) => {
+  try {
+    const params = DeleteVetoParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid player id" });
+      return;
+    }
+    const removed = await store.vetoes.remove(
+      (record) => record.playerId === params.data.playerId,
+    );
+    if (removed === 0) {
+      res.status(404).json({ error: "No veto for that player" });
+      return;
+    }
     res.status(204).end();
   } catch (error) {
     next(error);

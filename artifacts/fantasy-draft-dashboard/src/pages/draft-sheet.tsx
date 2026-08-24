@@ -143,7 +143,10 @@ export default function DraftSheetPage() {
                     </span>
                     {primary ? (
                       <>
-                        <span className="font-bold">{primary.name}</span>
+                        <span className="font-bold">
+                          {primary.targeted && <span className="text-accent">★ </span>}
+                          {primary.name}
+                        </span>
                         <span className="mono text-[10px] text-muted-foreground">
                           {primary.position} · {primary.team} · ADP {fmt(primary.adp)} ·{" "}
                           {Math.round(primary.availability * 100)}% there · {primary.role}
@@ -154,9 +157,12 @@ export default function DraftSheetPage() {
                             {fallbacks.map((option, index) => (
                               <span key={option.playerId}>
                                 {index > 0 && " · "}
+                                {option.targeted && <span className="text-accent">★</span>}
                                 <span className="font-semibold text-foreground">{option.name}</span>{" "}
                                 <span className="mono text-[9px]">
                                   {option.position} {fmt(option.adp, 0)}
+                                  {option.availability < 0.2 &&
+                                    ` (${Math.round(option.availability * 100)}% — if he falls)`}
                                 </span>
                               </span>
                             ))}

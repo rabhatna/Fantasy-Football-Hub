@@ -95,4 +95,11 @@ export type PlayerAdvanced = {
   draftRound: number | null;
   /** @nullable */
   draftPick: number | null;
+  /** @nullable */
+  draftYear: number | null;
+  /**
+     * College program — prospect context for rookies.
+     * @nullable
+     */
+  college: string | null;
 };

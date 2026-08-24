@@ -328,6 +328,14 @@
 /* The draft sheet prints black-on-white regardless of theme: the page it
    produces goes to paper or PDF, where a dark terminal palette would just
    burn toner. Everything outside the sheet is hidden by print:hidden. */
+/* The draft sheet prints on US letter (8.5x11): fixed page size, tight
+   margins, and type compressed a step so the plan, hit list and cheat
+   sheet land in two pages. Sections avoid breaking mid-block. */
+@page {
+  size: letter portrait;
+  margin: 0.45in 0.5in;
+}
+
 @media print {
   :root, .dark {
     --background: 0 0% 100%;
@@ -338,8 +346,14 @@
     --muted-foreground: 0 0% 30%;
   }
   body::before { display: none; }
-  body { background: white; }
-  .sheet-body { box-shadow: none; }
+  body { background: white; font-size: 11px; }
+  .sheet-body { box-shadow: none; font-size: 10.5px; line-height: 1.35; }
+  .sheet-body h2 { font-size: 15px; }
+  .sheet-body h3 { font-size: 9.5px; }
+  .print-sheet { max-width: none !important; }
+  .sheet-body > div { break-inside: avoid-page; }
+  .sheet-body table { break-inside: auto; }
+  a { text-decoration: none; color: inherit; }
 }
 
 @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
